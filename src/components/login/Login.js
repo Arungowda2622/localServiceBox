@@ -38,54 +38,10 @@ const Login = ({ navigation }) => {
     setShowPass(!showPass);
   };
 
-const handleLogin = () => {
-  console.log("clicking");
-
-//   if (mail?.trim() && password?.trim()) {
-//     const url = `${LoanApi}/auth/login`;
-   
-//     console.log(url, "thisIshittingURL");
-
-//     fetch(url, {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify({
-//         email: mail,
-//         password: password,
-//       }),
-//     })
-//       .then((res) => res.json())
-//       .then((data) => {
-//         console.log(data, "thisIsData");
-
-//         if (!data || data?.message === "User not found" || data?.error) {
-//           Alert.alert(
-//             "Login Failed",
-//             data?.message || data?.error || "Invalid credentials"
-//           );
-//           return; // stop here
-//         }
-
-//         dispatch(setUser(data));
-//         navigation.replace("Main");
-//       })
-//       .catch((err) => {
-//         console.log(err, "thisIsError");
-//         Alert.alert(
-//           "Network Error",
-//           "Something went wrong while logging in. Please try again."
-//         );
-//       });
-
-//   } else {
-//     Alert.alert(
-//       "Missing Information",
-//       "Please enter both email and password."
-//     );
-//   }
-};
+  const handleLogin = () => {
+    console.log("clicking");
+    navigation.navigate("OuerServices")
+  };
 
 
   const handleSignUp = () => {
@@ -97,34 +53,14 @@ const handleLogin = () => {
   };
 
   const handleSubmitPhone = () => {
-    // setIsShowForgotPass(false);
-    // setIsShowOtp(true);
     console.log("clicked");
 
     if (!phoneNumber) {
       Alert.alert("Error", "Please enter your phone number");
       return;
     }
-
-    // fetch(`${LoanApi}/auth/sendOtp`, {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({ phone: phoneNumber }),
-    // })
-    //   .then((res) => res.json())
-    //   .then((data) => {
-    //     console.log(data, "thisIsData");
-    //     if (data.message === "OTP Sent") {
-    //       setIsShowForgotPass(false);
-    //       setIsShowOtp(true);
-    //     } else {
-    //       Alert.alert("Error", data.message || "Failed to send OTP");
-    //     }
-    //   })
-    //   .catch((err) => {
-    //     console.log("Network error:", err);
-    //     Alert.alert("Error", "Network error");
-    //   });
+    setIsShowForgotPass(false);
+    setIsShowNewPasswordModal(true);
   };
 
   const handleOtpChange = (value, index) => {
@@ -177,27 +113,27 @@ const handleLogin = () => {
           Please fill in your details for Login
         </Text>
         <View style={[styles.container, { marginTop: 10 }]}>
-          <Ionicons name="mail-outline" size={24}/>
+          <Ionicons name="mail-outline" size={24} />
           <TextInput
             placeholder="Enter your  email"
             onChangeText={setMail}
             value={mail}
-            style={{ flex: 1,marginLeft:10, }}
+            style={{ flex: 1, marginLeft: 10, }}
           />
         </View>
         <View style={[styles.container, { justifyContent: "space-between" }]}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Ionicons name="lock-closed-outline" size={24}/>
+            <Ionicons name="lock-closed-outline" size={24} />
             <TextInput
               placeholder="Enter your  password"
               onChangeText={setPassword}
               value={password}
               secureTextEntry={showPass ? false : true}
-              style={{ width: "75%", marginLeft:10 }}
+              style={{ width: "75%", marginLeft: 10 }}
             />
           </View>
           <Pressable onPress={handleShowPass}>
-            <Ionicons name={iconSource} size={24} style={{marginRight:15}}/>
+            <Ionicons name={iconSource} size={24} style={{ marginRight: 15 }} />
           </Pressable>
         </View>
         <View style={styles.mainBox}>
@@ -236,7 +172,7 @@ const handleLogin = () => {
           style={styles.modalOverlay}
           onPress={() => setIsShowForgotPass(false)}
         >
-          <Pressable style={styles.bottomModal} onPress={() => {}}>
+          <Pressable style={styles.bottomModal} onPress={() => { }}>
             <View
               style={{
                 flexDirection: "row",
@@ -253,16 +189,16 @@ const handleLogin = () => {
             </View>
 
             <Text style={styles.modalText}>
-              Enter your email to reset your password
+              Enter your phone number to reset your password
             </Text>
             <View style={styles.modalInput}>
-              <Ionicons name="person-outline" size={24}/>
+              <Ionicons name="person-outline" size={24} />
               <TextInput
                 placeholder="Enter your phone number"
                 keyboardType="phone-pad"
                 onChangeText={setPhoneNumber}
                 value={phoneNumber}
-                style={{ flex: 1, marginLeft:10 }}
+                style={{ flex: 1, marginLeft: 10 }}
               />
             </View>
 
@@ -272,61 +208,13 @@ const handleLogin = () => {
           </Pressable>
         </Pressable>
       </Modal>
-      <Modal
-        visible={isShowOtp}
-        transparent
-        animationType="slide" // This makes it slide from bottom
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setIsShowOtp(false)}
-        >
-          <Pressable style={styles.bottomModal} onPress={() => {}}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text style={styles.modalTitle}>Reset Password</Text>
-              <Ionicons
-                onPress={() => setIsShowOtp(false)}
-                name="close-circle-outline"
-                size={30}
-              />
-            </View>
 
-            <Text style={styles.modalText}>Enter OTP Code</Text>
-            <View style={styles.otpContainer}>
-              {otpDigits.map((digit, index) => (
-                <View style={styles.box} key={index}>
-                  <TextInput
-                    ref={(el) => (otpRefs.current[index] = el)}
-                    style={styles.otpInput}
-                    maxLength={1}
-                    keyboardType="numeric"
-                    onChangeText={(val) => handleOtpChange(val, index)}
-                    onKeyPress={(e) => handleKeyPress(e, index)}
-                    value={digit}
-                    autoFocus={index === 0}
-                  />
-                </View>
-              ))}
-            </View>
-
-            <Pressable onPress={handleSubmitOtp} style={styles.modalButton}>
-              <Text style={styles.modalButtonText}>Submit</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
       <Modal visible={isShowNewPasswordModal} transparent animationType="slide">
         <Pressable
           style={styles.modalOverlay}
           onPress={() => setIsShowNewPasswordModal(false)}
         >
-          <Pressable style={styles.bottomModal} onPress={() => {}}>
+          <Pressable style={styles.bottomModal} onPress={() => { }}>
             <View
               style={{
                 flexDirection: "row",

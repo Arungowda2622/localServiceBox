@@ -1,12 +1,18 @@
 import { FlatList, Pressable, StyleSheet, Text, View, Dimensions, SafeAreaView } from 'react-native';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../firebase/firebaseConfig";
 import Footer from '../footer/Footer';
 
 // Get the device width for proportional styling
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - 60) / 2; // Subtracting total padding (2 * 30) for a full-width container.
 
-const OuerServicesHome = ({ navigation }) => {
+const OuerServicesHome = ({ navigation, route }) => {
+  const { userDetails } = route?.params;
+
+  const [userData, setUserData] = useState(null);
+
   const services = [
     { id: 1, serviceName: "Bike Taxi", title: "BikeTaxi", subtitle: "Book now" },
     { id: 2, serviceName: "Box Delivery", title: "BoxDelivery", subtitle: "Send anything" },
@@ -14,9 +20,36 @@ const OuerServicesHome = ({ navigation }) => {
     { id: 4, serviceName: "Product", title: "Product", subtitle: "Get Products" },
   ];
 
+  useEffect(() => {
+    fetchUserData();
+  }, [])
+
+  const fetchUserData = async () => {
+    try {
+      const user = auth.currentUser; // Get currently logged-in user
+      if (!user) {
+        console.log("No user is logged in.");
+        return;
+      }
+
+      const docRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        console.log("User data:", docSnap.data());
+        // You can store this in state
+        setUserData(docSnap.data());
+      } else {
+        console.log("No such document!");
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
   const handleSelectedService = (rowData) => {
     console.log(rowData, "thisIsData");
-    navigation.navigate(rowData.title,{data: rowData});
+    navigation.navigate(rowData.title, { data: rowData });
   }
 
   const renderOurServices = ({ item, index }) => {
@@ -78,7 +111,7 @@ const OuerServicesHome = ({ navigation }) => {
 
       </View>
       {/* Footer / Bottom Navigation */}
-      <Footer />
+      <Footer navigation={navigation}/>
     </View>
   );
 };
@@ -95,7 +128,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF', // Set content background to white
-    marginTop: 50
+    marginTop: 35
   },
 
   // --- Header/Search Bar Styles ---

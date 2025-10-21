@@ -7,10 +7,14 @@ import {
   TextInput,
   Pressable,
   ScrollView,
+  Alert,
 } from "react-native";
 import React, { useState } from "react";
 import Checkbox from "expo-checkbox";
 import { Ionicons } from "@expo/vector-icons";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "../firebase/firebaseConfig";
 
 const { width, height } = Dimensions.get("window");
 
@@ -41,31 +45,25 @@ const SignUp = ({ navigation }) => {
     navigation.navigate("Login");
   };
 
-  const handleCreateAccount = () => {
-    console.log("clickedCreateAccount");
-    const bodyData = {
-      fullName: fullName,
-      email: email,
-      phone: phone,
-      password: password,
-      confirmPassword: confirmPassword,
-    };
+  const handleCreateAccount = async () => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      await setDoc(doc(db, "users", user.uid), {
+        fullName,
+        email,
+        phone,
+        password,
+        createdAt: new Date().toISOString(),
+      });
 
-    // fetch(`${LoanApi}/auth/register`, {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //   },
-    //   body: JSON.stringify(bodyData),
-    // })
-    //   .then((res) => res.json())
-    //   .then((data) => {
-    //     console.log(data, "thisIsData");
-    //     navigation.navigate("Main", { loginUser: data });
-    //   })
-    //   .catch((err) => {
-    //     console.log(err, "thisIsError");
-    //   });
+      Alert.alert("Success", "Account created successfully!");
+      navigation.navigate("Login");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Signup Failed", error.message);
+    }
+
   };
 
   return (
@@ -118,11 +116,11 @@ const SignUp = ({ navigation }) => {
               onChangeText={setPassword}
               value={password}
               secureTextEntry={showPass ? false : true}
-              style={{ width: "75%", marginLeft:10 }}
+              style={{ width: "75%", marginLeft: 10 }}
             />
           </View>
           <Pressable onPress={handleShowPass}>
-            <Ionicons name={iconSource} size={24}/>
+            <Ionicons name={iconSource} size={24} />
           </Pressable>
         </View>
         <View style={[styles.container, { justifyContent: "space-between" }]}>
@@ -133,11 +131,11 @@ const SignUp = ({ navigation }) => {
               onChangeText={setConfirmPassword}
               value={confirmPassword}
               secureTextEntry={showConfirmPass ? false : true}
-              style={{ width: "75%", marginLeft:10 }}
+              style={{ width: "75%", marginLeft: 10 }}
             />
           </View>
           <Pressable onPress={handleShowConfirmPass}>
-             <Ionicons name={iconConfirm} size={24}/>
+            <Ionicons name={iconConfirm} size={24} />
           </Pressable>
         </View>
         <View style={styles.mainBox}>

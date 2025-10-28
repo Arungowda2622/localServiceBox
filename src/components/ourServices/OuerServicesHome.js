@@ -9,8 +9,7 @@ const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - 60) / 2; // Subtracting total padding (2 * 30) for a full-width container.
 
 const OuerServicesHome = ({ navigation, route }) => {
-  const { userDetails } = route?.params;
-
+  
   const [userData, setUserData] = useState(null);
 
   const services = [

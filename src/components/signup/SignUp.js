@@ -54,9 +54,9 @@ const SignUp = ({ navigation }) => {
         email,
         phone,
         password,
+        role:"user",
         createdAt: new Date().toISOString(),
       });
-
       Alert.alert("Success", "Account created successfully!");
       navigation.navigate("Login");
     } catch (error) {

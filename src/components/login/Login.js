@@ -14,6 +14,7 @@ import Checkbox from "expo-checkbox";
 import { Ionicons } from "@expo/vector-icons";
 import { auth } from "../firebase/firebaseConfig";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get("window");
 
@@ -40,22 +41,23 @@ const Login = ({ navigation }) => {
   };
 
   const handleLogin = async () => {
-    if (!mail || !password) {
-      Alert.alert("Error", "Please enter both email and password");
-      return;
-    }
+  if (!mail || !password) {
+    Alert.alert("Error", "Please enter both email and password");
+    return;
+  }
 
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, mail, password);
-      const user = userCredential.user;
-      console.log("Logged in user:", user.email);
-      Alert.alert("Welcome", "Login successful!");
-      navigation.navigate("OuerServices",{userDetails:user});
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Login Failed", error.message);
-    }
-  };
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, mail, password);
+    const user = userCredential.user;
+    console.log("Logged in user:", user.email);
+    Alert.alert("Welcome", "Login successful!");
+    await AsyncStorage.setItem('user', JSON.stringify(user));
+  } catch (error) {
+    console.error(error);
+    Alert.alert("Login Failed", error.message);
+  }
+};
+
 
   const handleSignUp = () => {
     navigation.navigate("SignUp");

@@ -6,7 +6,6 @@ import Header from '../header/Header';
 const CartScreen = ({ route, navigation }) => {
   const { cartItems: initialItems } = route.params || {};
 
-  // Initialize each item with a quantity of 1
   const [cartItems, setCartItems] = useState(
     (initialItems || []).map(item => ({ ...item, quantity: item.quantity || 1 }))
   );
@@ -27,7 +26,7 @@ const CartScreen = ({ route, navigation }) => {
             ? { ...item, quantity: Math.max(0, item.quantity - 1) }
             : item
         )
-        .filter(item => item.quantity > 0) // Remove if quantity is 0
+        .filter(item => item.quantity > 0)
     );
   };
 
@@ -38,7 +37,7 @@ const CartScreen = ({ route, navigation }) => {
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleCheckout = () => {
-    navigation.navigate("PaymentSelection");
+    navigation.navigate("PaymentSelection",{total});
   }
 
   return (
@@ -57,15 +56,17 @@ const CartScreen = ({ route, navigation }) => {
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <View style={styles.itemCard}>
-                <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
-
+                <Image
+                  source={{ uri: item.images?.[0] || item.imageUrl }}
+                  style={styles.itemImage}
+                  resizeMode='stretch'
+                />
                 <View style={styles.itemDetails}>
                   <Text style={styles.itemName}>{item.name}</Text>
                   <Text style={styles.itemPrice}>
                     ₹{item.price.toLocaleString('en-IN')} × {item.quantity} = ₹
                     {(item.price * item.quantity).toLocaleString('en-IN')}
                   </Text>
-
                   <View style={styles.quantityContainer}>
                     <TouchableOpacity
                       style={styles.qtyButton}
@@ -73,9 +74,7 @@ const CartScreen = ({ route, navigation }) => {
                     >
                       <Ionicons name="remove" size={18} color="#000" />
                     </TouchableOpacity>
-
                     <Text style={styles.quantityText}>{item.quantity}</Text>
-
                     <TouchableOpacity
                       style={styles.qtyButton}
                       onPress={() => handleIncrease(item.id)}
@@ -84,7 +83,6 @@ const CartScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                   </View>
                 </View>
-
                 <TouchableOpacity onPress={() => handleRemove(item.id)}>
                   <Ionicons name="trash-outline" size={24} color="red" />
                 </TouchableOpacity>
@@ -93,7 +91,6 @@ const CartScreen = ({ route, navigation }) => {
             contentContainerStyle={{ paddingBottom: 120 }}
             showsVerticalScrollIndicator={false}
           />
-
           <View style={styles.footer}>
             <Text style={styles.totalText}>
               Total: ₹{total.toLocaleString('en-IN')}
@@ -158,7 +155,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     elevation: 10,
-    marginBottom:30
+    marginBottom: 30
   },
   totalText: { fontSize: 18, fontWeight: 'bold', color: '#111' },
   checkoutButton: {

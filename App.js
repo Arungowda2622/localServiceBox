@@ -23,6 +23,8 @@ import CustomDrawer from "./src/components/drawer/CustomDrawer";
 import Home from './src/components/adminScreens/Home';
 import AddAdmin from './src/components/adminScreens/AddAdmin';
 import AddProduct from './src/components/product/AddProduct';
+import NewAddress from './src/components/ourServices/product/NewAddress';
+import AddUpi from './src/components/adminScreens/AddUpi';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -41,6 +43,8 @@ function MainStack() {
       <Stack.Screen name="AdminHome" component={Home} />
       <Stack.Screen name="AddAdmin" component={AddAdmin} />
       <Stack.Screen name="AddProduct" component={AddProduct} />
+      <Stack.Screen name="NewAddress" component={NewAddress} />
+      <Stack.Screen name="AddUpi" component={AddUpi} />
     </Stack.Navigator>
   );
 }

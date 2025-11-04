@@ -1,22 +1,22 @@
-import { StyleSheet, Text, TextInput, View, FlatList, Image, TouchableOpacity } from 'react-native';
-import React, { useState } from 'react';
+import { StyleSheet, Text, TextInput, View, FlatList, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { db } from "../firebase/firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
 import Header from '../header/Header';
 
-const PRODUCTS = [
-  { id: '1', name: 'Premium Wireless Headphones', price: 149, imageUrl: 'https://thumbs.dreamstime.com/b/beautiful-tropical-rain-forest-nature-trails-ang-ka-luang-nature-trail-doi-inthanon-national-park-chiangmai-thailand-158663306.jpg' },
-  { id: '2', name: 'Smart Fitness Watch', price: 79, imageUrl: 'https://thumbs.dreamstime.com/b/beautiful-rain-forest-ang-ka-nature-trail-doi-inthanon-national-park-thailand-36703721.jpg' },
-  { id: '3', name: 'Bluetooth Speaker', price: 49, imageUrl: 'https://thumbs.dreamstime.com/b/mountain-rainforest-18715912.jpg' },
-  { id: '4', name: 'Bluetooth Speaker', price: 49, imageUrl: 'https://thumbs.dreamstime.com/b/mountain-rainforest-18715912.jpg' },
-];
-
 const ProductCard = ({ product, onAddToCart, isInCart }) => {
+  const images = product.images || (product.imageUrl ? [product.imageUrl] : []);
   return (
     <View style={productStyles.card}>
-      <Image source={{ uri: product.imageUrl }} style={productStyles.image} />
       <View style={productStyles.detailsContainer}>
+          <Image
+            source={{ uri: images[0] }}
+            style={productStyles.image}
+           
+          />
         <Text style={productStyles.name} numberOfLines={2}>{product.name}</Text>
-        <Text style={productStyles.price}>${product.price.toFixed(2)}</Text>
+        <Text style={productStyles.price}>₹{product.price.toFixed(2)}</Text>
         <TouchableOpacity
           style={[productStyles.cartButton, isInCart && { backgroundColor: '#ccc' }]}
           onPress={() => !isInCart && onAddToCart(product)}
@@ -32,18 +32,41 @@ const ProductCard = ({ product, onAddToCart, isInCart }) => {
   );
 };
 
+
 const Product = ({ navigation }) => {
   const [searchText, setSearchText] = useState('');
   const [cartItems, setCartItems] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProducts = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "products"));
+      const fetchedProducts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      console.log(fetchedProducts,"fetchedProducts");
+      setProducts(fetchedProducts);
+    } catch (error) {
+      console.log("Error fetching products: ", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const handleAddToCart = (product) => {
-    setCartItems((prev) => {
-      if (prev.some(item => item.id === product.id)) return prev; // prevent duplicate
+    setCartItems(prev => {
+      if (prev.some(item => item.id === product.id)) return prev;
       return [...prev, product];
     });
   };
 
-  const filteredProducts = PRODUCTS.filter(p =>
+  const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchText.toLowerCase())
   );
 
@@ -54,7 +77,9 @@ const Product = ({ navigation }) => {
   return (
     <View style={styles.main}>
       <Header title="Products" navigation={navigation} cartCount={cartItems.length} onCartPress={goToCart} />
+
       <View style={styles.body}>
+        {/* 🔍 Search Bar */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#555" />
           <TextInput
@@ -67,30 +92,37 @@ const Product = ({ navigation }) => {
           <MaterialIcons name="mic" size={20} color="#555" />
         </View>
 
-        <Text style={styles.resultCountText}>
-          Showing {filteredProducts.length} results
-        </Text>
+        {loading ? (
+          <ActivityIndicator size="large" style={{ marginTop: 50 }} />
+        ) : (
+          <>
+            <Text style={styles.resultCountText}>
+              Showing {filteredProducts.length} results
+            </Text>
 
-        <FlatList
-          data={filteredProducts}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ProductCard
-              product={item}
-              onAddToCart={handleAddToCart}
-              isInCart={cartItems.some(ci => ci.id === item.id)}
+            <FlatList
+              data={filteredProducts}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <ProductCard
+                  product={item}
+                  onAddToCart={handleAddToCart}
+                  isInCart={cartItems.some(ci => ci.id === item.id)}
+                />
+              )}
+              numColumns={2}
+              contentContainerStyle={styles.gridContainer}
+              showsVerticalScrollIndicator={false}
             />
-          )}
-          numColumns={2}
-          contentContainerStyle={styles.gridContainer}
-          showsVerticalScrollIndicator={false}
-        />
+          </>
+        )}
       </View>
     </View>
   );
 };
 
 export default Product;
+
 
 const styles = StyleSheet.create({
   main: { flex: 1, backgroundColor: '#F3F3F3' },

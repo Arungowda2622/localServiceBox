@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Dimensions } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons'; // Assuming you use Expo or similar icon library
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { db } from "../../firebase/firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
+import { useEffect } from "react";
 
 const { height } = Dimensions.get('window');
 
@@ -8,54 +11,60 @@ const { height } = Dimensions.get('window');
  * AddressItem sub-component for rendering a single address block.
  */
 const AddressItem = ({ address, isSelected, onSelect }) => (
-    <TouchableOpacity style={addressStyles.addressItem} onPress={() => onSelect(address.id)}>
-      {/* Radio Button */}
-      <View style={addressStyles.radioContainer}>
-        <View style={[addressStyles.radioOuter, isSelected && addressStyles.radioSelectedOuter]}>
-          {isSelected && <View style={addressStyles.radioInner} />}
-        </View>
+  <TouchableOpacity style={addressStyles.addressItem} onPress={() => onSelect(address.id)}>
+    {/* Radio Button */}
+    <View style={addressStyles.radioContainer}>
+      <View style={[addressStyles.radioOuter, isSelected && addressStyles.radioSelectedOuter]}>
+        {isSelected && <View style={addressStyles.radioInner} />}
       </View>
-      {/* Address Details */}
-      <View style={addressStyles.addressTextContent}>
-        <Text style={addressStyles.addressName}>{address.name}</Text>
-        <Text style={addressStyles.addressDetails}>{address.details}</Text>
-        <Text style={addressStyles.addressPhone}>Phone number: {address.phone}</Text>
-      </View>
-    </TouchableOpacity>
+    </View>
+    {/* Address Details */}
+    <View style={addressStyles.addressTextContent}>
+      <Text style={addressStyles.addressName}>{address.name}</Text>
+      <Text style={addressStyles.addressDetails}>{address.details}</Text>
+      <Text style={addressStyles.addressPhone}>Phone number: {address.phone}</Text>
+    </View>
+  </TouchableOpacity>
 );
 
-
-/**
- * AddressSelectionScreen Component
- * Represents the screen where the user selects or changes the delivery address.
- * @param {object} props
- * @param {function} props.onDeliverClick - Function to confirm the address and go back to payment screen.
- * @param {function} props.onBackToPayment - Function to handle the back arrow/back to cart navigation.
- */
-const AddressSelectionScreen = ({ onDeliverClick, onBackToPayment }) => {
+const AddressSelectionScreen = ({ onDeliverClick, onBackToPayment, route }) => {
+  const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(1);
 
-  const addresses = [
-    {
-      id: 1,
-      name: "Arun kumar k",
-      details: "#51, jeenugudu nilaya, 2nd cross, 2nd main, Vinayaka nagar, Banashankari 1st stage,, BENGALURU, KARNATAKA, 560050, India",
-      phone: "9108802825"
-    },
-    {
-      id: 2,
-      name: "Arun kumar k",
-      details: "05, Kodihalli, Bidadi, KARNATAKA, 562109, India",
-      phone: "9108802825"
+  const { navigation } = route?.params;
+  
+  useEffect(() => {
+    fetchAddresses();
+  }, []);
+
+  const fetchAddresses = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "addresses"));
+
+      const addressList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setAddresses(addressList);
+      if (addressList.length > 0) {
+        setSelectedAddress(addressList[0].id); // ✅ auto-select first address
+      }
+
+    } catch (error) {
+      console.log("Error fetching addresses:", error);
     }
-    // More addresses would be here
-  ];
+  };
+
+  const handleNewAddress = () => {
+    navigation.navigate("NewAddress");
+  }
 
   return (
-    <SafeAreaView style={addressStyles.flexContainer}>
+    <View style={addressStyles.flexContainer}>
       <View style={[addressStyles.header, addressStyles.addressHeader]}>
         <TouchableOpacity onPress={onBackToPayment}>
-            <MaterialIcons name="arrow-back" size={24} color="#000" />
+          <MaterialIcons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => console.log('Cancel clicked')}>
           <Text style={addressStyles.headerText}>CANCEL</Text>
@@ -63,7 +72,7 @@ const AddressSelectionScreen = ({ onDeliverClick, onBackToPayment }) => {
       </View>
 
       <ScrollView contentContainerStyle={addressStyles.scrollContainer}>
-        
+
         {/* Deliver Button */}
         <TouchableOpacity style={addressStyles.deliverButton} onPress={onDeliverClick}>
           <Text style={addressStyles.deliverButtonText}>Deliver to this address</Text>
@@ -82,23 +91,26 @@ const AddressSelectionScreen = ({ onDeliverClick, onBackToPayment }) => {
           {addresses.map((address) => (
             <AddressItem
               key={address.id}
-              address={address}
+              address={{
+                id: address.id,
+                name: address.fullName,
+                details: `${address.address}, ${address.city}, ${address.state}, ${address.pinCode}`,
+                phone: address.mobileNumber
+              }}
               isSelected={selectedAddress === address.id}
               onSelect={setSelectedAddress}
             />
           ))}
-
           {/* Show More */}
           <TouchableOpacity style={addressStyles.showMoreButton} onPress={() => console.log('Show more addresses clicked')}>
             <Text style={addressStyles.showMoreText}>Show more addresses</Text>
             <MaterialIcons name="keyboard-arrow-down" size={20} color="#007bff" />
           </TouchableOpacity>
         </View>
-
         {/* Add Delivery Address Section */}
         <View style={addressStyles.addAddressSection}>
           <Text style={addressStyles.addAddressTitle}>Add delivery address</Text>
-          <TouchableOpacity style={addressStyles.addNewAddressButton} onPress={() => console.log('Add new address clicked')}>
+          <TouchableOpacity style={addressStyles.addNewAddressButton} onPress={() => handleNewAddress()}>
             <Text style={addressStyles.addNewAddressText}>Add a new delivery address</Text>
           </TouchableOpacity>
           <Text style={addressStyles.orText}>or</Text>
@@ -107,7 +119,7 @@ const AddressSelectionScreen = ({ onDeliverClick, onBackToPayment }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -255,10 +267,10 @@ const addressStyles = StyleSheet.create({
     color: '#007bff',
     fontSize: 16,
   },
-  
+
   // --- Radio Button Styles ---
   radioContainer: {
-    paddingTop: 5, 
+    paddingTop: 5,
   },
   radioOuter: {
     height: 20,

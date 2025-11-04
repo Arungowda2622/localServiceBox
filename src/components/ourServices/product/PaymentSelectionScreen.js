@@ -1,20 +1,87 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Dimensions } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons'; // Assuming you use Expo or similar icon library
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Dimensions, Linking, Pressable, Alert } from 'react-native';
+import { db } from "../../firebase/firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 const { height } = Dimensions.get('window');
 
-const PaymentSelectionScreen = ({navigation}) => {
-  const [selectedPayment, setSelectedPayment] = useState('Amazon Pay Balance');
+const PaymentSelectionScreen = ({ navigation, route }) => {
+  const {total} = route?.params;
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddress, setSelectedAddress] = useState(1);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [upis, setUpis] = useState([]);
+  const [selectedUpiId, setSelectedUpiId] = useState([]);
 
-  const deliveryAddress = "#115 2nd floor 2nd main 3rd Cross, Ramaiah layout Meghanpalya, Chelekere extension, hennur cross, BENGALURU, KARNATAKA, 560043, India";
+  useEffect(() => {
+    fetchUpis()
+    fetchAddresses();
+  }, []);
+
+  const fetchUpis = async () => {
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) return;
+      const q = await getDocs(collection(db, "upi_ids"));
+      const list = q.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((doc) => doc.userId === user.uid);
+        console.log(list,"thisIsUPILIST");
+        
+      setUpis(list);
+      if (list.length > 0) setSelectedUpiId(list[0].id);
+    } catch (err) {
+      console.log("fetchUpis err", err);
+    }
+  };
+
+  const fetchAddresses = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "addresses"));
+
+      const addressList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setAddresses(addressList);
+      console.log(addressList[0].address, "addressList");
+      if (addressList.length > 0) {
+        setSelectedAddress(addressList[0].id); // ✅ auto-select first address
+      }
+
+    } catch (error) {
+      console.log("Error fetching addresses:", error);
+    }
+  };
 
   const onAddressChangeClick = () => {
-    navigation.navigate("AddressSelection");
+    navigation.navigate("AddressSelection", { navigation });
+  }
+
+  const handleContinue = async (row) => {
+    const PAYEE_NAME = "Product"
+    const upiUrl = `upi://pay?pa=${row.upi}&pn=${PAYEE_NAME}&tn=BikeTaxiFare&am=${total}&cu=INR`;
+    try {
+      const supported = await Linking.canOpenURL(upiUrl);
+      if (supported) {
+        await Linking.openURL(upiUrl);
+      } else {
+        Alert.alert(
+          'UPI App Not Found',
+          'No UPI app found on your device. Please install Google Pay, PhonePe, or PayTM to proceed.'
+        );
+      }
+    } catch (error) {
+      console.error('UPI payment error:', error);
+      Alert.alert('Payment Error', 'Unable to initiate UPI payment. Try again.');
+    }
   }
 
   return (
-    <SafeAreaView style={styles.flexContainer}>
+    <View style={styles.flexContainer}>
       {/* Header (Orange bar with CANCEL) */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => console.log('Cancel clicked')}>
@@ -22,95 +89,63 @@ const PaymentSelectionScreen = ({navigation}) => {
         </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        
+
         {/* Delivery Address Section */}
         <View style={styles.deliverySection}>
-          <Text style={styles.deliveryTitle}>Delivering to Arun kumar k</Text>
-          <Text style={styles.deliveryAddress}>{deliveryAddress}</Text>
+
+          {addresses.length === 0 ? (
+            <Text>Loading address...</Text>
+          ) : (
+            <View>
+              <Text style={styles.deliveryTitle}>Delivering to {addresses[0].fullName}</Text>
+              <Text style={styles.deliveryAddress}>
+                {`${addresses[0].address}, ${addresses[0].city}, ${addresses[0].state}, ${addresses[0].pinCode}`}
+              </Text>
+            </View>
+          )}
           <TouchableOpacity onPress={onAddressChangeClick} style={styles.changeAddressButton}>
             <Text style={styles.changeAddressText}>Change delivery address</Text>
           </TouchableOpacity>
         </View>
 
         {/* Continue Button */}
-        <TouchableOpacity style={styles.continueButton} onPress={() => console.log('Continue clicked')}>
+        {/* <TouchableOpacity style={styles.continueButton} onPress={() => handleContinue()}>
           <Text style={styles.continueButtonText}>Continue</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* Payment Methods Section */}
         <View style={styles.paymentMethodsSection}>
           <Text style={styles.paymentSectionTitle}>Select a payment method</Text>
           <Text style={styles.paymentSectionSubtitle}>RECOMMENDED</Text>
 
-          {/* Amazon Pay Balance */}
-          <TouchableOpacity
-            style={styles.paymentOption}
-            onPress={() => setSelectedPayment('Amazon Pay Balance')}
-          >
-            {/* Radio Button */}
-            <View style={styles.radioContainer}>
-              <View style={[styles.radioOuter, selectedPayment === 'Amazon Pay Balance' && styles.radioSelectedOuter]}>
-                {selectedPayment === 'Amazon Pay Balance' && <View style={styles.radioInner} />}
-              </View>
-            </View>
-            <View style={styles.paymentTextContainer}>
-              <Text style={styles.paymentTag}>Previously used</Text>
-              <Text style={styles.paymentName}>Amazon Pay Balance</Text>
-              <Text style={styles.balanceText}>Available balance: ₹3,221.31</Text>
-            </View>
-            <Text style={styles.payIcon}>pay</Text>
-          </TouchableOpacity>
-          
-          {/* Amazon Pay UPI */}
-          <TouchableOpacity
-            style={styles.paymentOption}
-            onPress={() => setSelectedPayment('Amazon Pay UPI')}
-          >
-            {/* Radio Button */}
-            <View style={styles.radioContainer}>
-              <View style={[styles.radioOuter, selectedPayment === 'Amazon Pay UPI' && styles.radioSelectedOuter]}>
-                {selectedPayment === 'Amazon Pay UPI' && <View style={styles.radioInner} />}
-              </View>
-            </View>
-            <View style={styles.paymentTextContainer}>
-              <Text style={styles.paymentTag}>Featured</Text>
-              <Text style={styles.paymentName}>Amazon Pay UPI</Text>
-              <Text style={styles.balanceText}>IDBI Bank **2113</Text>
-              <TouchableOpacity onPress={() => console.log('Check balance')}>
-                <Text style={styles.checkBalanceText}>Check balance</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.payIcon}>pay</Text>
-          </TouchableOpacity>
-
           <Text style={styles.upiSeparator}>UPI</Text>
-          
+
           {/* Pay by any UPI App */}
-          <TouchableOpacity
-            style={styles.paymentOption}
-            onPress={() => setSelectedPayment('Other UPI')}
-          >
+          <View style={styles.paymentOption}>
             {/* Radio Button */}
-            <View style={styles.radioContainer}>
+            {/* <View style={styles.radioContainer}>
               <View style={[styles.radioOuter, selectedPayment === 'Other UPI' && styles.radioSelectedOuter]}>
                 {selectedPayment === 'Other UPI' && <View style={styles.radioInner} />}
               </View>
-            </View>
+            </View> */}
             <View style={styles.paymentTextContainer}>
               <Text style={styles.paymentName}>Pay by any UPI App</Text>
               <Text style={styles.balanceText}>Google Pay, PhonePe, Paytm and more</Text>
             </View>
             <Text style={styles.payIcon}>UPI</Text>
-          </TouchableOpacity>
-          
-          {/* Add account */}
-          <TouchableOpacity style={styles.addAccountButton} onPress={() => console.log('Add account clicked')}>
-            <MaterialIcons name="add-circle-outline" size={20} color="#007bff" />
-            <Text style={styles.addAccountText}>Add account to Amazon Pay UPI</Text>
-          </TouchableOpacity>
+          </View>
+          {
+            upis.map((item,index)=>{
+              return(
+                <Pressable onPress={()=> handleContinue(item)} style={{marginVertical:10}} key={index}>
+                  <Text>{item.upi}</Text>
+                </Pressable>
+              )
+            })
+          }
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -137,8 +172,6 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingBottom: 20,
   },
-
-  // --- Delivery Section ---
   deliverySection: {
     padding: 20,
     borderBottomWidth: 8,
@@ -159,8 +192,6 @@ const styles = StyleSheet.create({
     color: '#007bff',
     fontSize: 15,
   },
-
-  // --- Continue Button ---
   continueButton: {
     backgroundColor: '#ff9900',
     padding: 15,
@@ -174,8 +205,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-
-  // --- Payment Methods Section ---
   paymentMethodsSection: {
     padding: 20,
   },
@@ -200,11 +229,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
   },
-  paymentTag: {
-    fontSize: 10,
-    color: 'green',
-    fontWeight: 'bold',
-  },
   paymentName: {
     fontSize: 16,
     color: '#000',
@@ -224,11 +248,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     alignSelf: 'flex-start', // Align pay icon to the top of the line
   },
-  checkBalanceText: {
-    color: '#007bff',
-    fontSize: 12,
-    marginTop: 3,
-  },
   upiSeparator: {
     fontSize: 12,
     fontWeight: 'bold',
@@ -236,20 +255,8 @@ const styles = StyleSheet.create({
     marginTop: 15,
     marginBottom: 5,
   },
-  addAccountButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-  },
-  addAccountText: {
-    color: '#007bff',
-    fontSize: 15,
-    marginLeft: 5,
-  },
-  
-  // --- Radio Button Styles ---
   radioContainer: {
-    paddingTop: 5, 
+    paddingTop: 5,
   },
   radioOuter: {
     height: 20,

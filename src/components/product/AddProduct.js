@@ -6,18 +6,13 @@ import {
   Pressable,
   Alert,
   ScrollView,
-  Button,
-  Image
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase/firebaseConfig";
 import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import Header from "../header/Header";
-import * as ImagePicker from "expo-image-picker";
 
 const AddProduct = ({ navigation }) => {
-  const [image, setImage] = useState(null);
-  const [uploading, setUploading] = useState(false);
 
   const [productDetails, setProductDetails] = useState({
     name: "",
@@ -27,12 +22,20 @@ const AddProduct = ({ navigation }) => {
   });
 
   const handleAddProduct = async () => {
-    const { name, price, imageUrl } = productDetails;
-    console.log(productDetails,"thisIsProductDetails");
-    
+    const { name, price, imageUrl, description } = productDetails;
 
     if (!name || !price || !imageUrl) {
-      Alert.alert("Missing Fields", "Product name, price & image are required!");
+      Alert.alert("Missing Fields", "Product name, price & images are required!");
+      return;
+    }
+
+    const imageArray = imageUrl
+      .split(",")
+      .map(img => img.trim())
+      .filter(img => img.startsWith("https://"));
+
+    if (imageArray.length === 0) {
+      Alert.alert("Invalid Image URLs", "Enter valid HTTPS image URLs!");
       return;
     }
 
@@ -41,6 +44,7 @@ const AddProduct = ({ navigation }) => {
         collection(db, "products"),
         where("name", "==", name)
       );
+
       const checkSnapshot = await getDocs(checkQuery);
 
       if (!checkSnapshot.empty) {
@@ -49,34 +53,22 @@ const AddProduct = ({ navigation }) => {
       }
 
       await addDoc(collection(db, "products"), {
-        ...productDetails,
+        name,
         price: Number(price),
+        images: imageArray, // ✅ store as array
+        description,
         createdAt: new Date().toISOString()
       });
 
       Alert.alert("Success", "Product added successfully!");
       navigation.goBack();
+
     } catch (error) {
       console.log(error);
       Alert.alert("Error", "Failed to add product!");
     }
   };
 
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-
-    console.log(result);
-
-    if (!result.canceled) {
-      setProductDetails(prev => ({ ...prev, imageUrl: result.assets[0].uri }));
-      setImage(result.assets[0].uri);
-    }
-  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -102,12 +94,16 @@ const AddProduct = ({ navigation }) => {
           }
         />
 
-        <Text style={styles.label}>Product Image</Text>
-        <Button title="Choose Image" onPress={pickImage} />
-        <Image
-          source={{ uri: image }}
-          style={{ width: 140, height: 140, marginTop: 10, borderRadius: 10 }}
+        <Text style={styles.label}>Product Images (Comma Separated HTTPS URLs)</Text>
+        <TextInput
+          style={styles.input}
+          value={productDetails.imageUrl}
+          onChangeText={(text) =>
+            setProductDetails({ ...productDetails, imageUrl: text })
+          }
         />
+
+
         <Text style={styles.label}>Description</Text>
         <TextInput
           style={[styles.input, { height: 80 }]}

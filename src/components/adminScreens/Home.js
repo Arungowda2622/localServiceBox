@@ -13,6 +13,10 @@ const Home = ({ navigation }) => {
         navigation.navigate("AddProduct");
     }
 
+    const handleAddUpi = () => {
+        navigation.navigate("AddUpi");
+    }
+
     return (
         <View style={styles.main}>
             <Header navigation={navigation} title={"Admin"} />
@@ -25,6 +29,10 @@ const Home = ({ navigation }) => {
                 <Pressable onPress={handleAddProduct} style={styles.btns}>
                     <Ionicons name='add' size={20}/>
                     <Text> Product</Text>
+                </Pressable>
+                <Pressable onPress={handleAddUpi} style={styles.btns}>
+                    <Ionicons name='add' size={20}/>
+                    <Text> UPI</Text>
                 </Pressable>
                 </View>
             </View>

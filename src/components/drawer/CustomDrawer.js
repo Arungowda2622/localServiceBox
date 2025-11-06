@@ -50,7 +50,7 @@ export default function CustomDrawer(props) {
           <Text style={styles.menuText}>Profile</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Orders')} style={styles.menuItem}>
+       <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'Orders' })} style={styles.menuItem}>
           <Ionicons name="cart-outline" size={22} color="#333" style={styles.menuIcon}/>
           <Text style={styles.menuText}>Orders</Text>
         </TouchableOpacity>

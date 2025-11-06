@@ -25,6 +25,9 @@ import AddAdmin from './src/components/adminScreens/AddAdmin';
 import AddProduct from './src/components/product/AddProduct';
 import NewAddress from './src/components/ourServices/product/NewAddress';
 import AddUpi from './src/components/adminScreens/AddUpi';
+import Orders from './src/components/screens/Orders';
+import UpdateOrders from './src/components/adminScreens/UpdateOrders';
+import BakiTaxiPrice from './src/components/adminScreens/BakiTaxiPrice';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -45,6 +48,9 @@ function MainStack() {
       <Stack.Screen name="AddProduct" component={AddProduct} />
       <Stack.Screen name="NewAddress" component={NewAddress} />
       <Stack.Screen name="AddUpi" component={AddUpi} />
+      <Stack.Screen name="Orders" component={Orders} />
+      <Stack.Screen name="UpdateOrders" component={UpdateOrders} />
+      <Stack.Screen name="BakiTaxiPrice" component={BakiTaxiPrice} />
     </Stack.Navigator>
   );
 }

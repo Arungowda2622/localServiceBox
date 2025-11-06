@@ -4,17 +4,15 @@ import React from 'react';
 const Footer = ({ navigation }) => {
 
   const navItems = [
-    { name: 'Bike Taxi', icon: '🛵' },
-    { name: 'Parcel', icon: '📦' },
+    // { name: 'Bike Taxi', icon: '🛵' },
+    { name: 'Orders', icon: '🧾' },
     { name: 'Profile', icon: '👤' },
   ];
 
   const handlePress = (item) => {
     if (item.name === 'Profile') {
-      // 👇 Open Drawer when Profile is pressed
       navigation.openDrawer();
     } else {
-      // Handle other navigation cases
       navigation.navigate(item.name);
     }
   };

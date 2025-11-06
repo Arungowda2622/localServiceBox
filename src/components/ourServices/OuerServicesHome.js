@@ -1,16 +1,7 @@
-import { FlatList, Pressable, StyleSheet, Text, View, Dimensions, SafeAreaView } from 'react-native';
-import React, { useEffect, useState } from 'react';
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase/firebaseConfig";
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Footer from '../footer/Footer';
 
-// Get the device width for proportional styling
-const { width } = Dimensions.get('window');
-const ITEM_WIDTH = (width - 60) / 2; // Subtracting total padding (2 * 30) for a full-width container.
-
 const OuerServicesHome = ({ navigation, route }) => {
-  
-  const [userData, setUserData] = useState(null);
 
   const services = [
     { id: 1, serviceName: "Bike Taxi", title: "BikeTaxi", subtitle: "Book now" },
@@ -19,41 +10,16 @@ const OuerServicesHome = ({ navigation, route }) => {
     { id: 4, serviceName: "Product", title: "Product", subtitle: "Get Products" },
   ];
 
-  useEffect(() => {
-    fetchUserData();
-  }, [])
-
-  const fetchUserData = async () => {
-    try {
-      const user = auth.currentUser; // Get currently logged-in user
-      if (!user) {
-        console.log("No user is logged in.");
-        return;
-      }
-
-      const docRef = doc(db, "users", user.uid);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        console.log("User data:", docSnap.data());
-        // You can store this in state
-        setUserData(docSnap.data());
-      } else {
-        console.log("No such document!");
-      }
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-    }
-  };
-
   const handleSelectedService = (rowData) => {
-    console.log(rowData, "thisIsData");
-    navigation.navigate(rowData.title, { data: rowData });
+    if (rowData.title === "Services") {
+      Alert.alert("Service unavailable right now. Coming soon!");
+    } else {
+      navigation.navigate(rowData.title, { data: rowData });
+    }
   }
 
   const renderOurServices = ({ item, index }) => {
     const isEven = index % 2 === 0;
-
     // Custom icon/image display for visual similarity to the screenshot
     let iconContent = null;
     if (item.id === 1) iconContent = <Text style={styles.cardImageText}>🛵</Text>; // Bike Taxi
@@ -110,7 +76,7 @@ const OuerServicesHome = ({ navigation, route }) => {
 
       </View>
       {/* Footer / Bottom Navigation */}
-      <Footer navigation={navigation}/>
+      <Footer navigation={navigation} />
     </View>
   );
 };

@@ -15,10 +15,11 @@ import {
     View
 } from 'react-native';
 import MapComponent from '../map/MapComponent';
+import { db } from '../../firebase/firebaseConfig';
+import { collection, getDocs } from 'firebase/firestore';
 
 const { width, height } = Dimensions.get('window');
 
-// Utility debounce
 const debounce = (fn, delay) => {
     let timeout;
     return (...args) => {
@@ -27,7 +28,7 @@ const debounce = (fn, delay) => {
     };
 };
 
-const LocationSelection = ({navigation}) => {
+const LocationSelection = ({ navigation }) => {
     const [pickupLocation, setPickupLocation] = useState(null);
     const [destinationLocation, setDestinationLocation] = useState(null);
     const [userLocation, setUserLocation] = useState(null);
@@ -40,6 +41,7 @@ const LocationSelection = ({navigation}) => {
     const [routeInfo, setRouteInfo] = useState(null);
     const [routeCoordinates, setRouteCoordinates] = useState([]);
     const [manualLocationInput, setManualLocationInput] = useState('');
+    const [pricePerKm, setPricePerKm] = useState(null);
 
     const [region, setRegion] = useState({
         latitude: 9.452,
@@ -53,29 +55,22 @@ const LocationSelection = ({navigation}) => {
     useEffect(() => {
         const fetchNearby = async () => {
             if (!userLocation) return;
-
             try {
                 const { latitude, longitude } = userLocation;
-
                 const latMin = latitude - 0.05;
                 const latMax = latitude + 0.05;
                 const lonMin = longitude - 0.05;
                 const lonMax = longitude + 0.05;
-
-                // ✅ Added q=* to avoid "Nothing to search for"
                 const response = await fetch(
                     `https://nominatim.openstreetmap.org/search?format=json&q=*&bounded=1&addressdetails=1&limit=20&viewbox=${lonMin},${latMax},${lonMax},${latMin}`,
                     { headers: { 'User-Agent': 'TaxiBookingApp/1.0' } }
                 );
-
                 const data = await response.json();
-
                 if (!Array.isArray(data)) {
                     console.error('Unexpected Nominatim response:', data);
                     setNearbyLocations([]);
                     return;
                 }
-
                 const nearby = data
                     .filter(
                         (item) =>
@@ -97,16 +92,32 @@ const LocationSelection = ({navigation}) => {
                     }))
                     .filter((loc) => loc.distance <= 10)
                     .sort((a, b) => a.distance - b.distance);
-
                 setNearbyLocations(nearby);
             } catch (error) {
                 console.error('Nearby fetch error:', error);
                 setNearbyLocations([]);
             }
         };
-
         fetchNearby();
     }, [userLocation]);
+
+    useEffect(() => {
+        const fetchPricePerKm = async () => {
+            try {
+                const snapshot = await getDocs(collection(db, 'taxiPrices'));
+                if (!snapshot.empty) {
+                    const docData = snapshot.docs[0].data();
+                    setPricePerKm(docData.pricePerKm);
+                } else {
+                    console.warn("No price per km found in database.");
+                }
+            } catch (error) {
+                console.error("Error fetching price per km:", error);
+            }
+        };
+
+        fetchPricePerKm();
+    }, []);
 
     const formatDuration = (minutes) => {
         if (minutes < 60) return `${Math.ceil(minutes)} min`;
@@ -142,42 +153,6 @@ const LocationSelection = ({navigation}) => {
             Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon / 2) ** 2;
         return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
-    };
-
-    const calculateRelevanceScore = (location, query) => {
-        let score = 0;
-        const queryLower = query.toLowerCase();
-        const nameLower = location.name.toLowerCase();
-        const addressLower = location.address.toLowerCase();
-
-        if (nameLower === queryLower) score += 100;
-        if (nameLower.startsWith(queryLower)) score += 50;
-        if (addressLower.startsWith(queryLower)) score += 30;
-        if (nameLower.includes(queryLower)) score += 20;
-        if (addressLower.includes(queryLower)) score += 10;
-        if (location.type && queryLower.includes(location.type)) score += 15;
-
-        if (userLocation) {
-            const dist = calculateDistance(
-                userLocation.latitude,
-                userLocation.longitude,
-                location.latitude,
-                location.longitude
-            );
-            if (dist < 10) score += 25;
-            else if (dist < 50) score += 10;
-        }
-        return score;
-    };
-
-    const removeDuplicateLocations = (locations) => {
-        const seen = new Set();
-        return locations.filter((loc) => {
-            const key = `${loc.latitude.toFixed(4)}-${loc.longitude.toFixed(4)}-${loc.name.substring(0, 20)}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
     };
 
     const extractBestName = (item) => {
@@ -374,33 +349,6 @@ const LocationSelection = ({navigation}) => {
         });
     };
 
-    const handleManualLocationSelect = (location) => {
-        const selectedLocation = {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            address: location.address,
-            name: location.name,
-        };
-
-        if (locationInputType === 'pickup') {
-            setPickupLocation(selectedLocation);
-        } else {
-            setDestinationLocation(selectedLocation);
-        }
-
-        setShowLocationInput(false);
-        setManualLocationInput('');
-        setSearchQuery('');
-        setSearchResults([]);
-
-        setRegion({
-            latitude: location.latitude,
-            longitude: location.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-        });
-    };
-
     const handleManualLocationSearch = async () => {
         if (!manualLocationInput.trim()) {
             Alert.alert('Error', 'Please enter a location name or address');
@@ -455,7 +403,6 @@ const LocationSelection = ({navigation}) => {
             setIsLoading(false);
         }
     };
-
 
     const decodePolyline = (encoded) => {
         const points = [];
@@ -551,20 +498,10 @@ const LocationSelection = ({navigation}) => {
         });
     };
 
-    const calculateFare = (distance, service) => {
-        let fare = 0;
-
-        if (service === 'Local') {
-            fare = distance <= 10 ? 400 : 400 + (distance - 10) * 15;
-        } else if (service === 'Rental') {
-            const baseFare = 2499;
-            const includedKm = 80;
-            fare = baseFare + Math.max(0, distance - includedKm) * 15;
-        } else if (service === 'Outstation') {
-            fare = distance * 14;
-        }
-
-        return fare;
+    const calculateFare = (distance) => {
+        if (!pricePerKm) return 0;
+        const fare = distance * pricePerKm;
+        return Math.round(fare);
     };
 
     const generateCurvedRoute = (start, end) => {
@@ -733,6 +670,11 @@ const LocationSelection = ({navigation}) => {
                                     <View>
                                         <Text style={styles.routeFareLabel}>Estimated Fare</Text>
                                         <Text style={styles.routeFare}>₹{routeInfo.fare}</Text>
+                                        {pricePerKm && (
+                                            <Text style={styles.priceInfo}>
+                                                (₹{pricePerKm} per km × {routeInfo.distance} km)
+                                            </Text>
+                                        )}
                                     </View>
                                 </View>
                             </View>
@@ -752,7 +694,7 @@ const LocationSelection = ({navigation}) => {
             {isLoading && (
                 <View style={styles.loadingOverlay}>
                     <ActivityIndicator size="large" color="#4285F4" />
-                    <Text style={styles.loadingText}>Fetching your current location…</Text>
+                    <Text style={styles.loadingText}>Finding the best route...</Text>
                 </View>
             )}
             <Modal
@@ -1149,7 +1091,7 @@ const styles = StyleSheet.create({
         shadowRadius: 5,
         elevation: 10,
         width: '100%',
-        marginVertical:10
+        marginVertical: 10
     },
     routeDetailsWrapper: {
         // Container for all text details on the left
@@ -1216,5 +1158,10 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#FFFFFF', // White text on colored button
         letterSpacing: 0.5,
+    },
+    priceInfo: {
+        fontSize: 12,
+        color: '#666',
+        marginTop: 2,
     },
 });

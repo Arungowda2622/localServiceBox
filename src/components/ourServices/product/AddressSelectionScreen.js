@@ -1,296 +1,160 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import React, { useEffect, useState } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 import { db } from "../../firebase/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
-import { useEffect } from "react";
+import Header from "../../header/Header";
 
-const { height } = Dimensions.get('window');
-
-/**
- * AddressItem sub-component for rendering a single address block.
- */
-const AddressItem = ({ address, isSelected, onSelect }) => (
-  <TouchableOpacity style={addressStyles.addressItem} onPress={() => onSelect(address.id)}>
-    {/* Radio Button */}
-    <View style={addressStyles.radioContainer}>
-      <View style={[addressStyles.radioOuter, isSelected && addressStyles.radioSelectedOuter]}>
-        {isSelected && <View style={addressStyles.radioInner} />}
-      </View>
-    </View>
-    {/* Address Details */}
-    <View style={addressStyles.addressTextContent}>
-      <Text style={addressStyles.addressName}>{address.name}</Text>
-      <Text style={addressStyles.addressDetails}>{address.details}</Text>
-      <Text style={addressStyles.addressPhone}>Phone number: {address.phone}</Text>
-    </View>
-  </TouchableOpacity>
-);
-
-const AddressSelectionScreen = ({ onDeliverClick, onBackToPayment, route }) => {
+const AddressSelectionScreen = ({ navigation }) => {
   const [addresses, setAddresses] = useState([]);
-  const [selectedAddress, setSelectedAddress] = useState(1);
-
-  const { navigation } = route?.params;
-  
-  useEffect(() => {
-    fetchAddresses();
-  }, []);
+  const [selectedAddress, setSelectedAddress] = useState(null);
 
   const fetchAddresses = async () => {
     try {
-      const snapshot = await getDocs(collection(db, "addresses"));
-
-      const addressList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
+      const querySnapshot = await getDocs(collection(db, "addresses"));
+      const addressList = [];
+      querySnapshot.forEach((doc) => {
+        addressList.push({ id: doc.id, ...doc.data() });
+      });
       setAddresses(addressList);
-      if (addressList.length > 0) {
-        setSelectedAddress(addressList[0].id); // ✅ auto-select first address
-      }
-
     } catch (error) {
-      console.log("Error fetching addresses:", error);
+      console.error("Error fetching addresses: ", error);
     }
   };
 
-  const handleNewAddress = () => {
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", fetchAddresses);
+    return unsubscribe;
+  }, [navigation]);
+
+  const onAddNewAddress = () => {
     navigation.navigate("NewAddress");
-  }
+  };
+
+  const onDeliverClick = () => {
+    const selected = addresses.find((a) => a.id === selectedAddress);
+    if (selected) {
+      navigation.navigate("PaymentSelection", { selectedAddress: selected });
+    } else {
+      alert("Please select an address first!");
+    }
+  };
 
   return (
-    <View style={addressStyles.flexContainer}>
-      <View style={[addressStyles.header, addressStyles.addressHeader]}>
-        <TouchableOpacity onPress={onBackToPayment}>
-          <MaterialIcons name="arrow-back" size={24} color="#000" />
+    <View style={addressStyles.safeArea}>
+      <Header navigation={navigation} title="Select Delivery Address" />
+      <ScrollView style={addressStyles.mainContainer}>
+        {addresses.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            style={[
+              addressStyles.addressCard,
+              selectedAddress === item.id && addressStyles.selectedCard,
+            ]}
+            onPress={() => setSelectedAddress(item.id)}
+          >
+            <Text style={addressStyles.name}>{item.fullName}</Text>
+            <Text style={addressStyles.addressText}>
+              {`${item.address}, ${item.city}, ${item.state}, ${item.pinCode}`}
+            </Text>
+            <Text style={addressStyles.phone}>📞 {item.mobileNumber}</Text>
+          </TouchableOpacity>
+        ))}
+
+        <TouchableOpacity
+          style={addressStyles.addButton}
+          onPress={onAddNewAddress}
+        >
+          <Text style={addressStyles.addButtonText}>+ Add New Address</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => console.log('Cancel clicked')}>
-          <Text style={addressStyles.headerText}>CANCEL</Text>
+      </ScrollView>
+
+      <View style={addressStyles.bottomContainer}>
+        <TouchableOpacity
+          style={addressStyles.deliverButton}
+          onPress={onDeliverClick}
+        >
+          <Text style={addressStyles.deliverButtonText}>
+            Deliver to this address
+          </Text>
         </TouchableOpacity>
       </View>
-
-      <ScrollView contentContainerStyle={addressStyles.scrollContainer}>
-
-        {/* Deliver Button */}
-        <TouchableOpacity style={addressStyles.deliverButton} onPress={onDeliverClick}>
-          <Text style={addressStyles.deliverButtonText}>Deliver to this address</Text>
-        </TouchableOpacity>
-
-        {/* Edit/Instructions */}
-        <TouchableOpacity style={addressStyles.editButton} onPress={() => console.log('Edit address clicked')}>
-          <Text style={addressStyles.editText}>Edit address</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => console.log('Add delivery instructions clicked')}>
-          <Text style={addressStyles.instructionsText}>Add delivery instructions</Text>
-        </TouchableOpacity>
-
-        {/* Address List Container */}
-        <View style={addressStyles.addressesContainer}>
-          {addresses.map((address) => (
-            <AddressItem
-              key={address.id}
-              address={{
-                id: address.id,
-                name: address.fullName,
-                details: `${address.address}, ${address.city}, ${address.state}, ${address.pinCode}`,
-                phone: address.mobileNumber
-              }}
-              isSelected={selectedAddress === address.id}
-              onSelect={setSelectedAddress}
-            />
-          ))}
-          {/* Show More */}
-          <TouchableOpacity style={addressStyles.showMoreButton} onPress={() => console.log('Show more addresses clicked')}>
-            <Text style={addressStyles.showMoreText}>Show more addresses</Text>
-            <MaterialIcons name="keyboard-arrow-down" size={20} color="#007bff" />
-          </TouchableOpacity>
-        </View>
-        {/* Add Delivery Address Section */}
-        <View style={addressStyles.addAddressSection}>
-          <Text style={addressStyles.addAddressTitle}>Add delivery address</Text>
-          <TouchableOpacity style={addressStyles.addNewAddressButton} onPress={() => handleNewAddress()}>
-            <Text style={addressStyles.addNewAddressText}>Add a new delivery address</Text>
-          </TouchableOpacity>
-          <Text style={addressStyles.orText}>or</Text>
-          <TouchableOpacity onPress={onBackToPayment}>
-            <Text style={addressStyles.backToCartText}>Back to cart</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
     </View>
   );
 };
 
+export default AddressSelectionScreen;
 
 const addressStyles = StyleSheet.create({
-  flexContainer: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#FFFFFF",
   },
-  header: {
-    paddingTop: 30,
-    paddingBottom: 10,
+  mainContainer: {
+    flex: 1,
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  addressHeader: {
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    justifyContent: 'space-between',
-    height: 60, // Ensure header is visible
-  },
-  headerText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  scrollContainer: {
-    paddingBottom: 20,
-  },
-
-  // --- Main Action Buttons ---
-  deliverButton: {
-    backgroundColor: '#ff9900',
-    padding: 15,
-    marginHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 15,
-  },
-  deliverButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  editButton: {
-    alignSelf: 'flex-start',
-    marginHorizontal: 20,
-    marginTop: 10,
-  },
-  editText: {
-    fontSize: 15,
-    color: '#007bff',
-    fontWeight: '500',
-  },
-  instructionsText: {
-    fontSize: 15,
-    color: '#007bff',
-    marginHorizontal: 20,
-    marginBottom: 15,
-    marginTop: 5,
-  },
-
-  // --- Address List ---
-  addressesContainer: {
-    borderTopWidth: 8,
-    borderTopColor: '#f0f0f0',
     paddingTop: 10,
   },
-  addressItem: {
-    flexDirection: 'row',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    alignItems: 'flex-start',
+  addressCard: {
+    backgroundColor: "#F7F7F7",
+    borderRadius: 10,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    marginBottom: 12,
   },
-  addressTextContent: {
-    marginLeft: 10,
-    flex: 1,
+  selectedCard: {
+    borderColor: "#007AFF",
+    backgroundColor: "#EAF3FF",
   },
-  addressName: {
+  name: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 3,
+    fontWeight: "700",
+    color: "#333",
   },
-  addressDetails: {
+  addressText: {
     fontSize: 14,
-    color: '#333',
-    lineHeight: 18,
-  },
-  addressPhone: {
-    fontSize: 14,
-    color: '#666',
+    color: "#555",
     marginTop: 5,
   },
-
-  // --- Show More ---
-  showMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    padding: 20,
-  },
-  showMoreText: {
-    color: '#007bff',
-    fontSize: 15,
-    marginRight: 5,
-  },
-
-  // --- Add Address Section ---
-  addAddressSection: {
-    borderTopWidth: 8,
-    borderTopColor: '#f0f0f0',
-    padding: 20,
-    alignItems: 'center',
-  },
-  addAddressTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    alignSelf: 'flex-start',
-  },
-  addNewAddressButton: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 15,
-    width: '100%',
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  addNewAddressText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#000',
-  },
-  orText: {
+  phone: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
+    color: "#777",
+    marginTop: 5,
   },
-  backToCartText: {
-    color: '#007bff',
-    fontSize: 16,
-  },
-
-  // --- Radio Button Styles ---
-  radioContainer: {
-    paddingTop: 5,
-  },
-  radioOuter: {
-    height: 20,
-    width: 20,
+  addButton: {
+    borderWidth: 1,
+    borderColor: "#007AFF",
     borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#999',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 5,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 20,
   },
-  radioSelectedOuter: {
-    borderColor: '#007bff',
+  addButtonText: {
+    color: "#007AFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
-  radioInner: {
-    height: 10,
-    width: 10,
-    borderRadius: 5,
-    backgroundColor: '#007bff',
+  bottomContainer: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#EEEEEE",
+    backgroundColor: "#FFFFFF",
+  },
+  deliverButton: {
+    backgroundColor: "#007AFF",
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  deliverButtonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "bold",
   },
 });
-
-export default AddressSelectionScreen;

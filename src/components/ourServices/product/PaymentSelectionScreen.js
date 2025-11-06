@@ -1,24 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Dimensions, Linking, Pressable, Alert } from 'react-native';
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Linking,
+  Alert,
+  Pressable,
+  TextInput,
+} from "react-native";
 import { db } from "../../firebase/firebaseConfig";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  query,
+  where,
+} from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-
-const { height } = Dimensions.get('window');
+import Header from "../../header/Header";
 
 const PaymentSelectionScreen = ({ navigation, route }) => {
-  const {total} = route?.params;
+  const { total, selectedAddress: routeSelectedAddress } = route?.params || {};
   const [addresses, setAddresses] = useState([]);
-  const [selectedAddress, setSelectedAddress] = useState(1);
-  const [selectedPayment, setSelectedPayment] = useState(null);
   const [upis, setUpis] = useState([]);
-  const [selectedUpiId, setSelectedUpiId] = useState([]);
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [selectedUPI, setSelectedUPI] = useState(null);
+  const [utrNumber, setUtrNumber] = useState("");
+  const [paymentDone, setPaymentDone] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchUpis()
-    fetchAddresses();
-  }, []);
+  // 🔹 Fetch user's saved addresses
+  const fetchAddresses = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "addresses"));
+      const addressList = [];
+      querySnapshot.forEach((doc) => {
+        addressList.push({ id: doc.id, ...doc.data() });
+      });
+      setAddresses(addressList);
+    } catch (error) {
+      console.error("Error fetching addresses: ", error);
+    }
+  };
 
+  // 🔹 Fetch user's UPI IDs
   const fetchUpis = async () => {
     try {
       const auth = getAuth();
@@ -28,255 +55,368 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       const list = q.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((doc) => doc.userId === user.uid);
-        console.log(list,"thisIsUPILIST");
-        
       setUpis(list);
-      if (list.length > 0) setSelectedUpiId(list[0].id);
     } catch (err) {
       console.log("fetchUpis err", err);
     }
   };
 
-  const fetchAddresses = async () => {
-    try {
-      const snapshot = await getDocs(collection(db, "addresses"));
+  useEffect(() => {
+    fetchAddresses();
+    fetchUpis();
+  }, []);
 
-      const addressList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      setAddresses(addressList);
-      console.log(addressList[0].address, "addressList");
-      if (addressList.length > 0) {
-        setSelectedAddress(addressList[0].id); // ✅ auto-select first address
-      }
-
-    } catch (error) {
-      console.log("Error fetching addresses:", error);
-    }
-  };
-
-  const onAddressChangeClick = () => {
-    navigation.navigate("AddressSelection", { navigation });
-  }
-
+  // 🔹 Open UPI payment app
   const handleContinue = async (row) => {
-    const PAYEE_NAME = "Product"
-    const upiUrl = `upi://pay?pa=${row.upi}&pn=${PAYEE_NAME}&tn=BikeTaxiFare&am=${total}&cu=INR`;
+    const PAYEE_NAME = "Product";
+    const upiUrl = `upi://pay?pa=${row.upi}&pn=${PAYEE_NAME}&tn=OrderPayment&am=${total}&cu=INR`;
+
     try {
       const supported = await Linking.canOpenURL(upiUrl);
       if (supported) {
         await Linking.openURL(upiUrl);
+
+        Alert.alert(
+          "Payment Initiated ✅",
+          "After completing payment, please enter your UTR number below."
+        );
+        setPaymentDone(true);
       } else {
         Alert.alert(
-          'UPI App Not Found',
-          'No UPI app found on your device. Please install Google Pay, PhonePe, or PayTM to proceed.'
+          "UPI App Not Found",
+          "No UPI app found on your device. Please install Google Pay, PhonePe, or PayTM to proceed."
         );
       }
     } catch (error) {
-      console.error('UPI payment error:', error);
-      Alert.alert('Payment Error', 'Unable to initiate UPI payment. Try again.');
+      console.error("UPI payment error:", error);
+      Alert.alert("Payment Failed ❌", "Unable to initiate payment. Try again.");
     }
-  }
+  };
+
+  const payNow = () => {
+    if (selectedUPI) {
+      handleContinue(selectedUPI);
+    } else {
+      Alert.alert("Select a UPI ID to proceed");
+    }
+  };
+
+  // 🔹 Confirm order & save to Firestore
+  const handleConfirmOrder = async () => {
+    if (paymentMethod === "Online Payment" && !utrNumber.trim()) {
+      Alert.alert("Missing UTR", "Please enter your UTR number before confirming.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert("Error", "User not logged in.");
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Step 1: Check for duplicate UTR (case-insensitive)
+      if (paymentMethod === "Online Payment") {
+        const utrToCheck = utrNumber.trim().toLowerCase();
+        const q = query(
+          collection(db, "orders"),
+          where("utrNumberLower", "==", utrToCheck)
+        );
+        const utrSnapshot = await getDocs(q);
+
+        if (!utrSnapshot.empty) {
+          setLoading(false);
+          Alert.alert(
+            "Duplicate UTR ❌",
+            "This UTR number has already been used. Please enter a valid UTR."
+          );
+          return;
+        }
+      }
+
+      // ✅ Step 2: Prepare order data
+      const orderData = {
+        userId: user.uid,
+        total: Number(total),
+        paymentMethod,
+        utrNumber: paymentMethod === "Online Payment" ? utrNumber.trim() : null,
+        utrNumberLower:
+          paymentMethod === "Online Payment" ? utrNumber.trim().toLowerCase() : null,
+        address: routeSelectedAddress
+          ? routeSelectedAddress
+          : addresses.length > 0
+          ? addresses[0]
+          : null,
+        upi: selectedUPI?.upi || null,
+        status:
+          paymentMethod === "Online Payment"
+            ? "Pending Verification"
+            : "COD - Pending Dispatch",
+        createdAt: new Date(),
+      };
+
+      // ✅ Step 3: Save to Firestore
+      await addDoc(collection(db, "orders"), orderData);
+
+      setLoading(false);
+      Alert.alert(
+        "Order Placed ✅",
+        `Your order has been placed successfully!\nUTR: ${
+          utrNumber || "N/A"
+        }`,
+        [
+          {
+            text: "OK",
+            onPress: () => navigation.navigate("OuerServices"),
+          },
+        ]
+      );
+
+      // Reset state
+      setUtrNumber("");
+      setPaymentDone(false);
+      setPaymentMethod("");
+    } catch (err) {
+      console.error("Error saving order:", err);
+      setLoading(false);
+      Alert.alert("Error", "Failed to save order. Try again.");
+    }
+  };
+
+  const currentAddress = routeSelectedAddress
+    ? routeSelectedAddress
+    : addresses.length > 0
+    ? addresses[0]
+    : null;
 
   return (
-    <View style={styles.flexContainer}>
-      {/* Header (Orange bar with CANCEL) */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => console.log('Cancel clicked')}>
-          <Text style={styles.headerText}>CANCEL</Text>
-        </TouchableOpacity>
-      </View>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-
-        {/* Delivery Address Section */}
-        <View style={styles.deliverySection}>
-
-          {addresses.length === 0 ? (
-            <Text>Loading address...</Text>
-          ) : (
+    <View style={styles.safeArea}>
+      <Header navigation={navigation} title="Payment Options" />
+      <ScrollView style={styles.mainContainer}>
+        {/* --- Address Section --- */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Delivery Address</Text>
+          {currentAddress ? (
             <View>
-              <Text style={styles.deliveryTitle}>Delivering to {addresses[0].fullName}</Text>
+              <Text style={styles.deliveryTitle}>
+                Delivering to {currentAddress.fullName}
+              </Text>
               <Text style={styles.deliveryAddress}>
-                {`${addresses[0].address}, ${addresses[0].city}, ${addresses[0].state}, ${addresses[0].pinCode}`}
+                {`${currentAddress.address}, ${currentAddress.city}, ${currentAddress.state}, ${currentAddress.pinCode}`}
               </Text>
             </View>
+          ) : (
+            <Text>Loading address...</Text>
           )}
-          <TouchableOpacity onPress={onAddressChangeClick} style={styles.changeAddressButton}>
-            <Text style={styles.changeAddressText}>Change delivery address</Text>
+          <TouchableOpacity
+            style={styles.changeButton}
+            onPress={() => navigation.navigate("AddressSelection")}
+          >
+            <Text style={styles.changeButtonText}>Change delivery address</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Continue Button */}
-        {/* <TouchableOpacity style={styles.continueButton} onPress={() => handleContinue()}>
-          <Text style={styles.continueButtonText}>Continue</Text>
-        </TouchableOpacity> */}
+        {/* --- Payment Section --- */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Payment Method</Text>
+          <TouchableOpacity
+            style={[
+              styles.paymentOption,
+              paymentMethod === "Cash on Delivery" && styles.selectedPayment,
+            ]}
+            onPress={() => setPaymentMethod("Cash on Delivery")}
+          >
+            <Text style={styles.paymentText}>💵 Cash on Delivery</Text>
+          </TouchableOpacity>
 
-        {/* Payment Methods Section */}
-        <View style={styles.paymentMethodsSection}>
-          <Text style={styles.paymentSectionTitle}>Select a payment method</Text>
-          <Text style={styles.paymentSectionSubtitle}>RECOMMENDED</Text>
-
-          <Text style={styles.upiSeparator}>UPI</Text>
-
-          {/* Pay by any UPI App */}
-          <View style={styles.paymentOption}>
-            {/* Radio Button */}
-            {/* <View style={styles.radioContainer}>
-              <View style={[styles.radioOuter, selectedPayment === 'Other UPI' && styles.radioSelectedOuter]}>
-                {selectedPayment === 'Other UPI' && <View style={styles.radioInner} />}
-              </View>
-            </View> */}
-            <View style={styles.paymentTextContainer}>
-              <Text style={styles.paymentName}>Pay by any UPI App</Text>
-              <Text style={styles.balanceText}>Google Pay, PhonePe, Paytm and more</Text>
-            </View>
-            <Text style={styles.payIcon}>UPI</Text>
-          </View>
-          {
-            upis.map((item,index)=>{
-              return(
-                <Pressable onPress={()=> handleContinue(item)} style={{marginVertical:10}} key={index}>
-                  <Text>{item.upi}</Text>
-                </Pressable>
-              )
-            })
-          }
+          <TouchableOpacity
+            style={[
+              styles.paymentOption,
+              paymentMethod === "Online Payment" && styles.selectedPayment,
+            ]}
+            onPress={() => setPaymentMethod("Online Payment")}
+          >
+            <Text style={styles.paymentText}>💳 Pay Online</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* --- UPI Section --- */}
+        {paymentMethod === "Online Payment" && (
+          <>
+            <Text style={styles.selectUPILabel}>Select UPI ID:</Text>
+            {upis.map((item, index) => (
+              <Pressable
+                key={index}
+                onPress={() => setSelectedUPI(item)}
+                style={[
+                  styles.upiCard,
+                  selectedUPI?.id === item.id && styles.selectedPayment,
+                ]}
+              >
+                <Text style={styles.upiText}>{item.upi}</Text>
+              </Pressable>
+            ))}
+
+            {/* ✅ UTR input after payment */}
+            {paymentDone && (
+              <View style={styles.utrSection}>
+                <Text style={styles.utrLabel}>Enter your UTR Number:</Text>
+                <TextInput
+                  style={styles.utrInput}
+                  placeholder="Enter UTR number"
+                  value={utrNumber}
+                  onChangeText={setUtrNumber}
+                />
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
+
+      {/* --- Bottom Buttons --- */}
+      {paymentMethod === "Online Payment" && !paymentDone && (
+        <View style={styles.bottomContainer}>
+          <Text style={styles.totalText}>Total: ₹{total}</Text>
+          <TouchableOpacity style={styles.confirmButton} onPress={payNow}>
+            <Text style={styles.confirmButtonText}>Pay Now</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {paymentDone && (
+        <View style={styles.bottomContainer}>
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={handleConfirmOrder}
+            disabled={loading}
+          >
+            <Text style={styles.confirmButtonText}>
+              {loading ? "Saving Order..." : "Submit UTR & Confirm Order"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {paymentMethod === "Cash on Delivery" && (
+        <View style={styles.bottomContainer}>
+          <Text style={styles.totalText}>Total: ₹{total}</Text>
+          <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmOrder}>
+            <Text style={styles.confirmButtonText}>CONFIRM ORDER</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
 
+export default PaymentSelectionScreen;
+
 const styles = StyleSheet.create({
-  flexContainer: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#FFFFFF",
   },
-  header: {
-    backgroundColor: '#ff9900',
-    paddingTop: 10,
-    paddingBottom: 10,
+  mainContainer: {
+    flex: 1,
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    height: height * 0.1, // Adjusted for safe area
+    paddingTop: 10,
   },
-  headerText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold',
+  section: {
+    marginBottom: 25,
   },
-  scrollContainer: {
-    paddingBottom: 20,
-  },
-  deliverySection: {
-    padding: 20,
-    borderBottomWidth: 8,
-    borderBottomColor: '#f0f0f0',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#333333",
+    marginBottom: 10,
   },
   deliveryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#444",
   },
   deliveryAddress: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 10,
-    lineHeight: 20,
-  },
-  changeAddressText: {
-    color: '#007bff',
     fontSize: 15,
+    color: "#555",
+    marginVertical: 6,
   },
-  continueButton: {
-    backgroundColor: '#ff9900',
-    padding: 15,
-    marginHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginVertical: 15,
+  changeButton: {
+    paddingVertical: 8,
   },
-  continueButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  paymentMethodsSection: {
-    padding: 20,
-  },
-  paymentSectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  paymentSectionSubtitle: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 10,
+  changeButtonText: {
+    color: "#007AFF",
+    fontSize: 15,
+    fontWeight: "500",
   },
   paymentOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingHorizontal: 10,
+    backgroundColor: "#F7F7F7",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    marginBottom: 10,
   },
-  paymentTextContainer: {
-    flex: 1,
-    marginLeft: 10,
+  selectedPayment: {
+    borderColor: "#007AFF",
+    backgroundColor: "#EAF3FF",
   },
-  paymentName: {
+  upiCard: {
+    borderWidth: 1,
+    borderColor: "#007AFF",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  upiText: {
     fontSize: 16,
-    color: '#000',
-    fontWeight: '500',
+    color: "#333",
   },
-  balanceText: {
-    fontSize: 14,
-    color: '#666',
+  bottomContainer: {
+    borderTopWidth: 1,
+    borderTopColor: "#E0E0E0",
+    padding: 15,
+    backgroundColor: "#fff",
+    bottom: 30,
   },
-  payIcon: {
-    backgroundColor: '#ccc',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 3,
-    fontSize: 10,
-    color: '#000',
-    fontWeight: 'bold',
-    alignSelf: 'flex-start', // Align pay icon to the top of the line
+  totalText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#222",
+    marginBottom: 10,
   },
-  upiSeparator: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#666',
-    marginTop: 15,
+  confirmButton: {
+    backgroundColor: "#007AFF",
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  confirmButtonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  selectUPILabel: {
+    fontWeight: "800",
+    fontSize: 16,
     marginBottom: 5,
   },
-  radioContainer: {
-    paddingTop: 5,
+  utrSection: {
+    marginTop: 15,
   },
-  radioOuter: {
-    height: 20,
-    width: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#999',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 5,
+  utrLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 8,
   },
-  radioSelectedOuter: {
-    borderColor: '#007bff',
-  },
-  radioInner: {
-    height: 10,
-    width: 10,
-    borderRadius: 5,
-    backgroundColor: '#007bff',
+  utrInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 16,
   },
 });
-
-export default PaymentSelectionScreen;

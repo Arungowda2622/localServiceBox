@@ -6,8 +6,6 @@ import { createDrawerNavigator } from "@react-navigation/drawer";
 import { ActivityIndicator, View } from 'react-native';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./src/components/firebase/firebaseConfig";
-
-// Screens
 import Login from './src/components/login/Login';
 import SignUp from './src/components/signup/SignUp';
 import OuerServicesHome from './src/components/ourServices/OuerServicesHome';
@@ -28,6 +26,7 @@ import AddUpi from './src/components/adminScreens/AddUpi';
 import Orders from './src/components/screens/Orders';
 import UpdateOrders from './src/components/adminScreens/UpdateOrders';
 import BakiTaxiPrice from './src/components/adminScreens/BakiTaxiPrice';
+import BoxDelivery from './src/components/boxDelivery/BoxDelivery';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -51,6 +50,7 @@ function MainStack() {
       <Stack.Screen name="Orders" component={Orders} />
       <Stack.Screen name="UpdateOrders" component={UpdateOrders} />
       <Stack.Screen name="BakiTaxiPrice" component={BakiTaxiPrice} />
+      <Stack.Screen name="BoxDelivery" component={BoxDelivery} />
     </Stack.Navigator>
   );
 }

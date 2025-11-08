@@ -9,22 +9,23 @@ const MapComponent = ({
   destinationLocation,
   setPickupLocation,
   setDestinationLocation,
+  selecting,
   routeCoordinates,
   showRoute,
   mapHeight,
 }) => {
   const mapRef = useRef(null);
   const [region, setRegion] = useState(null);
-  const [selectingPickup, setSelectingPickup] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [nearbyPlaces, setNearbyPlaces] = useState([]);
 
-  // ✅ Get current location and center map
+  // ✅ Get current location and center the map
   useEffect(() => {
     (async () => {
       try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
+        const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Denied', 'Allow location access to use the map.');
+          Alert.alert('Permission Denied', 'Please allow location access.');
           setLoading(false);
           return;
         }
@@ -35,14 +36,14 @@ const MapComponent = ({
 
         const { latitude, longitude } = current.coords;
 
-        setRegion({
+        const currentRegion = {
           latitude,
           longitude,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
-        });
+        };
 
-        // Optionally, set this as pickup by default
+        setRegion(currentRegion);
         setPickupLocation({
           latitude,
           longitude,
@@ -50,6 +51,7 @@ const MapComponent = ({
           address: 'Your current location',
         });
 
+        fetchNearbyPlaces(latitude, longitude);
         setLoading(false);
       } catch (error) {
         console.error('Location Error:', error);
@@ -58,7 +60,21 @@ const MapComponent = ({
     })();
   }, []);
 
-  // Fit map to both markers if available
+  // ✅ Fetch nearby points of interest (optional, still uses OpenStreetMap)
+  const fetchNearbyPlaces = async (lat, lon) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=restaurant,shop,atm,park,hospital,hotel&bounded=1&limit=20&viewbox=${lon - 0.01},${lat + 0.01},${lon + 0.01},${lat - 0.01}`,
+        { headers: { 'User-Agent': 'TaxiBookingApp/1.0' } }
+      );
+      const data = await response.json();
+      setNearbyPlaces(data || []);
+    } catch (err) {
+      console.error('Nearby places fetch error:', err);
+    }
+  };
+
+  // ✅ Fit both markers if available
   useEffect(() => {
     if (pickupLocation && destinationLocation && mapRef.current) {
       mapRef.current.fitToCoordinates(
@@ -66,40 +82,59 @@ const MapComponent = ({
           { latitude: pickupLocation.latitude, longitude: pickupLocation.longitude },
           { latitude: destinationLocation.latitude, longitude: destinationLocation.longitude },
         ],
-        {
-          edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
-          animated: true,
-        }
+        { edgePadding: { top: 100, right: 50, bottom: 100, left: 50 }, animated: true }
       );
     }
   }, [pickupLocation, destinationLocation]);
 
-  // Handle map tap (reverse-geocode selected point)
-  const handleMapPress = async (event) => {
+  // ✅ FAST Reverse Geocoding using expo-location
+  const reverseGeocode = async (latitude, longitude) => {
     try {
-      const { latitude, longitude } = event.nativeEvent.coordinate;
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-        { headers: { 'User-Agent': 'TaxiBookingApp/1.0' } }
-      );
-      const data = await response.json();
-      const address = data.display_name || 'Unknown location';
-
-      if (selectingPickup) {
-        setPickupLocation({ latitude, longitude, name: 'Pickup Location', address });
-        Alert.alert('Pickup selected', address);
-        setSelectingPickup(false);
-      } else {
-        setDestinationLocation({ latitude, longitude, name: 'Destination Location', address });
-        Alert.alert('Destination selected', address);
-        setSelectingPickup(true);
+      const result = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (result && result.length > 0) {
+        const info = result[0];
+        const address = [
+          info.name,
+          info.street,
+          info.district,
+          info.city,
+          info.region,
+        ]
+          .filter(Boolean)
+          .join(', ');
+        return address || 'Unknown location';
       }
+      return 'Unknown location';
     } catch (error) {
       console.error('Reverse geocode error:', error);
-      Alert.alert('Error', 'Unable to fetch location details');
+      return 'Unknown location';
     }
   };
 
+  // ✅ Handle map tap — instant marker + fast reverse geocoding
+  const handleMapPress = async (event) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+
+    // Show marker immediately
+    if (selecting === 'pickup') {
+      setPickupLocation({ latitude, longitude, name: 'Pickup Location', address: 'Fetching address...' });
+    } else if (selecting === 'destination') {
+      setDestinationLocation({ latitude, longitude, name: 'Destination Location', address: 'Fetching address...' });
+    }
+
+    // Get address fast using expo-location
+    const address = await reverseGeocode(latitude, longitude);
+
+    if (selecting === 'pickup') {
+      setPickupLocation((prev) => ({ ...prev, address }));
+      Alert.alert('Pickup Selected', address);
+    } else if (selecting === 'destination') {
+      setDestinationLocation((prev) => ({ ...prev, address }));
+      Alert.alert('Destination Selected', address);
+    }
+  };
+
+  // ✅ Open route in Google Maps
   const openInMaps = () => {
     if (pickupLocation && destinationLocation) {
       const pickup = `${pickupLocation.latitude},${pickupLocation.longitude}`;
@@ -115,7 +150,7 @@ const MapComponent = ({
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4285F4" />
-        <Text style={styles.loadingText}>Getting your current location...</Text>
+        <Text style={styles.loadingText}>Locating you...</Text>
       </View>
     );
   }
@@ -129,6 +164,7 @@ const MapComponent = ({
         showsUserLocation={true}
         onPress={handleMapPress}
       >
+        {/* Pickup Marker */}
         {pickupLocation && (
           <Marker
             coordinate={{
@@ -141,6 +177,7 @@ const MapComponent = ({
           />
         )}
 
+        {/* Destination Marker */}
         {destinationLocation && (
           <Marker
             coordinate={{
@@ -153,9 +190,24 @@ const MapComponent = ({
           />
         )}
 
+        {/* Route Polyline */}
         {showRoute && routeCoordinates.length > 0 && (
           <Polyline coordinates={routeCoordinates} strokeWidth={3} strokeColor="#4285F4" />
         )}
+
+        {/* Optional: Nearby places */}
+        {nearbyPlaces.map((place, index) => (
+          <Marker
+            key={index}
+            coordinate={{
+              latitude: parseFloat(place.lat),
+              longitude: parseFloat(place.lon),
+            }}
+            title={place.display_name.split(',')[0]}
+            description={place.display_name}
+            pinColor="#007AFF"
+          />
+        ))}
       </MapView>
 
       <TouchableOpacity style={styles.mapsButton} onPress={openInMaps}>

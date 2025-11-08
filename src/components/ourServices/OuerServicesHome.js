@@ -20,13 +20,11 @@ const OuerServicesHome = ({ navigation, route }) => {
 
   const renderOurServices = ({ item, index }) => {
     const isEven = index % 2 === 0;
-    // Custom icon/image display for visual similarity to the screenshot
     let iconContent = null;
-    if (item.id === 1) iconContent = <Text style={styles.cardImageText}>🛵</Text>; // Bike Taxi
-    else if (item.id === 2) iconContent = <Text style={styles.cardImageText}>📦</Text>; // Box Delivery
-    else if (item.id === 3) iconContent = <Text style={styles.cardImageText}>🚗</Text>; // Rides/Services
-    else if (item.id === 4) iconContent = <Text style={styles.cardImageText}>🛒</Text>; // Product
-
+    if (item.id === 1) iconContent = <Text style={styles.cardImageText}>🛵</Text>; 
+    else if (item.id === 2) iconContent = <Text style={styles.cardImageText}>📦</Text>; 
+    else if (item.id === 3) iconContent = <Text style={styles.cardImageText}>🚗</Text>;
+    else if (item.id === 4) iconContent = <Text style={styles.cardImageText}>🛒</Text>;
     return (
       <View style={[styles.serviceItem, isEven ? styles.leftItem : styles.rightItem]}>
         <Pressable
@@ -36,16 +34,11 @@ const OuerServicesHome = ({ navigation, route }) => {
           ]}
           onPress={() => handleSelectedService(item)}
         >
-          {/* Top content area */}
           <View style={styles.cardImageContainer}>
             {iconContent}
           </View>
-
-          {/* Bottom text content */}
           <View style={styles.cardTextContainer}>
-            {/* Added subtitle to match the style of the screenshot */}
             <Text style={styles.btnSubTxt}>{item.subtitle || 'Book now'}</Text>
-            {/* Keeping your original serviceName */}
             <Text style={styles.btnTxt}>{item.serviceName}</Text>
           </View>
         </Pressable>
@@ -57,7 +50,6 @@ const OuerServicesHome = ({ navigation, route }) => {
     <View style={styles.safeArea}>
       <View style={styles.container}>
         <Text style={styles.sectionLabel}>OuerServices</Text>
-        {/* Services Grid (FlatList) */}
         <View style={styles.main}>
           <FlatList
             data={services}
@@ -68,14 +60,7 @@ const OuerServicesHome = ({ navigation, route }) => {
             scrollEnabled={false}
           />
         </View>
-
-        {/* Placeholder for the other sections (e.g., 'Travel & Stays') */}
-        {/* <View style={styles.placeholderCard}>
-          <Text style={styles.placeholderText}>Travel & Stays with Rapido (Placeholder)</Text>
-        </View> */}
-
       </View>
-      {/* Footer / Bottom Navigation */}
       <Footer navigation={navigation} />
     </View>
   );

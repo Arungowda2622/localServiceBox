@@ -8,42 +8,55 @@ import {
   KeyboardAvoidingView, 
   Platform
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../firebase/firebaseConfig';
 import { collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore';
 import Header from '../header/Header';
 
 const BakiTaxiPrice = ({ navigation }) => {
-  const [pricePerKm, setPricePerKm] = useState('');
-  const [priceId, setPriceId] = useState(null); // store document ID if exists
+  const [baseFare, setBaseFare] = useState('');
+  const [baseDistance, setBaseDistance] = useState('2'); // default 2 km
+  const [extraPerKm, setExtraPerKm] = useState('');
+  const [priceId, setPriceId] = useState(null);
+
   const priceCollection = collection(db, 'taxiPrices');
 
-  // READ - fetch only one record
+  // Fetch stored price (only one record)
   const fetchPrice = async () => {
     const snapshot = await getDocs(priceCollection);
     if (!snapshot.empty) {
       const firstDoc = snapshot.docs[0];
-      setPricePerKm(firstDoc.data().pricePerKm.toString());
+      const data = firstDoc.data();
+      setBaseFare(data.baseFare?.toString() || '');
+      setBaseDistance(data.baseDistance?.toString() || '2');
+      setExtraPerKm(data.extraPerKm?.toString() || '');
       setPriceId(firstDoc.id);
     } else {
-      setPricePerKm('');
+      setBaseFare('');
+      setExtraPerKm('');
+      setBaseDistance('2');
       setPriceId(null);
     }
   };
 
-  // CREATE or UPDATE (single record only)
+  // Save or Update Fare
   const savePrice = async () => {
-    if (!pricePerKm) return alert('Please enter a price');
+    if (!baseFare || !baseDistance || !extraPerKm) {
+      return alert('Please enter all fields');
+    }
+
+    const priceData = {
+      baseFare: parseFloat(baseFare),
+      baseDistance: parseFloat(baseDistance),
+      extraPerKm: parseFloat(extraPerKm),
+    };
 
     if (priceId) {
-      // UPDATE existing record
       const docRef = doc(db, 'taxiPrices', priceId);
-      await updateDoc(docRef, { pricePerKm: parseFloat(pricePerKm) });
-      alert('Price updated successfully!');
+      await updateDoc(docRef, priceData);
+      alert('Taxi fare updated successfully!');
     } else {
-      // CREATE new record only if none exists
-      await addDoc(priceCollection, { pricePerKm: parseFloat(pricePerKm) });
-      alert('Price added successfully!');
+      await addDoc(priceCollection, priceData);
+      alert('Taxi fare added successfully!');
     }
 
     fetchPrice();
@@ -53,6 +66,17 @@ const BakiTaxiPrice = ({ navigation }) => {
     fetchPrice();
   }, []);
 
+  // Example calculation
+  const calculateFare = (distance) => {
+    if (!baseFare || !extraPerKm || !baseDistance) return 0;
+    const base = parseFloat(baseFare);
+    const extra = parseFloat(extraPerKm);
+    const baseKm = parseFloat(baseDistance);
+
+    if (distance <= baseKm) return base;
+    return base + (distance - baseKm) * extra;
+  };
+
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title={"Taxi Price"} />
@@ -61,14 +85,31 @@ const BakiTaxiPrice = ({ navigation }) => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Price per KM</Text>
+          <Text style={styles.label}>Base Fare (₹)</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter price per km"
-            placeholderTextColor="#999"
+            placeholder="Enter base fare (e.g. 30)"
             keyboardType="numeric"
-            value={pricePerKm}
-            onChangeText={setPricePerKm}
+            value={baseFare}
+            onChangeText={setBaseFare}
+          />
+
+          <Text style={styles.label}>Base Distance (KM)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter base distance (e.g. 2)"
+            keyboardType="numeric"
+            value={baseDistance}
+            onChangeText={setBaseDistance}
+          />
+
+          <Text style={styles.label}>Extra Fare per KM (₹)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter extra fare per km (e.g. 10)"
+            keyboardType="numeric"
+            value={extraPerKm}
+            onChangeText={setExtraPerKm}
           />
 
           <TouchableOpacity
@@ -76,15 +117,21 @@ const BakiTaxiPrice = ({ navigation }) => {
             onPress={savePrice}
           >
             <Text style={styles.buttonText}>
-              {priceId ? "Update Price" : "Add Price"}
+              {priceId ? "Update Fare" : "Add Fare"}
             </Text>
           </TouchableOpacity>
         </View>
 
         {priceId && (
           <View style={styles.displayCard}>
-            <Text style={styles.currentLabel}>Current Price</Text>
-            <Text style={styles.currentValue}>₹{pricePerKm} / km</Text>
+            <Text style={styles.currentLabel}>Current Fare Structure</Text>
+            <Text style={styles.currentValue}>
+              ₹{baseFare} for first {baseDistance} km{'\n'}
+              ₹{extraPerKm} per km thereafter
+            </Text>
+            <Text style={{ marginTop: 10, color: '#777' }}>
+              Example: 5 km = ₹{calculateFare(5).toFixed(2)}
+            </Text>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -98,23 +145,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f4f6f8',
-  },
-  topSection: {
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    elevation: 5,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#f0f0f0',
-    marginTop: 4,
   },
   main: {
     flex: 1,
@@ -171,9 +201,10 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   currentValue: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
     color: '#2c3e50',
     marginTop: 5,
+    textAlign: 'center',
   },
 });

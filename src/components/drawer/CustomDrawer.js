@@ -38,33 +38,37 @@ export default function CustomDrawer(props) {
     <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
       {/* 🔹 Header Section */}
       <View style={styles.header}>
-        <Image source={require('../../../assets/profile_pic.png')} style={styles.profilePic}/>
+        <Image source={require('../../../assets/profile_pic.png')} style={styles.profilePic} />
         <Text style={styles.name}>{userData?.fullName || 'User Name'}</Text>
         <Text style={styles.phone}>{userData?.phone || '+91 XXXXX XXXXX'}</Text>
       </View>
 
       {/* 🔹 Menu Section */}
       <View style={styles.menu}>
-        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.menuItem}>
-          <Ionicons name="person-circle-outline" size={22} color="#333" style={styles.menuIcon}/>
+        {/* <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.menuItem}>
+          <Ionicons name="person-circle-outline" size={22} color="#333" style={styles.menuIcon} />
           <Text style={styles.menuText}>Profile</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
-       <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'Orders' })} style={styles.menuItem}>
-          <Ionicons name="cart-outline" size={22} color="#333" style={styles.menuIcon}/>
+        <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'Orders' })} style={styles.menuItem}>
+          <Ionicons name="cart-outline" size={22} color="#333" style={styles.menuIcon} />
           <Text style={styles.menuText}>Orders</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity  onPress={() => navigation.navigate('Home', { screen: 'AdminHome' })} style={styles.menuItem}>
-          <Ionicons name="settings-outline" size={22} color="#333" style={styles.menuIcon}/>
-          <Text style={styles.menuText}>Settings</Text>
-        </TouchableOpacity>
+        {
+          userData?.role === "admin" ?
+            <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'AdminHome' })} style={styles.menuItem}>
+              <Ionicons name="settings-outline" size={22} color="#333" style={styles.menuIcon} />
+              <Text style={styles.menuText}>Settings</Text>
+            </TouchableOpacity>
+            :
+            null
+        }
       </View>
 
       {/* 🔹 Footer Section */}
       <View style={styles.footer}>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Ionicons name="log-out-outline" size={20} color="#fff" style={{ marginRight: 6 }}/>
+          <Ionicons name="log-out-outline" size={20} color="#fff" style={{ marginRight: 6 }} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </View>

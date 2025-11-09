@@ -81,31 +81,54 @@ const LocationSelection = ({ navigation }) => {
   };
 
   const getCurrentLocation = async () => {
-    // ... (Your original getCurrentLocation function)
-    try {
-      setIsLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') throw new Error('Permission denied');
+  try {
+    setIsLoading(true);
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') throw new Error('Permission denied');
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Highest,
+    });
 
-      const coords = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      };
+    const coords = {
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+    };
 
-      setRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 });
-      setPickupLocation({ ...coords, address: 'Current Location', name: 'My Location' });
-      setSelecting('destination');
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Location Error', 'Could not get your current location.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // 🔹 Reverse geocode to get address
+    const res = await Location.reverseGeocodeAsync(coords);
+    const info = res[0];
+
+    const address = [
+      info.name,
+      info.street,
+      info.district,
+      info.city,
+      info.region,
+      info.postalCode,
+      info.country,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    setRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+
+    // ✅ Store the real address, not “Current Location”
+    setPickupLocation({
+      ...coords,
+      name: info.name || 'My Location',
+      address: address || 'Unknown Location',
+    });
+
+    setSelecting('destination');
+  } catch (err) {
+    console.error(err);
+    Alert.alert('Location Error', 'Could not get your current location.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const decodePolyline = (encoded) => {
     // ... (Your original decodePolyline function)

@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import React from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+} from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Header from '../header/Header';
 import { db } from '../firebase/firebaseConfig';
+import { getAuth } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
@@ -17,33 +25,50 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
     }
 
     try {
-      const ridesCollection = collection(db, 'rides');
+      const auth = getAuth();
+      const user = auth.currentUser;
 
-      const rideData = {
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to book a ride.');
+        return;
+      }
+
+      // ✅ Use bookings collection (not rides)
+      const bookingsCollection = collection(db, 'bookings');
+
+      const bookingData = {
+        userId: user.uid,
+        userEmail: user.email,
         pickup: pickupLocation?.address || '',
         pickupName: pickupLocation?.name || '',
         destination: destinationLocation?.address || '',
         destinationName: destinationLocation?.name || '',
         distance: routeInfo?.distance || 0,
         duration: routeInfo?.formattedDuration || '',
-        fare: finalFare,
+        fare: routeInfo?.fare || 0,
         paymentMethod: 'Cash',
         paymentStatus: 'Pending',
-        status: 'Confirmed',
+
+        // ✅ important fields for driver system
+        driverId: null,
+        driverName: null,
+        driverPhone: null,
+        status: 'pending', // so drivers can see it in their list
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
 
-      await addDoc(ridesCollection, rideData);
+      await addDoc(bookingsCollection, bookingData);
 
       Alert.alert(
-        'Ride Confirmed 🚖',
-        `Your ride has been booked successfully!\n\nPlease pay ₹${finalFare} in cash to the driver.`
+        'Ride Requested 🚖',
+        `Your ride request has been sent!\n\nYou'll be assigned a driver soon.\n\nEstimated Fare: ₹${routeInfo.fare}`
       );
 
-      navigation.navigate('BikeTaxiTracking'); // Navigate to tracking or success screen
+      navigation.navigate('BikeTaxiTracking');
     } catch (error) {
-      console.error('Error saving ride:', error);
-      Alert.alert('Error', 'Failed to save ride. Please try again.');
+      console.error('Error saving booking:', error);
+      Alert.alert('Error', 'Failed to create booking. Please try again.');
     }
   };
 
@@ -54,7 +79,7 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
       <ScrollView style={styles.main}>
         <Text style={styles.sectionTitle}>Ride Details</Text>
 
-        {/* Pickup and Destination Card */}
+        {/* Pickup and Destination */}
         <View style={styles.locationCard}>
           <View style={styles.locationItem}>
             <Feather name="circle" size={12} color="#4CAF50" style={styles.icon} />
@@ -75,22 +100,23 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
           </View>
         </View>
 
-        {/* Distance and Duration */}
+        {/* Distance & Duration */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <Feather name="compass" size={16} color="#007BFF" />
             <Text style={styles.summaryLabel}>Distance & Duration</Text>
             <Text style={styles.summaryValue}>
-              {routeInfo?.distance ? `${routeInfo.distance} km` : 'N/A'} • {routeInfo?.formattedDuration || 'N/A'}
+              {routeInfo?.distance ? `${routeInfo.distance} km` : 'N/A'} •{' '}
+              {routeInfo?.formattedDuration || 'N/A'}
             </Text>
           </View>
         </View>
 
         {/* Fare Info */}
         <View style={styles.fareCard}>
-          <Text style={styles.fareLabel}>Total Fare</Text>
+          <Text style={styles.fareLabel}>Estimated Fare</Text>
           <Text style={styles.fareValue}>₹{finalFare}</Text>
-          <Text style={styles.fareSubtitle}>Please pay the driver in cash.</Text>
+          <Text style={styles.fareSubtitle}>Pay the driver in cash</Text>
         </View>
 
         {/* Payment Method */}
@@ -99,7 +125,9 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
           <MaterialCommunityIcons name="cash-multiple" size={26} color="#4CAF50" />
           <View style={styles.paymentTextContainer}>
             <Text style={styles.paymentMethodText}>Cash</Text>
-            <Text style={styles.paymentSubtitle}>Pay the exact fare to the driver</Text>
+            <Text style={styles.paymentSubtitle}>
+              Pay the exact fare directly to the driver
+            </Text>
           </View>
         </View>
 
@@ -113,7 +141,9 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
           onPress={handleConfirmBooking}
           activeOpacity={0.9}
         >
-          <Text style={styles.confirmButtonText}>Confirm Ride (Pay ₹{finalFare} Cash)</Text>
+          <Text style={styles.confirmButtonText}>
+            Confirm Ride (Pay ₹{finalFare} Cash)
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

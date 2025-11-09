@@ -12,6 +12,7 @@ const Home = ({ navigation }) => {
     { title: 'UPI', icon: 'cash-outline', color: ['#00b09b', '#96c93d'], onPress: () => navigation.navigate("AddUpi") },
     { title: 'Orders', icon: 'cart-outline', color: ['#F7971E', '#FFD200'], onPress: () => navigation.navigate("UpdateOrders") },
     { title: 'Taxi Price', icon: 'car-outline', color: ['#8E2DE2', '#4A00E0'], onPress: () => navigation.navigate("BakiTaxiPrice") },
+    { title: 'Drivers', icon: 'car-outline', color: ['#12c2e9', '#c471ed'], onPress: () => navigation.navigate("AddDriverScreen") },
   ];
 
   return (

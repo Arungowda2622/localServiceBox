@@ -4,8 +4,11 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { ActivityIndicator, View } from 'react-native';
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./src/components/firebase/firebaseConfig";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth, db } from "./src/components/firebase/firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
+
+// Screens
 import Login from './src/components/login/Login';
 import SignUp from './src/components/signup/SignUp';
 import OuerServicesHome from './src/components/ourServices/OuerServicesHome';
@@ -27,6 +30,9 @@ import Orders from './src/components/screens/Orders';
 import UpdateOrders from './src/components/adminScreens/UpdateOrders';
 import BakiTaxiPrice from './src/components/adminScreens/BakiTaxiPrice';
 import BoxDelivery from './src/components/boxDelivery/BoxDelivery';
+import DeliveryPayment from './src/components/boxDelivery/DeliveryPayment';
+import AddDriverScreen from './src/components/adminScreens/AddDriverScreen';
+import DriverScreen from './src/components/driver/DriverScreen';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -51,6 +57,9 @@ function MainStack() {
       <Stack.Screen name="UpdateOrders" component={UpdateOrders} />
       <Stack.Screen name="BakiTaxiPrice" component={BakiTaxiPrice} />
       <Stack.Screen name="BoxDelivery" component={BoxDelivery} />
+      <Stack.Screen name="DeliveryPayment" component={DeliveryPayment} />
+      <Stack.Screen name="AddDriverScreen" component={AddDriverScreen} />
+      <Stack.Screen name="DriverScreen" component={DriverScreen} />
     </Stack.Navigator>
   );
 }
@@ -58,12 +67,39 @@ function MainStack() {
 export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null); // ✅ store role
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userRef = doc(db, "users", firebaseUser.uid);
+          const userSnap = await getDoc(userRef);
+
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            console.log("✅ User role:", userData.role);
+
+            setUser(firebaseUser);
+            setRole(userData.role || "user");
+          } else {
+            console.log("❌ Auth user not found in Firestore — logging out");
+            await signOut(auth);
+            setUser(null);
+            setRole(null);
+          }
+        } catch (err) {
+          console.error("Error checking Firestore user:", err);
+          setUser(null);
+          setRole(null);
+        }
+      } else {
+        setUser(null);
+        setRole(null);
+      }
       setInitializing(false);
     });
+
     return unsubscribe;
   }, []);
 
@@ -78,18 +114,27 @@ export default function App() {
   return (
     <NavigationContainer>
       {user ? (
-        <Drawer.Navigator
-          drawerContent={(props) => <CustomDrawer {...props} />}
-          screenOptions={{
-            headerShown: false,
-            drawerType: "front",
-            swipeEnabled: true,
-          }}
-        >
-          <Drawer.Screen name="Home" component={MainStack} />
-          <Drawer.Screen name="Profile" component={Profile} />
-        </Drawer.Navigator>
+        role === "driver" ? (
+          // ✅ If driver, go directly to DriverScreen
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="DriverScreen" component={DriverScreen} />
+          </Stack.Navigator>
+        ) : (
+          // ✅ Otherwise show main Drawer navigation
+          <Drawer.Navigator
+            drawerContent={(props) => <CustomDrawer {...props} />}
+            screenOptions={{
+              headerShown: false,
+              drawerType: "front",
+              swipeEnabled: true,
+            }}
+          >
+            <Drawer.Screen name="Home" component={MainStack} />
+            <Drawer.Screen name="Profile" component={Profile} />
+          </Drawer.Navigator>
+        )
       ) : (
+        // ✅ Login/Signup stack
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="SignUp" component={SignUp} />

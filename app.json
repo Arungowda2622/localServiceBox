@@ -21,10 +21,12 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS"
       ],
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.arun03.localServiceBox"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,8 +38,25 @@
           "photosPermission": "The app accesses your photos to let you share them with your friends."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#007bff",
+          "mode": "production"
+        }
+      ],
       "expo-web-browser",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d302719d-343d-4324-9ceb-b12bb76807bc"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d302719d-343d-4324-9ceb-b12bb76807bc",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

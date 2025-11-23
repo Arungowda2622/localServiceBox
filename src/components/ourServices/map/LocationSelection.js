@@ -20,16 +20,14 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import { db } from '../../firebase/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 
-// --- Constants for better readability ---
 const { height } = Dimensions.get('window');
-const PRIMARY_COLOR = '#007BFF'; // Blue for primary actions (Book Now)
-const SECONDARY_COLOR = '#4285F4'; // Google Blue for route/icons
-const SUCCESS_COLOR = '#4CAF50'; // Green for Pickup
-const ERROR_COLOR = '#EA4335'; // Red for Destination
+const PRIMARY_COLOR = '#007BFF';
+const SECONDARY_COLOR = '#4285F4';
+const SUCCESS_COLOR = '#4CAF50';
+const ERROR_COLOR = '#EA4335';
 const TEXT_COLOR = '#333';
 const SUB_TEXT_COLOR = '#666';
-const BACKGROUND_COLOR = '#F5F5F5'; // Light grey background
-// --- Constants End ---
+const BACKGROUND_COLOR = '#F5F5F5';
 
 const LocationSelection = ({ navigation }) => {
   const mapRef = useRef(null);
@@ -45,8 +43,6 @@ const LocationSelection = ({ navigation }) => {
     baseDistance: 2,
     extraPerKm: 10,
   });
-
-  // 🔍 Search states
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -61,10 +57,7 @@ const LocationSelection = ({ navigation }) => {
     if (pickupLocation && destinationLocation) calculateRoute();
   }, [pickupLocation, destinationLocation]);
 
-  // --- UTILITY FUNCTIONS (Kept the same for functionality) ---
-
   const fetchFareSettings = async () => {
-    // ... (Your original fetchFareSettings function)
     try {
       const snapshot = await getDocs(collection(db, 'taxiPrices'));
       if (!snapshot.empty) {
@@ -95,7 +88,6 @@ const LocationSelection = ({ navigation }) => {
       longitude: loc.coords.longitude,
     };
 
-    // 🔹 Reverse geocode to get address
     const res = await Location.reverseGeocodeAsync(coords);
     const info = res[0];
 
@@ -112,8 +104,6 @@ const LocationSelection = ({ navigation }) => {
       .join(', ');
 
     setRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 });
-
-    // ✅ Store the real address, not “Current Location”
     setPickupLocation({
       ...coords,
       name: info.name || 'My Location',
@@ -131,7 +121,6 @@ const LocationSelection = ({ navigation }) => {
 
 
   const decodePolyline = (encoded) => {
-    // ... (Your original decodePolyline function)
     const points = [];
     let index = 0, lat = 0, lng = 0;
     while (index < encoded.length) {
@@ -160,7 +149,6 @@ const LocationSelection = ({ navigation }) => {
   };
 
   const calculateFare = (distance) => {
-    // ... (Your original calculateFare function)
     const { baseFare, baseDistance, extraPerKm } = fareSettings;
     if (distance <= baseDistance) return Math.round(baseFare);
     const total = baseFare + (distance - baseDistance) * extraPerKm;
@@ -168,7 +156,6 @@ const LocationSelection = ({ navigation }) => {
   };
 
   const formatDuration = (minutes) => {
-    // ... (Your original formatDuration function)
     if (minutes < 60) return `${Math.ceil(minutes)} min`;
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = Math.ceil(minutes % 60);
@@ -176,20 +163,17 @@ const LocationSelection = ({ navigation }) => {
   };
 
   const formatDistance = (distance) => {
-    // ... (Your original formatDistance function)
     if (distance < 1) return `${Math.round(distance * 1000)} m`;
     if (distance < 10) return `${distance.toFixed(1)} km`;
     return `${Math.round(distance)} km`;
   };
 
   const calculateRoute = async () => {
-    // ... (Your original calculateRoute function)
     if (!pickupLocation || !destinationLocation) return;
     setIsLoading(true);
 
     try {
       const response = await fetch(
-        // Using a more reliable OSRM service
         `https://router.project-osrm.org/route/v1/driving/${pickupLocation.longitude},${pickupLocation.latitude};${destinationLocation.longitude},${destinationLocation.latitude}?overview=full&geometries=polyline`
       );
       const data = await response.json();
@@ -210,7 +194,7 @@ const LocationSelection = ({ navigation }) => {
         });
 
         mapRef.current?.fitToCoordinates(coordinates, {
-          edgePadding: { top: 80, right: 50, bottom: height * 0.4, left: 50 }, // Adjust for bottom sheet
+          edgePadding: { top: 80, right: 50, bottom: height * 0.4, left: 50 },
           animated: true,
         });
       } else {
@@ -225,7 +209,6 @@ const LocationSelection = ({ navigation }) => {
   };
 
   const handleMapPress = async (event) => {
-    // ... (Your original handleMapPress function)
     const { latitude, longitude } = event.nativeEvent.coordinate;
 
     try {
@@ -267,7 +250,6 @@ const LocationSelection = ({ navigation }) => {
   };
 
   const handleBookRide = () => {
-    // ... (Your original handleBookRide function)
     if (!pickupLocation || !destinationLocation || !routeInfo) {
       Alert.alert('Error', 'Please select pickup and destination');
       return;
@@ -288,7 +270,6 @@ const LocationSelection = ({ navigation }) => {
   };
 
   const handleSearch = async (query) => {
-    // ... (Your original handleSearch function)
     setSearchQuery(query);
     if (query.length < 3) return;
 
@@ -323,7 +304,6 @@ const LocationSelection = ({ navigation }) => {
   };
 
   const handleSelectSearchResult = (item) => {
-    // ... (Your original handleSelectSearchResult function)
     const location = {
       latitude: parseFloat(item.lat),
       longitude: parseFloat(item.lon),
@@ -354,21 +334,6 @@ const LocationSelection = ({ navigation }) => {
     setSelecting(type);
     setShowSearchModal(true);
   };
-  
-  const handleOpenInMaps = () => {
-    if (pickupLocation && destinationLocation) {
-      const pickup = `${pickupLocation.latitude},${pickupLocation.longitude}`;
-      const drop = `${destinationLocation.latitude},${destinationLocation.longitude}`;
-      // Updated URL to a common format that often works better
-      const url = `https://www.google.com/maps/dir/?api=1&origin=${pickup}&destination=${drop}&travelmode=driving`; 
-      Linking.openURL(url);
-    } else {
-      Alert.alert('Selection Required', 'Select both pickup and destination first to open in Maps.');
-    }
-  };
-
-
-  // --- JSX RENDER ---
 
   const renderLocationInput = (location, type) => {
     const isPickup = type === 'pickup';
@@ -383,7 +348,6 @@ const LocationSelection = ({ navigation }) => {
         onPress={() => openSearchModal(type)}
         activeOpacity={0.7}
       >
-        {/* Dot/Icon Area */}
         <View style={styles.locationIcon}>
           <Ionicons
             name={isPickup ? 'pin' : 'location-sharp'}
@@ -391,8 +355,6 @@ const LocationSelection = ({ navigation }) => {
             color={isPickup ? SUCCESS_COLOR : ERROR_COLOR}
           />
         </View>
-
-        {/* Text Area */}
         <View style={styles.locationTextContainer}>
           <Text style={[styles.locationText, !location && styles.placeholderText]}>
             {locationName}
@@ -401,8 +363,6 @@ const LocationSelection = ({ navigation }) => {
             {locationAddress}
           </Text>
         </View>
-
-        {/* Clear Button (Only for Pickup and if set) */}
         {isPickup && location && (
           <TouchableOpacity onPress={handleClearPickup} style={styles.clearButton}>
             <Ionicons name="close-circle" size={24} color={ERROR_COLOR} />
@@ -415,8 +375,6 @@ const LocationSelection = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={BACKGROUND_COLOR} />
-
-      {/* 🗺️ Map View */}
       <View style={styles.mapViewContainer}>
         <MapView
           ref={mapRef}
@@ -424,7 +382,7 @@ const LocationSelection = ({ navigation }) => {
           region={region}
           showsUserLocation={true}
           onPress={handleMapPress}
-          initialRegion={{ // Default to a central Karnataka region if no current location
+          initialRegion={{
              latitude: 12.9716, 
              longitude: 77.5946, 
              latitudeDelta: 2, 
@@ -443,16 +401,13 @@ const LocationSelection = ({ navigation }) => {
         </MapView>
       </View>
 
-      {/* 📍 Location Inputs & Booking Details */}
       <View style={styles.bottomSheet}>
-        {/* Location Selector Card */}
         <View style={styles.locationCard}>
           {renderLocationInput(pickupLocation, 'pickup')}
           <View style={styles.separatorLine} />
           {renderLocationInput(destinationLocation, 'destination')}
         </View>
 
-        {/* Route Info & Book Button */}
         {routeInfo ? (
           <View style={styles.routeInfoContainer}>
               <View style={styles.routeDetailsWrapper}>
@@ -476,40 +431,6 @@ const LocationSelection = ({ navigation }) => {
                 <Text style={styles.bookButtonText}>Book Now</Text>
               </TouchableOpacity>
             </View>
-          // <View style={styles.routeInfoCard}>
-          //   <View style={styles.routeDetailsContainer}>
-          //     <View style={styles.detailItem}>
-          //       <Ionicons name="map-outline" size={20} color={'#666'} />
-          //       <Text style={styles.detailText}>
-          //         Distance: {formatDistance(routeInfo.distance)}
-          //       </Text>
-          //     </View>
-          //     <View style={styles.detailItem}>
-          //       <Ionicons name="time-outline" size={20} color={'#666'} />
-          //       <Text style={styles.detailText}>
-          //         Duration: {routeInfo.formattedDuration}
-          //       </Text>
-          //     </View>
-          //   </View>
-
-          //   <View style={styles.fareAndButtonWrapper}>
-          //     <View style={styles.fareContainer}>
-          //       <Text style={styles.fareLabel}>Estimated Fare</Text>
-          //       <Text style={styles.routeFare}>
-          //         ₹{routeInfo.fare}
-          //       </Text>
-          //     </View>
-
-          //     <TouchableOpacity 
-          //       style={styles.bookButton} 
-          //       onPress={handleBookRide}
-          //       activeOpacity={0.8}
-          //     >
-          //       <Text style={styles.bookButtonText}>Book Now</Text>
-          //       <Ionicons name="arrow-forward" size={18} color="#FFF" style={{ marginLeft: 6 }} />
-          //     </TouchableOpacity>
-          //   </View>
-          // </View>
         ) : (
           <View style={styles.infoMessage}>
             <Text style={styles.infoText}>
@@ -528,7 +449,6 @@ const LocationSelection = ({ navigation }) => {
         )}
       </View>
 
-      {/* 🔍 Search Modal */}
       <Modal visible={showSearchModal} animationType="slide" onRequestClose={() => setShowSearchModal(false)}>
         <View style={styles.searchModal}>
           <View style={styles.searchHeader}>
@@ -580,7 +500,6 @@ const LocationSelection = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* Loading Overlay */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={PRIMARY_COLOR} />
@@ -597,17 +516,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BACKGROUND_COLOR },
   mapViewContainer: { flex: 1, zIndex: 0 },
   map: { flex: 1 },
-
-  // --- Bottom Sheet Styles (Elevated Card Design) ---
   bottomSheet: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: BACKGROUND_COLOR, // Match container for seamless look
+    backgroundColor: BACKGROUND_COLOR,
     paddingHorizontal: 15,
     paddingTop: 15,
-    paddingBottom: 30, // Extra padding for safe area
+    paddingBottom: 30, 
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     shadowColor: '#000',
@@ -638,7 +555,7 @@ const styles = StyleSheet.create({
   separatorLine: {
     height: 1,
     backgroundColor: '#EEE',
-    marginLeft: 35, // Align with the start of location name
+    marginLeft: 35
   },
   locationIcon: {
     width: 30,
@@ -650,9 +567,6 @@ const styles = StyleSheet.create({
   placeholderText: { color: SUB_TEXT_COLOR, fontWeight: '500' },
   locationSubText: { fontSize: 13, color: SUB_TEXT_COLOR, marginTop: 2 },
   clearButton: { padding: 5, marginLeft: 10 },
-
-
-  // --- Route Info Card ---
   routeInfoCard: {
     backgroundColor: '#FFF',
     borderRadius: 12,
@@ -662,39 +576,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    
-    // Main layout for neat separation
     flexDirection: 'row', 
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   
   routeDetailsContainer: {
-    flex: 1, // Takes up remaining space on the left
+    flex: 1,
     paddingRight: 10,
   },
   
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8, // Spacing between the two detail lines
+    marginBottom: 8,
   },
   
   detailText: {
     marginLeft: 10,
     fontSize: 14,
-    color: TEXT_COLOR, // Using the main text color
-    // Bold is applied directly in the JSX for emphasis
+    color: TEXT_COLOR,
   },
   
   fareAndButtonWrapper: {
-    // Contains Fare and Book button, aligned to the right
     alignItems: 'flex-end', 
   },
   
   fareContainer: {
     alignItems: 'flex-end',
-    marginBottom: 10, // Spacing before the book button
+    marginBottom: 10,
   },
   
   fareLabel: {
@@ -703,21 +613,21 @@ const styles = StyleSheet.create({
   },
   
   routeFare: { 
-    fontSize: 26, // Slightly bigger fare
-    fontWeight: '900', // Extra bold for fare
-    color: PRIMARY_COLOR, // Highlight the price with the primary color
+    fontSize: 26, 
+    fontWeight: '900',
+    color: PRIMARY_COLOR,
     marginTop: 2,
   },
   
   bookButton: {
     backgroundColor: PRIMARY_COLOR,
-    paddingVertical: 10, // Reduced vertical padding slightly
+    paddingVertical: 10,
     paddingHorizontal: 15,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 120, // Ensure a consistent width
+    minWidth: 120,
   },
   
   bookButtonText: { 
@@ -725,11 +635,9 @@ const styles = StyleSheet.create({
     fontWeight: '700', 
     fontSize: 15,
   },
-  
-  // --- Info Message ---
   infoMessage: {
     padding: 15,
-    backgroundColor: '#E3F2FD', // Light blue background
+    backgroundColor: '#E3F2FD',
     borderRadius: 10,
     alignItems: 'center',
   },
@@ -754,9 +662,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: PRIMARY_COLOR,
   },
-
-
-  // --- Search Modal Styles ---
   searchModal: { flex: 1, backgroundColor: '#FFF', paddingTop: 50 },
   searchHeader: { 
     flexDirection: 'row', 
@@ -802,15 +707,13 @@ const styles = StyleSheet.create({
   noResultContainer: { marginTop: 50, alignItems: 'center', paddingHorizontal: 20 },
   noResultText: { color: SUB_TEXT_COLOR, fontSize: 16, fontWeight: '600', marginTop: 10 },
   noResultSubText: { color: '#999', fontSize: 14, marginTop: 5, textAlign: 'center' },
-
-  // --- General Overlay ---
   loadingOverlay: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: 'rgba(255,255,255,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 100, // Make sure it's on top
+    zIndex: 100,
   },
   routeInfoContainer: {
     flexDirection: 'row',

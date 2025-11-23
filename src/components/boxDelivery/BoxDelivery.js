@@ -1,137 +1,133 @@
-import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
+  View,
+  Text,
+  StyleSheet,
   Dimensions,
   StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  TextInput,
   FlatList,
-  Modal,
-  Linking
-} from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
-import { db } from '../firebase/firebaseConfig';
-import { collection, getDocs } from 'firebase/firestore';
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Platform,
+} from "react-native";
+import MapView, { Marker, Polyline } from "react-native-maps";
+import * as Location from "expo-location";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 
-const { height } = Dimensions.get('window');
-const PRIMARY_COLOR = '#007BFF';
-const SECONDARY_COLOR = '#4285F4';
-const SUCCESS_COLOR = '#4CAF50';
-const ERROR_COLOR = '#EA4335';
-const TEXT_COLOR = '#333';
-const SUB_TEXT_COLOR = '#666';
-const BACKGROUND_COLOR = '#F5F5F5';
+const { width, height } = Dimensions.get("window");
 
-const BoxDelivery = ({ navigation }) => {
+const COLORS = {
+  primary: "#007BFF",
+  gradientStart: "#4C9EEB",
+  gradientEnd: "#1A73E8",
+  white: "#FFF",
+  text: "#222",
+  subText: "#666",
+  card: "#FBFBFD",
+  success: "#34A853",
+  danger: "#E63946",
+};
+
+export default function BoxDelivery({ navigation }) {
   const mapRef = useRef(null);
+  const [region, setRegion] = useState(null);
+
   const [pickupLocation, setPickupLocation] = useState(null);
   const [destinationLocation, setDestinationLocation] = useState(null);
-  const [region, setRegion] = useState(null);
-  const [routeInfo, setRouteInfo] = useState(null);
+
   const [routeCoordinates, setRouteCoordinates] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [selecting, setSelecting] = useState('destination');
-  const [fareSettings, setFareSettings] = useState({
-    baseFare: 50,
-    baseDistance: 3,
-    extraPerKm: 15,
-  });
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [isCalculating, setIsCalculating] = useState(false);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [showSearchModal, setShowSearchModal] = useState(false);
+  // Search sheet
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [selecting, setSelecting] = useState("pickup"); // 'pickup' | 'destination'
+  const sheetAnim = useRef(new Animated.Value(0)).current; // 0 hidden, 1 visible
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [recentSearches, setRecentSearches] = useState([]);
 
-  // 🔹 Get current location and box delivery fare
+  // Fare settings (simple)
+  const fareSettings = { baseFare: 50, baseDistance: 3, extraPerKm: 15 };
+
   useEffect(() => {
-    getCurrentLocation();
-    fetchFareSettings();
+    (async () => {
+      await initLocation();
+    })();
   }, []);
 
   useEffect(() => {
-    if (pickupLocation && destinationLocation) calculateRoute();
+    // animate sheet
+    Animated.timing(sheetAnim, {
+      toValue: sheetVisible ? 1 : 0,
+      duration: 300,
+      easing: Easing.out(Easing.poly(4)),
+      useNativeDriver: true,
+    }).start();
+
+    // clear search when hidden
+    if (!sheetVisible) {
+      setSearchQuery("");
+      setSearchResults([]);
+    }
+  }, [sheetVisible]);
+
+  useEffect(() => {
+    if (pickupLocation && destinationLocation) {
+      calculateRoute();
+    } else {
+      setRouteCoordinates([]);
+      setRouteInfo(null);
+    }
   }, [pickupLocation, destinationLocation]);
 
-  // ✅ Fetch from Firestore 'boxDeliveryPrices'
-  const fetchFareSettings = async () => {
+  // ===== Location init =====
+  const initLocation = async () => {
     try {
-      const snapshot = await getDocs(collection(db, 'boxDeliveryPrices'));
-      if (!snapshot.empty) {
-        const docData = snapshot.docs[0].data();
-        setFareSettings({
-          baseFare: docData.baseFare || 50,
-          baseDistance: docData.baseDistance || 3,
-          extraPerKm: docData.extraPerKm || 15,
-        });
-      } else {
-        console.warn('No delivery pricing found in Firebase.');
-      }
-    } catch (error) {
-      console.error('Error fetching box delivery fare settings:', error);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return;
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+
+      setRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+
+      const rev = await Location.reverseGeocodeAsync(coords);
+      const info = rev[0] || {};
+      const address = [info.name, info.street, info.city].filter(Boolean).join(", ");
+
+      setPickupLocation({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        name: info.name || "My location",
+        address: address || "Current location",
+      });
+
+      // center map
+      mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 500);
+    } catch (e) {
+      console.warn("initLocation error:", e);
     }
   };
 
-const getCurrentLocation = async () => {
-  try {
-    setIsLoading(true);
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') throw new Error('Permission denied');
-
-    const loc = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Highest,
-    });
-
-    const coords = {
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-    };
-
-    // 🔹 Reverse geocode to get address
-    const res = await Location.reverseGeocodeAsync(coords);
-    const info = res[0];
-
-    const address = [
-      info.name,
-      info.street,
-      info.district,
-      info.city,
-      info.region,
-      info.postalCode,
-      info.country,
-    ]
-      .filter(Boolean)
-      .join(', ');
-
-    setRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 });
-
-    // ✅ Store the real address, not “Current Location”
-    setPickupLocation({
-      ...coords,
-      name: info.name || 'My Location',
-      address: address || 'Unknown Location',
-    });
-
-    setSelecting('destination');
-  } catch (err) {
-    console.error(err);
-    Alert.alert('Location Error', 'Could not get your current location.');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
+  // ===== Polyline decoder (OSRM polyline) =====
   const decodePolyline = (encoded) => {
     const points = [];
-    let index = 0, lat = 0, lng = 0;
+    let index = 0,
+      lat = 0,
+      lng = 0;
     while (index < encoded.length) {
-      let b, shift = 0, result = 0;
+      let b,
+        shift = 0,
+        result = 0;
       do {
         b = encoded.charCodeAt(index++) - 63;
         result |= (b & 0x1f) << shift;
@@ -153,383 +149,470 @@ const getCurrentLocation = async () => {
     return points;
   };
 
-  const calculateFare = (distance) => {
-    const { baseFare, baseDistance, extraPerKm } = fareSettings;
-    if (distance <= baseDistance) return Math.round(baseFare);
-    return Math.round(baseFare + (distance - baseDistance) * extraPerKm);
-  };
-
-  const formatDuration = (minutes) => {
-    if (minutes < 60) return `${Math.ceil(minutes)} min`;
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = Math.ceil(minutes % 60);
-    return remainingMinutes === 0 ? `${hours}h` : `${hours}h ${remainingMinutes}m`;
-  };
-
-  const formatDistance = (distance) => {
-    if (distance < 1) return `${Math.round(distance * 1000)} m`;
-    if (distance < 10) return `${distance.toFixed(1)} km`;
-    return `${Math.round(distance)} km`;
-  };
-
+  // ===== Route calculation (OSRM) =====
   const calculateRoute = async () => {
-    if (!pickupLocation || !destinationLocation) return;
-    setIsLoading(true);
-
     try {
-      const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${pickupLocation.longitude},${pickupLocation.latitude};${destinationLocation.longitude},${destinationLocation.latitude}?overview=full&geometries=polyline`
-      );
-      const data = await response.json();
+      setIsCalculating(true);
+      const a = pickupLocation;
+      const b = destinationLocation;
+      const url = `https://router.project-osrm.org/route/v1/driving/${a.longitude},${a.latitude};${b.longitude},${b.latitude}?overview=full&geometries=polyline`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.routes?.length) {
+        const route = json.routes[0];
+        const coords = decodePolyline(route.geometry);
+        setRouteCoordinates(coords);
 
-      if (data.routes && data.routes.length > 0) {
-        const route = data.routes[0];
-        const coordinates = decodePolyline(route.geometry);
-        setRouteCoordinates(coordinates);
-
-        const distance = route.distance / 1000;
-        const duration = route.duration / 60;
-        const fare = calculateFare(distance);
+        const distance = route.distance / 1000; // km
+        const duration = route.duration / 60; // minutes
+        const fare =
+          fareSettings.baseFare +
+          Math.max(0, distance - fareSettings.baseDistance) * fareSettings.extraPerKm;
 
         setRouteInfo({
-          distance: Math.round(distance * 10) / 10,
-          formattedDuration: formatDuration(duration),
-          fare,
+          distance: Number(distance.toFixed(1)),
+          duration: Math.round(duration),
+          fare: Math.round(fare),
         });
 
-        mapRef.current?.fitToCoordinates(coordinates, {
-          edgePadding: { top: 80, right: 50, bottom: 80, left: 50 },
+        // fit map
+        mapRef.current?.fitToCoordinates(coords, {
+          edgePadding: { top: 120, right: 40, bottom: 220, left: 40 },
           animated: true,
         });
-      } else {
-        Alert.alert('Route Error', 'No valid route found between points.');
       }
-    } catch (error) {
-      console.error('Route fetch failed:', error);
-      Alert.alert('Error', 'Could not fetch route. Check your connection.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleMapPress = async (event) => {
-    const { latitude, longitude } = event.nativeEvent.coordinate;
-
-    try {
-      const res = await Location.reverseGeocodeAsync({ latitude, longitude });
-      const info = res[0];
-      const address = [
-        info.name,
-        info.street,
-        info.district,
-        info.city,
-        info.region,
-      ]
-        .filter(Boolean)
-        .join(', ');
-
-      const locationData = {
-        latitude,
-        longitude,
-        name: info.name || 'Selected Location',
-        address: address || 'Unknown location',
-      };
-
-      if (selecting === 'pickup') {
-        setPickupLocation(locationData);
-        setSelecting('destination');
-      } else {
-        setDestinationLocation(locationData);
-      }
-
-      mapRef.current?.animateToRegion({
-        latitude,
-        longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
     } catch (err) {
-      console.error('Reverse geocode failed:', err);
+      console.warn("calculateRoute err:", err);
+    } finally {
+      setIsCalculating(false);
     }
   };
 
-  const handleBookRide = () => {
-    if (!pickupLocation || !destinationLocation || !routeInfo) {
-      Alert.alert('Error', 'Please select pickup and destination');
+  // ===== Search (Nominatim) =====
+  const searchPlaces = async (text) => {
+    setSearchQuery(text);
+    if (!text || text.length < 2) {
+      setSearchResults([]);
       return;
     }
-    navigation.navigate('DeliveryPayment', {
-      pickupLocation,
-      destinationLocation,
-      routeInfo,
-    });
-  };
-
-  const handleSearch = async (query) => {
-    setSearchQuery(query);
-    if (query.length < 3) return;
     try {
       setSearchLoading(true);
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?` +
-          new URLSearchParams({
-            q: query,
-            format: 'json',
-            limit: '10',
-            countrycodes: 'in',
-            viewbox: '74.0,18.45,78.6,11.5',
-            bounded: '1',
-          }),
-        { headers: { 'User-Agent': 'BoxDeliveryApp/1.0' } }
-      );
-      const data = await response.json();
-      const filteredResults = data.filter((item) =>
-        item.display_name.toLowerCase().includes('karnataka')
-      );
-      setSearchResults(filteredResults);
+      const url =
+        "https://nominatim.openstreetmap.org/search?" +
+        new URLSearchParams({
+          q: text,
+          format: "json",
+          addressdetails: "1",
+          limit: "10",
+        });
+      const res = await fetch(url, { headers: { "User-Agent": "localServiceBox/1.0" } });
+      const json = await res.json();
+      const mapped = json.map((it) => ({
+        id: it.place_id,
+        name: it.display_name,
+        lat: parseFloat(it.lat),
+        lon: parseFloat(it.lon),
+        raw: it,
+      }));
+      setSearchResults(mapped);
     } catch (err) {
-      console.error('Search error:', err);
+      console.warn("searchPlaces err:", err);
     } finally {
       setSearchLoading(false);
     }
   };
 
-  const handleSelectSearchResult = (item) => {
-    const location = {
-      latitude: parseFloat(item.lat),
-      longitude: parseFloat(item.lon),
-      name: item.display_name.split(',')[0],
-      address: item.display_name,
+  // ===== Select place from search =====
+  const selectLocation = (item) => {
+    const loc = {
+      latitude: item.lat,
+      longitude: item.lon,
+      name: item.name.split(",")[0],
+      address: item.name,
     };
 
-    if (selecting === 'pickup') {
-      setPickupLocation(location);
-      setSelecting('destination');
-    } else {
-      setDestinationLocation(location);
-    }
-
-    mapRef.current?.animateToRegion({
-      latitude: location.latitude,
-      longitude: location.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
+    // push to recent
+    setRecentSearches((prev) => {
+      const list = [loc, ...prev.filter((p) => p.address !== loc.address)].slice(0, 6);
+      return list;
     });
 
-    setShowSearchModal(false);
-    setSearchResults([]);
-    setSearchQuery('');
+    if (selecting === "pickup") {
+      setPickupLocation(loc);
+      // if no destination yet, focus destination
+      setSelecting("destination");
+      setTimeout(() => setSheetVisible(true), 250);
+    } else {
+      setDestinationLocation(loc);
+      // close sheet after selection
+      setSheetVisible(false);
+    }
+
+    setRegion({ ...loc, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+    mapRef.current?.animateToRegion({ ...loc, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 400);
   };
 
-  const handleOpenInMaps = () => {
-    if (pickupLocation && destinationLocation) {
-      const pickup = `${pickupLocation.latitude},${pickupLocation.longitude}`;
-      const drop = `${destinationLocation.latitude},${destinationLocation.longitude}`;
-      const url = `https://www.google.com/maps/dir/?api=1&origin=${pickup}&destination=${drop}&travelmode=driving`;
-      Linking.openURL(url);
-    } else {
-      Alert.alert('Select both pickup and destination first');
+  const useCurrentLocationAs = async (which) => {
+    try {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      const rev = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+      const info = rev[0] || {};
+      const address = [info.name, info.street, info.city].filter(Boolean).join(", ");
+      const obj = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        name: info.name || "My location",
+        address: address || "Current location",
+      };
+
+      if (which === "pickup") setPickupLocation(obj);
+      else setDestinationLocation(obj);
+
+      setRegion({ ...obj, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+      mapRef.current?.animateToRegion({ ...obj, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 400);
+
+      // if we used pickup and destination exists -> calculate
+      if (pickupLocation && destinationLocation) calculateRoute();
+    } catch (e) {
+      console.warn("useCurrentLocationAs err:", e);
     }
   };
 
-  const renderLocationInput = (location, type) => {
-    const isPickup = type === 'pickup';
-    return (
-      <TouchableOpacity
-        style={styles.locationInput}
-        onPress={() => setShowSearchModal(true) || setSelecting(type)}
-      >
-        <Ionicons
-          name={isPickup ? 'pin' : 'location-sharp'}
-          size={20}
-          color={isPickup ? SUCCESS_COLOR : ERROR_COLOR}
-          style={{ marginRight: 10 }}
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontWeight: '600', color: TEXT_COLOR }}>
-            {location ? location.name : isPickup ? 'Select Pickup' : 'Select Destination'}
-          </Text>
-          {location && (
-            <Text style={{ color: SUB_TEXT_COLOR, fontSize: 12 }} numberOfLines={1}>
-              {location.address}
-            </Text>
-          )}
-        </View>
-        {isPickup && location && (
-          <TouchableOpacity onPress={() => setPickupLocation(null)}>
-            <Ionicons name="close-circle" size={20} color={ERROR_COLOR} />
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
-    );
+  // ===== sheet transforms =====
+  const sheetTranslateY = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-height, 0],
+  });
+
+  // ===== UI helpers =====
+  const openSearchFor = (which) => {
+    setSelecting(which);
+    setSheetVisible(true);
   };
 
+  const confirmBooking = () => {
+    if (!pickupLocation || !destinationLocation || !routeInfo) {
+      return alert("Please select pickup and destination first.");
+    }
+    navigation.navigate("DeliveryPayment", { pickupLocation, destinationLocation, routeInfo });
+  };
+
+  // ===== Render =====
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={BACKGROUND_COLOR} />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+
+      {/* Map */}
       <MapView
         ref={mapRef}
         style={styles.map}
-        region={region}
+        initialRegion={
+          region ?? {
+            latitude: 12.9716,
+            longitude: 77.5946,
+            latitudeDelta: 0.5,
+            longitudeDelta: 0.5,
+          }
+        }
         showsUserLocation
-        onPress={handleMapPress}
       >
         {pickupLocation && (
-          <Marker coordinate={pickupLocation} title="Pickup" pinColor={SUCCESS_COLOR} />
+          <Marker coordinate={pickupLocation} title="Pickup" pinColor={COLORS.success} />
         )}
         {destinationLocation && (
-          <Marker coordinate={destinationLocation} title="Destination" pinColor={ERROR_COLOR} />
+          <Marker coordinate={destinationLocation} title="Drop" pinColor={COLORS.danger} />
         )}
         {routeCoordinates.length > 0 && (
-          <Polyline coordinates={routeCoordinates} strokeWidth={3} strokeColor={PRIMARY_COLOR} />
+          <Polyline coordinates={routeCoordinates} strokeWidth={4} strokeColor={COLORS.primary} />
         )}
       </MapView>
 
-      {pickupLocation && destinationLocation && (
-        <TouchableOpacity style={styles.mapsButton} onPress={handleOpenInMaps}>
-          <Ionicons name="navigate" size={18} color="#FFF" />
-          <Text style={styles.mapsButtonText}>Open in Maps</Text>
+      {/* Header gradient (keeps nice contrast) */}
+      <LinearGradient
+        colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+        style={styles.topGradient}
+      >
+        <Text style={styles.headerTitle}>📦 Box Delivery</Text>
+      </LinearGradient>
+
+      {/* Floating search inputs (Uber style) */}
+      <View style={styles.floatingContainer}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.floatingInput}
+          onPress={() => openSearchFor("pickup")}
+        >
+          <Ionicons name="navigate-circle" size={20} color={COLORS.success} />
+          <Text style={styles.floatingText}>
+            {pickupLocation ? pickupLocation.address : "Where from?"}
+          </Text>
+          <Ionicons name="search" size={18} color="#999" style={{ marginLeft: 8 }} />
         </TouchableOpacity>
-      )}
 
-      <View style={styles.bottomSheet}>
-        {renderLocationInput(pickupLocation, 'pickup')}
-        {renderLocationInput(destinationLocation, 'destination')}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={[styles.floatingInput, { marginTop: 10 }]}
+          onPress={() => openSearchFor("destination")}
+        >
+          <Ionicons name="location-sharp" size={20} color={COLORS.danger} />
+          <Text style={styles.floatingText}>
+            {destinationLocation ? destinationLocation.address : "Where to?"}
+          </Text>
+          <Ionicons name="search" size={18} color="#999" style={{ marginLeft: 8 }} />
+        </TouchableOpacity>
+      </View>
 
-        {routeInfo && (
-          <View style={styles.routeContainer}>
-            <Text style={styles.routeText}>
-              {formatDistance(routeInfo.distance)} • {routeInfo.formattedDuration}
-            </Text>
-            <Text style={styles.fareText}>₹{routeInfo.fare}</Text>
-            <TouchableOpacity style={styles.bookButton} onPress={handleBookRide}>
-              <Text style={styles.bookButtonText}>Book Now</Text>
+      {/* Bottom small fare card */}
+      <View style={styles.bottomBox}>
+        {isCalculating ? (
+          <ActivityIndicator size="small" color={COLORS.primary} />
+        ) : routeInfo ? (
+          <View style={styles.rowBetween}>
+            <View>
+              <Text style={styles.smallText}>
+                {routeInfo.distance} km • {routeInfo.duration} min
+              </Text>
+              <Text style={styles.priceText}>₹{routeInfo.fare}</Text>
+            </View>
+            <TouchableOpacity style={styles.confirmBtn} onPress={confirmBooking}>
+              <Text style={styles.confirmBtnText}>Confirm Booking</Text>
             </TouchableOpacity>
           </View>
+        ) : (
+          <Text style={styles.smallText}>Select pickup & destination to see fare</Text>
         )}
       </View>
 
-      {/* Search Modal */}
-      <Modal visible={showSearchModal} animationType="slide">
-        <View style={styles.searchModal}>
-          <View style={styles.searchHeader}>
-            <TouchableOpacity onPress={() => setShowSearchModal(false)}>
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+      {/* Animated full-screen search sheet */}
+      {/*
+        We use an Animated.View that slides from top. It contains:
+         - back button
+         - text input
+         - "Use current location" button
+         - recent searches
+         - search results
+      */}
+      <Animated.View
+        pointerEvents={sheetVisible ? "auto" : "none"}
+        style={[
+          styles.sheet,
+          {
+            transform: [{ translateY: sheetTranslateY }],
+          },
+        ]}
+      >
+        <View style={styles.sheetHeader}>
+          <TouchableOpacity onPress={() => setSheetVisible(false)} style={styles.sheetBack}>
+            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+
+          <View style={styles.sheetInputWrap}>
+            <Text style={styles.sheetLabel}>{selecting === "pickup" ? "Pickup" : "Destination"}</Text>
             <TextInput
-              style={styles.searchInput}
-              placeholder={`Search ${selecting === 'pickup' ? 'Pickup' : 'Destination'}`}
-              value={searchQuery}
-              onChangeText={handleSearch}
               autoFocus
+              placeholder={selecting === "pickup" ? "Search pickup location" : "Search destination"}
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={searchPlaces}
+              style={styles.sheetInput}
             />
           </View>
-          {searchLoading ? (
-            <View style={styles.searchLoaderContainer}>
-              <ActivityIndicator size="large" color={SECONDARY_COLOR} />
-              <Text style={styles.loadingText}>Searching places in Karnataka...</Text>
-            </View>
-          ) : (
+
+          <TouchableOpacity
+            onPress={() => useCurrentLocationAs(selecting)}
+            style={styles.currentBtn}
+          >
+            <Ionicons name="locate" size={20} color={COLORS.primary} />
+            <Text style={styles.currentBtnText}>Use current</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Recent searches (if any) */}
+        {recentSearches.length > 0 && (
+          <View style={styles.recentWrap}>
+            <Text style={styles.recentTitle}>Recent</Text>
             <FlatList
-              data={searchResults}
-              keyExtractor={(item) => item.place_id?.toString()}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={recentSearches}
+              keyExtractor={(it, i) => (it.address || it.name) + i}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.searchResultItem}
-                  onPress={() => handleSelectSearchResult(item)}
+                  style={styles.recentItem}
+                  onPress={() => selectLocation({ lat: item.latitude, lon: item.longitude, name: item.address })}
                 >
-                  <Ionicons name="location-outline" size={20} color={PRIMARY_COLOR} />
-                  <Text style={styles.searchResultText}>{item.display_name}</Text>
+                  <Ionicons name="time-outline" size={16} color="#666" />
+                  <Text numberOfLines={1} style={styles.recentText}>{item.address}</Text>
                 </TouchableOpacity>
               )}
             />
+          </View>
+        )}
+
+        {/* Search results */}
+        <View style={styles.resultsWrap}>
+          {searchLoading ? (
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          ) : (
+            <FlatList
+              keyboardShouldPersistTaps="handled"
+              data={searchResults}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.resultItem}
+                  onPress={() => selectLocation(item)}
+                >
+                  <Ionicons name="location-outline" size={20} color={COLORS.primary} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text numberOfLines={2} style={styles.resultTitle}>{item.name.split(",")[0]}</Text>
+                    <Text numberOfLines={1} style={styles.resultSubtitle}>{item.name}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                searchQuery.length > 1 ? (
+                  <View style={styles.emptyBox}>
+                    <Text style={{ color: "#666" }}>No results found.</Text>
+                  </View>
+                ) : (
+                  <View style={styles.emptyBox}>
+                    <Text style={{ color: "#666" }}>Try searching for an address or place</Text>
+                  </View>
+                )
+              }
+            />
           )}
         </View>
-      </Modal>
-
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-          <Text style={styles.loadingText}>Finding route...</Text>
-        </View>
-      )}
+      </Animated.View>
     </View>
   );
-};
+}
 
-export default BoxDelivery;
-
+/* ===== Styles ===== */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BACKGROUND_COLOR },
+  container: { flex: 1, backgroundColor: "#fff" },
   map: { flex: 1 },
-  mapsButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: PRIMARY_COLOR,
+  topGradient: {
+    position: "absolute",
+    top: 0,
+    width: "100%",
+    height: Platform.OS === "ios" ? 120 : 100,
+    paddingTop: Platform.OS === "ios" ? 40 : StatusBar.currentHeight,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
+    justifyContent: "center",
+    zIndex: 30,
+  },
+  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
+
+  floatingContainer: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 70 : 50,
+    left: 16,
+    right: 16,
+    zIndex: 40,
+  },
+  floatingInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
     elevation: 6,
-    zIndex: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  mapsButtonText: { color: '#FFF', fontWeight: '600', marginLeft: 6, fontSize: 14 },
-  bottomSheet: {
-    backgroundColor: '#FFF',
-    padding: 15,
-    elevation: 10,
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 15,
+  floatingText: { flex: 1, marginLeft: 10, color: "#222", fontWeight: "600" },
+
+  bottomBox: {
+    position: "absolute",
+    bottom: 20,
+    left: 16,
+    right: 16,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    zIndex: 40,
   },
-  locationInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: '#EEE',
-  },
-  routeContainer: { marginTop: 15, alignItems: 'center' },
-  routeText: { fontSize: 16, color: '#555', marginBottom: 5 },
-  fareText: { fontSize: 24, fontWeight: '700', color: '#000' },
-  bookButton: {
-    backgroundColor: PRIMARY_COLOR,
-    marginTop: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 30,
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  smallText: { color: "#666", fontWeight: "600" },
+  priceText: { fontSize: 20, fontWeight: "800", color: COLORS.primary },
+
+  confirmBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 10,
   },
-  bookButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
-  searchModal: { flex: 1, backgroundColor: '#FFF', paddingTop: 50 },
-  searchHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
-  searchInput: {
-    flex: 1,
-    borderBottomWidth: 1,
-    borderColor: '#CCC',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    fontSize: 16,
-    marginLeft: 10,
-  },
-  searchLoaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingOverlay: {
-    position: 'absolute',
+  confirmBtnText: { color: "#fff", fontWeight: "800" },
+
+  /* Sheet */
+  sheet: {
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    zIndex: 60,
+    backgroundColor: "#fff",
   },
-  loadingText: { marginTop: 10, fontSize: 16, color: PRIMARY_COLOR },
-  searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: Platform.OS === "ios" ? 50 : 20,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderColor: '#EEE',
+    borderColor: "#EEE",
   },
-  searchResultText: { marginLeft: 10, fontSize: 15, color: '#333', flex: 1 },
+  sheetBack: { padding: 6, marginRight: 6 },
+  sheetInputWrap: { flex: 1 },
+  sheetLabel: { fontSize: 12, color: "#888", marginBottom: 4 },
+  sheetInput: {
+    backgroundColor: "#F6F6F8",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+    fontSize: 16,
+  },
+  currentBtn: { marginLeft: 10, alignItems: "center" },
+  currentBtnText: { color: COLORS.primary, fontSize: 12, marginTop: 4 },
+
+  recentWrap: { paddingHorizontal: 12, paddingVertical: 10 },
+  recentTitle: { fontWeight: "700", color: "#444", marginBottom: 6 },
+  recentItem: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    elevation: 2,
+  },
+  recentText: { marginLeft: 6, color: "#444", maxWidth: width * 0.5 },
+
+  resultsWrap: { flex: 1, paddingVertical: 6 },
+  resultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  resultTitle: { fontSize: 15, fontWeight: "700", color: "#111" },
+  resultSubtitle: { color: "#666", marginTop: 4, fontSize: 12 },
+
+  emptyBox: { alignItems: "center", marginTop: 30 },
 });

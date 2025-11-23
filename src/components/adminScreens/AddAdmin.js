@@ -1,173 +1,388 @@
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, Alert } from 'react-native';
-import Header from '../header/Header';
-import { auth, db } from "../firebase/firebaseConfig";
-import { collection, query, where, getDocs, setDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Alert,
+  Modal,
+} from "react-native";
 
-const AddAdmin = ({ navigation }) => {
+import { auth, db } from "../firebase/firebaseConfig";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import { createUserWithEmailAndPassword } from "firebase/auth";
+
+const AdminManager = () => {
+  const [admins, setAdmins] = useState([]);
+
+  // MODALS
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+
+  // FORM DATA
   const [adminDetails, setAdminDetails] = useState({
-    role: "admin",
     fullName: "",
     email: "",
     phone: "",
-    password: ""
+    password: "",
   });
 
+  const [editingAdmin, setEditingAdmin] = useState(null);
+
+  /* -------------------------------------------------- */
+  /* 🔥 Fetch admins real-time                          */
+  /* -------------------------------------------------- */
+  useEffect(() => {
+    const q = query(collection(db, "users"), where("role", "==", "admin"));
+
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setAdmins(data);
+    });
+
+    return () => unsub();
+  }, []);
+
+  /* -------------------------------------------------- */
+  /* 🟢 Add new admin                                   */
+  /* -------------------------------------------------- */
   const handleAddAdmin = async () => {
     const { fullName, email, phone, password } = adminDetails;
 
-    // ✅ Validation
     if (!fullName || !email || !phone || !password) {
-      Alert.alert("Missing Information", "Please fill in all fields.");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address.");
-      return;
-    }
-
-    if (phone.length !== 10) {
-      Alert.alert("Invalid Phone", "Phone number must be 10 digits.");
+      Alert.alert("Missing Fields", "All fields are required.");
       return;
     }
 
     try {
-      // ✅ Check for duplicate email
-      const emailQuery = query(collection(db, "users"), where("email", "==", email));
-      const emailSnap = await getDocs(emailQuery);
-      if (!emailSnap.empty) {
-        Alert.alert("Error", "User already exists with this email!");
-        return;
-      }
+      // duplicate email check
+      const emailSnap = await getDocs(
+        query(collection(db, "users"), where("email", "==", email))
+      );
+      if (!emailSnap.empty) return Alert.alert("Error", "Email already exists!");
 
-      // ✅ Check for duplicate phone
-      const phoneQuery = query(collection(db, "users"), where("phone", "==", phone));
-      const phoneSnap = await getDocs(phoneQuery);
-      if (!phoneSnap.empty) {
-        Alert.alert("Error", "User already exists with this phone number!");
-        return;
-      }
+      const phoneSnap = await getDocs(
+        query(collection(db, "users"), where("phone", "==", phone))
+      );
+      if (!phoneSnap.empty) return Alert.alert("Error", "Phone already exists!");
 
-      // ✅ Create Auth account
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      const userCred = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCred.user;
 
-      // ✅ Save admin info to Firestore
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         fullName,
         email,
         phone,
         role: "admin",
-        password,
         createdAt: serverTimestamp(),
       });
 
-      Alert.alert("✅ Success", "New admin added successfully!");
-      setAdminDetails({
-        role: "admin",
-        fullName: "",
-        email: "",
-        phone: "",
-        password: ""
-      });
+      setAdminDetails({ fullName: "", email: "", phone: "", password: "" });
+      setAddModalVisible(false);
 
-    } catch (error) {
-      console.error("❌ Error adding admin:", error);
-      let message = "Something went wrong!";
-      if (error.code === "auth/email-already-in-use") {
-        message = "This email is already registered!";
-      } else if (error.code === "auth/invalid-email") {
-        message = "Invalid email address!";
-      } else if (error.code === "auth/weak-password") {
-        message = "Password should be at least 6 characters.";
-      }
-      Alert.alert("Error", message);
+      Alert.alert("Success", "Admin added!");
+
+    } catch (e) {
+      Alert.alert("Error", e.message);
     }
   };
 
-  return (
-    <View style={styles.main}>
-      <Header navigation={navigation} title={"Add Admin"} />
-      <View style={styles.container}>
-        <View style={styles.inputContainer}>
-          <Text style={styles.infoLabel}>Full Name:</Text>
-          <TextInput
-            placeholder='Enter Full Name'
-            style={styles.inputBox}
-            value={adminDetails.fullName}
-            onChangeText={(text) => setAdminDetails({ ...adminDetails, fullName: text })}
-          />
-        </View>
+  /* -------------------------------------------------- */
+  /* ✏️ Save admin edits                                */
+  /* -------------------------------------------------- */
+  const handleEditSave = async () => {
+    try {
+      await updateDoc(doc(db, "users", editingAdmin.id), {
+        fullName: editingAdmin.fullName,
+        phone: editingAdmin.phone,
+      });
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.infoLabel}>Email ID:</Text>
-          <TextInput
-            placeholder='Enter Email ID'
-            style={styles.inputBox}
-            value={adminDetails.email}
-            onChangeText={(text) => setAdminDetails({ ...adminDetails, email: text })}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
+      setEditModalVisible(false);
+      setEditingAdmin(null);
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.infoLabel}>Phone Number:</Text>
-          <TextInput
-            placeholder='Enter Phone Number'
-            style={styles.inputBox}
-            value={adminDetails.phone}
-            onChangeText={(text) => setAdminDetails({ ...adminDetails, phone: text })}
-            keyboardType="phone-pad"
-            maxLength={10}
-          />
-        </View>
+      Alert.alert("Success", "Admin updated!");
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.infoLabel}>Password:</Text>
-          <TextInput
-            placeholder='Enter Password'
-            style={styles.inputBox}
-            value={adminDetails.password}
-            onChangeText={(text) => setAdminDetails({ ...adminDetails, password: text })}
-            secureTextEntry
-          />
-        </View>
+    } catch (e) {
+      Alert.alert("Error", "Update failed.");
+    }
+  };
+
+  /* -------------------------------------------------- */
+  /* ❌ Delete admin                                    */
+  /* -------------------------------------------------- */
+  const handleDeleteAdmin = (id) => {
+    Alert.alert("Delete Admin", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteDoc(doc(db, "users", id));
+            Alert.alert("Deleted", "Admin removed.");
+          } catch (e) {
+            Alert.alert("Error", "Could not delete admin.");
+          }
+        },
+      },
+    ]);
+  };
+
+  /* -------------------------------------------------- */
+  /* 🧾 Render Admin Item                               */
+  /* -------------------------------------------------- */
+  const renderAdmin = ({ item }) => (
+    <View style={styles.card}>
+      <Text style={styles.name}>{item.fullName}</Text>
+      <Text style={styles.info}>📧 {item.email}</Text>
+      <Text style={styles.info}>📞 {item.phone}</Text>
+
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={styles.editBtn}
+          onPress={() => {
+            setEditingAdmin(item);
+            setEditModalVisible(true);
+          }}
+        >
+          <Text style={styles.btnText}>Edit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={() => handleDeleteAdmin(item.id)}
+        >
+          <Text style={styles.btnText}>Delete</Text>
+        </TouchableOpacity>
       </View>
+    </View>
+  );
 
-      <Pressable onPress={handleAddAdmin} style={styles.addBtn}>
-        <Text style={styles.addLabel}>Add Admin</Text>
-      </Pressable>
+  /* -------------------------------------------------- */
+  /* UI + Modals                                        */
+  /* -------------------------------------------------- */
+  return (
+    <View style={{ flex: 1, padding: 20 }}>
+      <Text style={styles.header}>Admin Manager</Text>
+
+      {/* ADD ADMIN BUTTON */}
+      <TouchableOpacity
+        style={styles.addBtn}
+        onPress={() => setAddModalVisible(true)}
+      >
+        <Text style={styles.addText}>+ Add Admin</Text>
+      </TouchableOpacity>
+
+      {/* ADMIN LIST */}
+      <FlatList
+        data={admins}
+        keyExtractor={(i) => i.id}
+        renderItem={renderAdmin}
+      />
+
+      {/* -------------------------------------------------- */}
+      {/* 🟢 ADD ADMIN MODAL                                 */}
+      {/* -------------------------------------------------- */}
+      <Modal visible={addModalVisible} transparent animationType="slide">
+        <View style={styles.modalWrapper}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalHeader}>Add New Admin</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name"
+              value={adminDetails.fullName}
+              onChangeText={(t) =>
+                setAdminDetails({ ...adminDetails, fullName: t })
+              }
+            />
+
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={adminDetails.email}
+              onChangeText={(t) =>
+                setAdminDetails({ ...adminDetails, email: t })
+              }
+            />
+
+            <TextInput
+              style={styles.input}
+              placeholder="Phone"
+              keyboardType="phone-pad"
+              maxLength={10}
+              value={adminDetails.phone}
+              onChangeText={(t) =>
+                setAdminDetails({ ...adminDetails, phone: t })
+              }
+            />
+
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              secureTextEntry
+              value={adminDetails.password}
+              onChangeText={(t) =>
+                setAdminDetails({ ...adminDetails, password: t })
+              }
+            />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleAddAdmin}>
+              <Text style={styles.btnText}>Submit</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setAddModalVisible(false)}
+            >
+              <Text style={styles.btnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* -------------------------------------------------- */}
+      {/* ✏️ EDIT ADMIN MODAL                                */}
+      {/* -------------------------------------------------- */}
+      <Modal visible={editModalVisible} transparent animationType="slide">
+        <View style={styles.modalWrapper}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalHeader}>Edit Admin</Text>
+
+            <TextInput
+              style={styles.input}
+              value={editingAdmin?.fullName}
+              onChangeText={(t) =>
+                setEditingAdmin({ ...editingAdmin, fullName: t })
+              }
+            />
+
+            <TextInput
+              style={styles.input}
+              keyboardType="phone-pad"
+              maxLength={10}
+              value={editingAdmin?.phone}
+              onChangeText={(t) =>
+                setEditingAdmin({ ...editingAdmin, phone: t })
+              }
+            />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleEditSave}>
+              <Text style={styles.btnText}>Save</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setEditModalVisible(false)}
+            >
+              <Text style={styles.btnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 };
 
-export default AddAdmin;
+export default AdminManager;
 
+/* -------------------------------------------------- */
+/* STYLES                                              */
+/* -------------------------------------------------- */
 const styles = StyleSheet.create({
-  main: { flex: 1 },
-  container: { flex: 1, padding: 24 },
-  inputContainer: { marginVertical: 10 },
-  infoLabel: { fontWeight: "500", fontSize: 13 },
-  inputBox: {
-    backgroundColor: "white",
-    borderRadius: 13,
-    marginTop: 5,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
+  header: { fontSize: 22, fontWeight: "800", textAlign: "center" },
+
   addBtn: {
-    padding: 15,
-    alignItems: "center",
     backgroundColor: "#efb71b",
-    marginBottom: 30,
+    padding: 14,
     borderRadius: 10,
-    marginHorizontal: 24,
+    alignItems: "center",
+    marginVertical: 15,
   },
-  addLabel: { fontWeight: "600", fontSize: 18, color: "#000" },
+  addText: { fontSize: 16, fontWeight: "700", color: "black" },
+
+  card: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 10,
+    marginVertical: 8,
+    elevation: 3,
+  },
+  name: { fontSize: 18, fontWeight: "700" },
+  info: { marginTop: 5, color: "#555" },
+
+  row: { flexDirection: "row", marginTop: 10 },
+  editBtn: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: "#007bff",
+    marginRight: 5,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  deleteBtn: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: "#e53935",
+    marginLeft: 5,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  btnText: { color: "#fff", fontWeight: "700" },
+
+  modalWrapper: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalBox: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 10,
+  },
+  modalHeader: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  saveBtn: {
+    backgroundColor: "green",
+    padding: 12,
+    marginTop: 20,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  cancelBtn: {
+    backgroundColor: "#777",
+    padding: 12,
+    marginTop: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
 });

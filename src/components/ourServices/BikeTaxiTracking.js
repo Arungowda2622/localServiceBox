@@ -2,24 +2,40 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, Animated } from 'react-native';
 import Header from '../header/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase/firebaseConfig";
 
-const BikeTaxiTracking = ({ navigation }) => {
-  const [isWaiting, setIsWaiting] = useState(true);
+const BikeTaxiTracking = ({ navigation, route }) => {
+  const { bookingId } = route.params; // ⭐ Get bookingId from previous screen
+  const [booking, setBooking] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(0));
+  
+  const [isWaiting, setIsWaiting] = useState(true);
 
   useEffect(() => {
-    // Simulate rider confirmation after 4 seconds
-    const timer = setTimeout(() => {
-      setIsWaiting(false);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }).start();
-    }, 4000);
+    if (!bookingId) return;
 
-    return () => clearTimeout(timer);
-  }, []);
+    // ⭐ REAL-TIME BOOKING LISTENER
+    const unsubscribe = onSnapshot(doc(db, "bookings", bookingId), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setBooking(data);
+
+        // If driver accepted -> show driver details
+        if (data.status === "accepted") {
+          setIsWaiting(false);
+
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }).start();
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [bookingId]);
 
   return (
     <View style={styles.container}>
@@ -29,14 +45,24 @@ const BikeTaxiTracking = ({ navigation }) => {
         {isWaiting ? (
           <>
             <ActivityIndicator size="large" color="#007BFF" />
-            <Text style={styles.waitingText}>Waiting for the rider’s confirmation...</Text>
+            <Text style={styles.waitingText}>
+              Waiting for driver’s confirmation...
+            </Text>
           </>
         ) : (
           <Animated.View style={{ alignItems: 'center', opacity: fadeAnim }}>
             <Ionicons name="checkmark-circle" size={70} color="#4CAF50" style={{ marginBottom: 15 }} />
-            <Text style={styles.successTitle}>Ride confirmed!</Text>
+            <Text style={styles.successTitle}>Ride Confirmed!</Text>
+
+            {/* SHOW DRIVER DETAILS */}
+            <Text style={styles.driverLabel}>Driver Name</Text>
+            <Text style={styles.driverText}>{booking?.driverName}</Text>
+
+            <Text style={styles.driverLabel}>Driver Phone</Text>
+            <Text style={styles.driverText}>{booking?.driverPhone}</Text>
+
             <Text style={styles.successText}>
-              Your ride has been successfully booked. The rider is on the way and will reach your location as soon as possible.
+              Your driver is on the way and will reach your location soon.
             </Text>
           </Animated.View>
         )}
@@ -70,10 +96,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#4CAF50',
     textAlign: 'center',
+    marginBottom: 15,
+  },
+  driverLabel: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#555",
+    fontWeight: "600",
+  },
+  driverText: {
+    fontSize: 18,
+    color: "#000",
+    fontWeight: "700",
+    marginBottom: 10,
   },
   successText: {
-    marginTop: 10,
-    fontSize: 16,
+    marginTop: 20,
+    fontSize: 15,
     color: '#444',
     textAlign: 'center',
     lineHeight: 24,

@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,11 +11,79 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import Header from '../header/Header';
 import { db } from '../firebase/firebaseConfig';
 import { getAuth } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+  getDocs,
+  doc,
+  setDoc
+} from 'firebase/firestore';
 
-const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
+const BikeTaxiPayment = ({ route, navigation = { goBack: () => { } } }) => {
   const { pickupLocation, destinationLocation, routeInfo } = route?.params || {};
   const finalFare = routeInfo?.fare || 0;
+
+  const notifyDrivers = async (bookingId, bookingData) => {
+    try {
+      // 1️⃣ Get all drivers
+      const driversSnapshot = await getDocs(collection(db, "users"));
+      let driverTokens = [];
+
+      driversSnapshot.forEach((driver) => {
+        const data = driver.data();
+        if (data.role === "driver" && data.fcmToken) {
+          driverTokens.push(data.fcmToken);
+        }
+      });
+
+      console.log("🚀 DRIVER TOKENS:", driverTokens);
+
+      // 2️⃣ Save in Firestore (your existing logic)
+      driversSnapshot.forEach((driver) => {
+        if (driver.data().role === "driver") {
+          setDoc(
+            doc(db, "users", driver.id, "notifications", bookingId),
+            {
+              type: "new_booking",
+              bookingId,
+              message: "A new ride is waiting for drivers",
+              createdAt: serverTimestamp(),
+              seen: false,
+              ...bookingData,
+            }
+          );
+        }
+      });
+
+      // 3️⃣ Send PUSH notifications to all drivers
+      if (driverTokens.length > 0) {
+        await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(
+            driverTokens.map((token) => ({
+              to: token,
+              sound: "default",
+              title: "🚕 New Ride Request",
+              body: "A new customer needs a ride!",
+              data: { bookingId },
+            }))
+          ),
+        });
+
+        console.log("📣 Push notifications sent to drivers");
+      } else {
+        console.log("⚠ No driver tokens found.");
+      }
+    } catch (error) {
+      console.log("❌ Notification error:", error);
+    }
+  };
+
 
   const handleConfirmBooking = async () => {
     if (!pickupLocation || !destinationLocation || !routeInfo) {
@@ -33,59 +100,65 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
         return;
       }
 
-      // ✅ Use bookings collection (not rides)
-      const bookingsCollection = collection(db, 'bookings');
-
+      // 🔥 Booking Object
       const bookingData = {
         userId: user.uid,
         userEmail: user.email,
-        pickup: pickupLocation?.address || '',
-        pickupName: pickupLocation?.name || '',
-        destination: destinationLocation?.address || '',
-        destinationName: destinationLocation?.name || '',
-        distance: routeInfo?.distance || 0,
-        duration: routeInfo?.formattedDuration || '',
-        fare: routeInfo?.fare || 0,
-        paymentMethod: 'Cash',
-        paymentStatus: 'Pending',
 
-        // ✅ important fields for driver system
+        pickup: pickupLocation?.address || "",
+        pickupName: pickupLocation?.name || "",
+        destination: destinationLocation?.address || "",
+        destinationName: destinationLocation?.name || "",
+
+        distance: routeInfo?.distance || 0,
+        duration: routeInfo?.formattedDuration || "",
+        fare: routeInfo?.fare || 0,
+
+        paymentMethod: "Cash",
+        paymentStatus: "Pending",
+
+        // 🔥 IMPORTANT
+        status: "waiting",
         driverId: null,
         driverName: null,
         driverPhone: null,
-        status: 'pending', // so drivers can see it in their list
+        assignedDriver: null,
+        driverRequestSent: true,
+
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
 
-      await addDoc(bookingsCollection, bookingData);
+      // 🔥 Add booking
+      const docRef = await addDoc(collection(db, "bookings"), bookingData);
 
-      Alert.alert(
-        'Ride Requested 🚖',
-        `Your ride request has been sent!\n\nYou'll be assigned a driver soon.\n\nEstimated Fare: ₹${routeInfo.fare}`
-      );
+      // 🔥 Send notification to drivers
+      await notifyDrivers(docRef.id, bookingData);
 
-      navigation.navigate('BikeTaxiTracking');
+      // 🔥 Redirect to waiting screen
+      navigation.navigate("BikeTaxiWaiting", {
+        bookingId: docRef.id,
+      });
+
     } catch (error) {
-      console.error('Error saving booking:', error);
-      Alert.alert('Error', 'Failed to create booking. Please try again.');
+      console.error("Error saving booking:", error);
+      Alert.alert("Error", "Failed to create booking. Please try again.");
     }
   };
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} title={'Confirm Ride'} />
+      <Header navigation={navigation} title={"Confirm Ride"} />
 
       <ScrollView style={styles.main}>
         <Text style={styles.sectionTitle}>Ride Details</Text>
 
-        {/* Pickup and Destination */}
         <View style={styles.locationCard}>
           <View style={styles.locationItem}>
             <Feather name="circle" size={12} color="#4CAF50" style={styles.icon} />
             <Text style={styles.locationLabel}>Pickup:</Text>
             <Text style={styles.locationValue} numberOfLines={1}>
-              {pickupLocation?.name || 'Not selected'}
+              {pickupLocation?.name || "Not selected"}
             </Text>
           </View>
 
@@ -95,32 +168,30 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
             <Feather name="square" size={12} color="#EA4335" style={styles.icon} />
             <Text style={styles.locationLabel}>Destination:</Text>
             <Text style={styles.locationValue} numberOfLines={1}>
-              {destinationLocation?.name || 'Not selected'}
+              {destinationLocation?.name || "Not selected"}
             </Text>
           </View>
         </View>
 
-        {/* Distance & Duration */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <Feather name="compass" size={16} color="#007BFF" />
             <Text style={styles.summaryLabel}>Distance & Duration</Text>
             <Text style={styles.summaryValue}>
-              {routeInfo?.distance ? `${routeInfo.distance} km` : 'N/A'} •{' '}
-              {routeInfo?.formattedDuration || 'N/A'}
+              {routeInfo?.distance ? `${routeInfo.distance} km` : "N/A"} •{" "}
+              {routeInfo?.formattedDuration || "N/A"}
             </Text>
           </View>
         </View>
 
-        {/* Fare Info */}
         <View style={styles.fareCard}>
           <Text style={styles.fareLabel}>Estimated Fare</Text>
           <Text style={styles.fareValue}>₹{finalFare}</Text>
           <Text style={styles.fareSubtitle}>Pay the driver in cash</Text>
         </View>
 
-        {/* Payment Method */}
         <Text style={styles.sectionTitle}>Payment Method</Text>
+
         <View style={styles.paymentButton}>
           <MaterialCommunityIcons name="cash-multiple" size={26} color="#4CAF50" />
           <View style={styles.paymentTextContainer}>
@@ -134,7 +205,6 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
         <View style={{ marginBottom: 100 }} />
       </ScrollView>
 
-      {/* Confirm Ride Button */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.confirmButton}
@@ -151,6 +221,7 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
 };
 
 export default BikeTaxiPayment;
+
 
 const styles = StyleSheet.create({
   container: {

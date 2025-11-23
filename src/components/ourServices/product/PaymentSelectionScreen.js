@@ -101,7 +101,68 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
     }
   };
 
-  // 🔹 Confirm order & save to Firestore
+  // 🔥 SEND NOTIFICATION TO ALL DRIVERS
+  const notifyDrivers = async (orderId, orderData) => {
+    try {
+      // 1️⃣ Get all drivers with tokens
+      const driversSnap = await getDocs(collection(db, "users"));
+      let driverTokens = [];
+
+      driversSnap.forEach((d) => {
+        const user = d.data();
+        if (user.role === "driver" && user.fcmToken) {
+          driverTokens.push(user.fcmToken);
+        }
+      });
+
+      console.log("🚕 DRIVER TOKENS:", driverTokens);
+
+      // 2️⃣ Save a realtime notification for drivers in Firestore
+      driversSnap.forEach((d) => {
+        const user = d.data();
+        if (user.role === "driver") {
+          addDoc(collection(db, "users", d.id, "notifications"), {
+            type: "new_order",
+            orderId,
+            message: "A new order has been placed!",
+            createdAt: new Date(),
+            seen: false,
+            ...orderData,
+          });
+        }
+      });
+
+      // 3️⃣ Send push notifications
+      if (driverTokens.length > 0) {
+        await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(
+            driverTokens.map((token) => ({
+              to: token,
+              sound: "default",
+              title: "📦 New Order!",
+              body: "A new product order is waiting for drivers.",
+              data: { orderId },
+            }))
+          ),
+        })
+          .then((res) => res.json())
+          .then((json) => console.log("📨 Expo Response:", json))
+          .catch((err) => console.log("Push Error:", err));
+      } else {
+        console.log("⚠ No driver tokens found.");
+      }
+    } catch (err) {
+      console.log("Error sending driver notifications:", err);
+    }
+  };
+
+
+  // 🔥 UPDATED Confirm ORDER function
   const handleConfirmOrder = async () => {
     if (paymentMethod === "Online Payment" && !utrNumber.trim()) {
       Alert.alert("Missing UTR", "Please enter your UTR number before confirming.");
@@ -112,44 +173,47 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       setLoading(true);
       const auth = getAuth();
       const user = auth.currentUser;
+
       if (!user) {
         Alert.alert("Error", "User not logged in.");
         setLoading(false);
         return;
       }
 
-      // ✅ Step 1: Check for duplicate UTR (case-insensitive)
+      // 🚨 Duplicate UTR Check
       if (paymentMethod === "Online Payment") {
-        const utrToCheck = utrNumber.trim().toLowerCase();
+        const utrLower = utrNumber.trim().toLowerCase();
         const q = query(
           collection(db, "orders"),
-          where("utrNumberLower", "==", utrToCheck)
+          where("utrNumberLower", "==", utrLower)
         );
-        const utrSnapshot = await getDocs(q);
+        const utrSnap = await getDocs(q);
 
-        if (!utrSnapshot.empty) {
+        if (!utrSnap.empty) {
           setLoading(false);
           Alert.alert(
             "Duplicate UTR ❌",
-            "This UTR number has already been used. Please enter a valid UTR."
+            "This UTR number has already been used. Enter a valid UTR."
           );
           return;
         }
       }
 
-      // ✅ Step 2: Prepare order data
-      const orderData = {
+      // 📝 Prepare order object
+      const newOrder = {
         userId: user.uid,
         total: Number(total),
         paymentMethod,
         utrNumber: paymentMethod === "Online Payment" ? utrNumber.trim() : null,
         utrNumberLower:
-          paymentMethod === "Online Payment" ? utrNumber.trim().toLowerCase() : null,
+          paymentMethod === "Online Payment"
+            ? utrNumber.trim().toLowerCase()
+            : null,
         address: routeSelectedAddress
           ? routeSelectedAddress
           : addresses.length > 0
-          ? addresses[0]
-          : null,
+            ? addresses[0]
+            : null,
         upi: selectedUPI?.upi || null,
         status:
           paymentMethod === "Online Payment"
@@ -158,39 +222,39 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
         createdAt: new Date(),
       };
 
-      // ✅ Step 3: Save to Firestore
-      await addDoc(collection(db, "orders"), orderData);
+      // 💾 Save Order
+      const newOrderRef = await addDoc(collection(db, "orders"), newOrder);
+
+      // 📢 SEND DRIVER NOTIFICATION
+      await notifyDrivers(newOrderRef.id, newOrder);
 
       setLoading(false);
+
       Alert.alert(
-        "Order Placed ✅",
-        `Your order has been placed successfully!\nUTR: ${
-          utrNumber || "N/A"
+        "Order Placed 🎉",
+        `Your order has been placed successfully!\nUTR: ${utrNumber || "N/A"
         }`,
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.navigate("OuerServices"),
-          },
-        ]
+        [{ text: "OK", onPress: () => navigation.navigate("OuerServices") }]
       );
 
-      // Reset state
+      // reset
       setUtrNumber("");
       setPaymentDone(false);
       setPaymentMethod("");
+
     } catch (err) {
-      console.error("Error saving order:", err);
+      console.error("Order Save Error:", err);
       setLoading(false);
       Alert.alert("Error", "Failed to save order. Try again.");
     }
   };
 
+
   const currentAddress = routeSelectedAddress
     ? routeSelectedAddress
     : addresses.length > 0
-    ? addresses[0]
-    : null;
+      ? addresses[0]
+      : null;
 
   return (
     <View style={styles.safeArea}>

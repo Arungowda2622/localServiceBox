@@ -33,6 +33,7 @@ import BoxDelivery from './src/components/boxDelivery/BoxDelivery';
 import DeliveryPayment from './src/components/boxDelivery/DeliveryPayment';
 import AddDriverScreen from './src/components/adminScreens/AddDriverScreen';
 import DriverScreen from './src/components/driver/DriverScreen';
+import BikeTaxiWaiting from './src/components/ourServices/BikeTaxiWaiting';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -60,6 +61,7 @@ function MainStack() {
       <Stack.Screen name="DeliveryPayment" component={DeliveryPayment} />
       <Stack.Screen name="AddDriverScreen" component={AddDriverScreen} />
       <Stack.Screen name="DriverScreen" component={DriverScreen} />
+      <Stack.Screen name="BikeTaxiWaiting" component={BikeTaxiWaiting} />
     </Stack.Navigator>
   );
 }

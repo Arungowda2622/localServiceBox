@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, getDocs, setDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
 import { getAuth } from 'firebase/auth'; // ✅ import auth to get current user
 
@@ -23,8 +23,77 @@ const DeliveryPayment = ({ route, navigation }) => {
   const { pickupLocation, destinationLocation, routeInfo } = route.params;
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 🧮 Confirm Booking and Save to Firestore
+  const notifyDrivers = async (bookingId, bookingData) => {
+    try {
+      // 1️⃣ Get all drivers
+      const driversSnapshot = await getDocs(collection(db, "users"));
+      let driverTokens = [];
+
+      driversSnapshot.forEach((driver) => {
+        const data = driver.data();
+        if (data.role === "driver" && data.fcmToken) {
+          driverTokens.push(data.fcmToken);
+        }
+      });
+
+      console.log("🚀 DRIVER TOKENS:", driverTokens);
+
+      // 2️⃣ Save in Firestore (your existing logic)
+      driversSnapshot.forEach((driver) => {
+        if (driver.data().role === "driver") {
+          setDoc(
+            doc(db, "users", driver.id, "notifications", bookingId),
+            {
+              type: "new_booking",
+              bookingId,
+              message: "A new ride is waiting for drivers",
+              createdAt: serverTimestamp(),
+              seen: false,
+              ...bookingData,
+            }
+          );
+        }
+      });
+
+      // 3️⃣ Send PUSH notifications to all drivers
+      if (driverTokens.length > 0) {
+        await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(
+            driverTokens.map((token) => ({
+              to: token,
+              sound: "default",
+              title: "🚕 New Ride Request",
+              body: "A new customer needs a ride!",
+              data: { bookingId },
+            }))
+          ),
+        }).then(res => res.json())
+          .then((response) => {
+            console.log(response, "thisIsResponse");
+          })
+          .catch((err) => {
+            console.log(err, "thisIsError");
+          })
+        console.log("📣 Push notifications sent to drivers");
+      } else {
+        console.log("⚠ No driver tokens found.");
+      }
+    } catch (error) {
+      console.log("❌ Notification error:", error);
+    }
+  };
+
   const handleConfirmBooking = async () => {
+    if (!pickupLocation || !destinationLocation || !routeInfo) {
+      Alert.alert("Error", "Incomplete delivery details.");
+      return;
+    }
+
     try {
       setIsProcessing(true);
 
@@ -32,34 +101,61 @@ const DeliveryPayment = ({ route, navigation }) => {
       const user = auth.currentUser;
 
       if (!user) {
-        Alert.alert('Error', 'You must be logged in to confirm a delivery.');
+        Alert.alert("Error", "You must be logged in to confirm a delivery.");
         setIsProcessing(false);
         return;
       }
 
-      // ✅ Save booking details to Firestore with user reference
-      await addDoc(collection(db, 'boxDelivery'), {
-        userId: user.uid, // ✅ attach current user ID
+      // ✅ Delivery Object SAME STRUCTURE AS NORMAL BOOKINGS
+      const deliveryData = {
+        userId: user.uid,
         userEmail: user.email,
-        pickup: pickupLocation,
-        destination: destinationLocation,
-        distance: routeInfo.distance,
-        duration: routeInfo.formattedDuration,
-        fare: routeInfo.fare,
-        paymentMethod: 'Cash',
-        paymentStatus: 'Pending',
-        status: 'Pending',
-        type: 'boxDelivery',
+
+        // SAME FIELD NAMES AS bookingData
+        pickup: pickupLocation?.address || "",
+        pickupName: pickupLocation?.name || "",
+        destination: destinationLocation?.address || "",
+        destinationName: destinationLocation?.name || "",
+
+        distance: routeInfo?.distance || 0,
+        duration: routeInfo?.formattedDuration || "",
+        fare: routeInfo?.fare || 0,
+
+        paymentMethod: "Cash",
+        paymentStatus: "Pending",
+
+        // MUST MATCH booking structure
+        status: "waiting",
+        driverId: null,
+        driverName: null,
+        driverPhone: null,
+        assignedDriver: null,
+        driverRequestSent: true,
+
+        type: "boxDelivery", // 👈 helps identify type in driver panel
+
         createdAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp(),
+      };
+
+      // Save to boxDelivery collection
+      const docRef = await addDoc(collection(db, "boxDelivery"), deliveryData);
+
+      // Optional: Notify drivers (same as ride)
+      await notifyDrivers(docRef.id, deliveryData);
 
       setIsProcessing(false);
-      Alert.alert('✅ Success', 'Your delivery booking has been created!');
-      navigation.navigate('Home'); // or Orders screen if preferred
+
+      Alert.alert("Success", "Your delivery booking has been created!", [
+        {
+          text: "OK",
+          onPress: () => navigation.navigate("Home"),
+        },
+      ]);
     } catch (error) {
-      console.error('Booking error:', error);
+      console.error("Delivery error:", error);
       setIsProcessing(false);
-      Alert.alert('❌ Error', 'Failed to create booking. Try again.');
+      Alert.alert("Error", "Failed to create delivery. Try again.");
     }
   };
 

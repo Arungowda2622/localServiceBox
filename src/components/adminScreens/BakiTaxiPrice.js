@@ -20,7 +20,6 @@ const BakiTaxiPrice = ({ navigation }) => {
 
   const priceCollection = collection(db, 'taxiPrices');
 
-  // Fetch stored price (only one record)
   const fetchPrice = async () => {
     const snapshot = await getDocs(priceCollection);
     if (!snapshot.empty) {
@@ -38,7 +37,6 @@ const BakiTaxiPrice = ({ navigation }) => {
     }
   };
 
-  // Save or Update Fare
   const savePrice = async () => {
     if (!baseFare || !baseDistance || !extraPerKm) {
       return alert('Please enter all fields');
@@ -66,7 +64,6 @@ const BakiTaxiPrice = ({ navigation }) => {
     fetchPrice();
   }, []);
 
-  // Example calculation
   const calculateFare = (distance) => {
     if (!baseFare || !extraPerKm || !baseDistance) return 0;
     const base = parseFloat(baseFare);

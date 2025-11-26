@@ -13,7 +13,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+       "config": {
+        "googleMapsApiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +29,12 @@
         "android.permission.POST_NOTIFICATIONS"
       ],
       "edgeToEdgeEnabled": true,
-      "package": "com.arun03.localServiceBox"
+      "package": "com.arun03.localServiceBox",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -1,618 +1,699 @@
-import React, { useEffect, useRef, useState } from "react";
+// BoxDelivery.js (Updated to match LocationSelection style)
+
+import React, { useEffect, useState, useRef } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
+  Alert,
   Dimensions,
   StatusBar,
-  TouchableOpacity,
+  StyleSheet,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
   FlatList,
-  ActivityIndicator,
-  Animated,
-  Easing,
-  Platform,
+  Modal,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
+
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
+import { GOOGLE_API_KEY } from "../googleApi/GoogleApi";
+const { height } = Dimensions.get("window");
 
-const { width, height } = Dimensions.get("window");
 
-const COLORS = {
-  primary: "#007BFF",
-  gradientStart: "#4C9EEB",
-  gradientEnd: "#1A73E8",
-  white: "#FFF",
-  text: "#222",
-  subText: "#666",
-  card: "#FBFBFD",
-  success: "#34A853",
-  danger: "#E63946",
-};
+
+// Colors
+const PRIMARY_COLOR = "#007BFF";
+const SUCCESS_COLOR = "#4CAF50";
+const ERROR_COLOR = "#EA4335";
+const TEXT_COLOR = "#333";
+const SUB_TEXT_COLOR = "#777";
+const BACKGROUND_COLOR = "#F5F5F5";
 
 export default function BoxDelivery({ navigation }) {
   const mapRef = useRef(null);
-  const [region, setRegion] = useState(null);
 
   const [pickupLocation, setPickupLocation] = useState(null);
   const [destinationLocation, setDestinationLocation] = useState(null);
+  const [region, setRegion] = useState(null);
 
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [routeInfo, setRouteInfo] = useState(null);
-  const [isCalculating, setIsCalculating] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Search sheet
-  const [sheetVisible, setSheetVisible] = useState(false);
-  const [selecting, setSelecting] = useState("pickup"); // 'pickup' | 'destination'
-  const sheetAnim = useRef(new Animated.Value(0)).current; // 0 hidden, 1 visible
+  const [selecting, setSelecting] = useState("pickup");
 
-  // Search state
+  // Fare settings (static)
+  const fareSettings = {
+    baseFare: 50,
+    baseDistance: 3,
+    extraPerKm: 15,
+  };
+
+  // Search states
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
-  const [recentSearches, setRecentSearches] = useState([]);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-  // Fare settings (simple)
-  const fareSettings = { baseFare: 50, baseDistance: 3, extraPerKm: 15 };
-
+  // -------------------------
+  // INIT LOCATION ON LOAD
+  // -------------------------
   useEffect(() => {
-    (async () => {
-      await initLocation();
-    })();
+    getCurrentLocation();
   }, []);
-
-  useEffect(() => {
-    // animate sheet
-    Animated.timing(sheetAnim, {
-      toValue: sheetVisible ? 1 : 0,
-      duration: 300,
-      easing: Easing.out(Easing.poly(4)),
-      useNativeDriver: true,
-    }).start();
-
-    // clear search when hidden
-    if (!sheetVisible) {
-      setSearchQuery("");
-      setSearchResults([]);
-    }
-  }, [sheetVisible]);
 
   useEffect(() => {
     if (pickupLocation && destinationLocation) {
       calculateRoute();
-    } else {
-      setRouteCoordinates([]);
-      setRouteInfo(null);
     }
   }, [pickupLocation, destinationLocation]);
 
-  // ===== Location init =====
-  const initLocation = async () => {
+  // -------------------------
+  // GET DEVICE LOCATION
+  // -------------------------
+  const getCurrentLocation = async () => {
     try {
+      setIsLoading(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Location permission is required.");
+        return;
+      }
 
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+
+      const coords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
 
       setRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 });
 
-      const rev = await Location.reverseGeocodeAsync(coords);
-      const info = rev[0] || {};
-      const address = [info.name, info.street, info.city].filter(Boolean).join(", ");
+      await reverseGeocodeGoogle(coords, true);
 
-      setPickupLocation({
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        name: info.name || "My location",
-        address: address || "Current location",
-      });
-
-      // center map
-      mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 500);
-    } catch (e) {
-      console.warn("initLocation error:", e);
+      setSelecting("destination");
+    } catch (err) {
+      console.warn(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // ===== Polyline decoder (OSRM polyline) =====
+  // -------------------------
+  // GOOGLE REVERSE GEOCODE
+  // -------------------------
+  const reverseGeocodeGoogle = async (coords, isPickup = false) => {
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.latitude},${coords.longitude}&key=${GOOGLE_API_KEY}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.results?.length) {
+        const fallback = {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          name: "Selected Location",
+          address: "Unknown location",
+        };
+        if (isPickup) setPickupLocation(fallback);
+        else setDestinationLocation(fallback);
+        return;
+      }
+
+      const best = data.results[0];
+      const address = best.formatted_address;
+
+      const locationData = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        name: best.address_components[0]?.long_name || "Location",
+        address,
+      };
+
+      if (isPickup) setPickupLocation(locationData);
+      else setDestinationLocation(locationData);
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
+  // -------------------------
+  // DECODE GOOGLE POLYLINE
+  // -------------------------
   const decodePolyline = (encoded) => {
-    const points = [];
+    let points = [];
     let index = 0,
       lat = 0,
       lng = 0;
+
     while (index < encoded.length) {
       let b,
         shift = 0,
         result = 0;
+
       do {
         b = encoded.charCodeAt(index++) - 63;
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      const dlat = result & 1 ? ~(result >> 1) : result >> 1;
+
+      const dlat = (result & 1) ? ~(result >> 1) : result >> 1;
       lat += dlat;
+
       shift = 0;
       result = 0;
+
       do {
         b = encoded.charCodeAt(index++) - 63;
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      const dlng = result & 1 ? ~(result >> 1) : result >> 1;
+
+      const dlng = (result & 1) ? ~(result >> 1) : result >> 1;
       lng += dlng;
+
       points.push({ latitude: lat * 1e-5, longitude: lng * 1e-5 });
     }
+
     return points;
   };
 
-  // ===== Route calculation (OSRM) =====
+  // -------------------------
+  // CALCULATE FARE
+  // -------------------------
+  const calculateFare = (distance) => {
+    const { baseFare, baseDistance, extraPerKm } = fareSettings;
+    if (distance <= baseDistance) return baseFare;
+    return Math.round(baseFare + (distance - baseDistance) * extraPerKm);
+  };
+
+  // -------------------------
+  // FORMAT HELPERS
+  // -------------------------
+  const formatDistance = (km) => (km < 1 ? `${km * 1000} m` : `${km.toFixed(1)} km`);
+  const formatDuration = (minutes) =>
+    minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+
+  // -------------------------
+  // CALCULATE ROUTE (GOOGLE DIRECTIONS)
+  // -------------------------
   const calculateRoute = async () => {
     try {
-      setIsCalculating(true);
-      const a = pickupLocation;
-      const b = destinationLocation;
-      const url = `https://router.project-osrm.org/route/v1/driving/${a.longitude},${a.latitude};${b.longitude},${b.latitude}?overview=full&geometries=polyline`;
+      setIsLoading(true);
+
+      const url =
+        `https://maps.googleapis.com/maps/api/directions/json?origin=` +
+        `${pickupLocation.latitude},${pickupLocation.longitude}&destination=` +
+        `${destinationLocation.latitude},${destinationLocation.longitude}` +
+        `&key=${GOOGLE_API_KEY}`;
+
       const res = await fetch(url);
-      const json = await res.json();
-      if (json.routes?.length) {
-        const route = json.routes[0];
-        const coords = decodePolyline(route.geometry);
-        setRouteCoordinates(coords);
+      const data = await res.json();
 
-        const distance = route.distance / 1000; // km
-        const duration = route.duration / 60; // minutes
-        const fare =
-          fareSettings.baseFare +
-          Math.max(0, distance - fareSettings.baseDistance) * fareSettings.extraPerKm;
-
-        setRouteInfo({
-          distance: Number(distance.toFixed(1)),
-          duration: Math.round(duration),
-          fare: Math.round(fare),
-        });
-
-        // fit map
-        mapRef.current?.fitToCoordinates(coords, {
-          edgePadding: { top: 120, right: 40, bottom: 220, left: 40 },
-          animated: true,
-        });
+      if (!data.routes?.length) {
+        Alert.alert("Error", "No route found");
+        return;
       }
+
+      const route = data.routes[0];
+      const polylinePoints = decodePolyline(route.overview_polyline.points);
+
+      setRouteCoordinates(polylinePoints);
+
+      const leg = route.legs[0];
+
+      const distanceKm = leg.distance.value / 1000;
+      const durationMin = Math.ceil(leg.duration.value / 60);
+      const fare = calculateFare(distanceKm);
+
+      setRouteInfo({
+        distance: distanceKm,
+        duration: durationMin,
+        fare,
+      });
+
+      mapRef.current?.fitToCoordinates(polylinePoints, {
+        edgePadding: { top: 80, right: 50, bottom: height * 0.3, left: 50 },
+        animated: true,
+      });
     } catch (err) {
-      console.warn("calculateRoute err:", err);
+      console.warn(err);
     } finally {
-      setIsCalculating(false);
+      setIsLoading(false);
     }
   };
 
-  // ===== Search (Nominatim) =====
-  const searchPlaces = async (text) => {
-    setSearchQuery(text);
-    if (!text || text.length < 2) {
+  // -------------------------
+  // MAP PRESS HANDLER
+  // -------------------------
+  const handleMapPress = async (event) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    setIsLoading(true);
+    await reverseGeocodeGoogle({ latitude, longitude }, selecting === "pickup");
+    if (selecting === "pickup") setSelecting("destination");
+    setIsLoading(false);
+  };
+
+  // -------------------------
+  // GOOGLE PLACES AUTOCOMPLETE
+  // -------------------------
+  const handleSearch = async (query) => {
+    setSearchQuery(query);
+
+    if (query.length < 3) {
       setSearchResults([]);
       return;
     }
+
+    setSearchLoading(true);
+
     try {
-      setSearchLoading(true);
-      const url =
-        "https://nominatim.openstreetmap.org/search?" +
-        new URLSearchParams({
-          q: text,
-          format: "json",
-          addressdetails: "1",
-          limit: "10",
-        });
-      const res = await fetch(url, { headers: { "User-Agent": "localServiceBox/1.0" } });
-      const json = await res.json();
-      const mapped = json.map((it) => ({
-        id: it.place_id,
-        name: it.display_name,
-        lat: parseFloat(it.lat),
-        lon: parseFloat(it.lon),
-        raw: it,
-      }));
-      setSearchResults(mapped);
-    } catch (err) {
-      console.warn("searchPlaces err:", err);
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+        query
+      )}&key=${GOOGLE_API_KEY}&components=country:in`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      setSearchResults(data?.predictions || []);
+    } catch (e) {
+      console.warn(e);
     } finally {
       setSearchLoading(false);
     }
   };
 
-  // ===== Select place from search =====
-  const selectLocation = (item) => {
-    const loc = {
-      latitude: item.lat,
-      longitude: item.lon,
-      name: item.name.split(",")[0],
-      address: item.name,
+  // ------------------------------------
+  // SELECT SEARCH RESULT
+  // ------------------------------------
+  const handleSelectSearchResult = async (item) => {
+  try {
+    const detailUrl =
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${item.place_id}` +
+      `&fields=formatted_address,name,address_components,geometry` +
+      `&key=${GOOGLE_API_KEY}`;
+
+    const res = await fetch(detailUrl);
+    const data = await res.json();
+
+    if (!data.result?.geometry) {
+      Alert.alert("Error", "Location not available");
+      return;
+    }
+
+    const loc = data.result.geometry.location;
+
+    const selectedLocation = {
+      latitude: loc.lat,
+      longitude: loc.lng,
+      name: data.result.name || item.description?.split(",")[0] || "Selected Location",
+      address: data.result.formatted_address || item.description,
     };
 
-    // push to recent
-    setRecentSearches((prev) => {
-      const list = [loc, ...prev.filter((p) => p.address !== loc.address)].slice(0, 6);
-      return list;
+    if (selecting === "pickup") {
+      setPickupLocation(selectedLocation);
+      setSelecting("destination");
+    } else {
+      setDestinationLocation(selectedLocation);
+    }
+
+    mapRef.current?.animateToRegion({
+      latitude: selectedLocation.latitude,
+      longitude: selectedLocation.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
     });
 
-    if (selecting === "pickup") {
-      setPickupLocation(loc);
-      // if no destination yet, focus destination
-      setSelecting("destination");
-      setTimeout(() => setSheetVisible(true), 250);
-    } else {
-      setDestinationLocation(loc);
-      // close sheet after selection
-      setSheetVisible(false);
-    }
+    setShowSearchModal(false);
+    setSearchQuery("");
+    setSearchResults([]);
+  } catch (err) {
+    console.error(err);
+  }
+};
 
-    setRegion({ ...loc, latitudeDelta: 0.01, longitudeDelta: 0.01 });
-    mapRef.current?.animateToRegion({ ...loc, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 400);
+
+  // -------------------------
+  // RESET PICKUP
+  // -------------------------
+  const handleReset = () => {
+    setPickupLocation(null);
+    setDestinationLocation(null);
+    setRouteCoordinates([]);
+    setRouteInfo(null);
+    setSelecting("pickup");
   };
 
-  const useCurrentLocationAs = async (which) => {
-    try {
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-      const rev = await Location.reverseGeocodeAsync({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      });
-      const info = rev[0] || {};
-      const address = [info.name, info.street, info.city].filter(Boolean).join(", ");
-      const obj = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        name: info.name || "My location",
-        address: address || "Current location",
-      };
-
-      if (which === "pickup") setPickupLocation(obj);
-      else setDestinationLocation(obj);
-
-      setRegion({ ...obj, latitudeDelta: 0.01, longitudeDelta: 0.01 });
-      mapRef.current?.animateToRegion({ ...obj, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 400);
-
-      // if we used pickup and destination exists -> calculate
-      if (pickupLocation && destinationLocation) calculateRoute();
-    } catch (e) {
-      console.warn("useCurrentLocationAs err:", e);
-    }
-  };
-
-  // ===== sheet transforms =====
-  const sheetTranslateY = sheetAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-height, 0],
-  });
-
-  // ===== UI helpers =====
-  const openSearchFor = (which) => {
-    setSelecting(which);
-    setSheetVisible(true);
-  };
-
-  const confirmBooking = () => {
+  // -------------------------
+  // BOOK DELIVERY
+  // -------------------------
+  const handleConfirm = () => {
     if (!pickupLocation || !destinationLocation || !routeInfo) {
-      return alert("Please select pickup and destination first.");
+      Alert.alert("Error", "Please select both locations");
+      return;
     }
-    navigation.navigate("DeliveryPayment", { pickupLocation, destinationLocation, routeInfo });
+
+    navigation.navigate("DeliveryPayment", {
+      pickupLocation,
+      destinationLocation,
+      routeInfo,
+    });
   };
 
-  // ===== Render =====
+  // -----------------------------------------
+  // UI ELEMENT: INPUT CARD
+  // -----------------------------------------
+  const renderLocationInput = (location, type) => {
+    const isPickup = type === "pickup";
+
+    return (
+      <TouchableOpacity
+        style={styles.locationInput}
+        onPress={() => {
+          setSelecting(type);
+          setShowSearchModal(true);
+        }}
+      >
+        <Ionicons
+          name={isPickup ? "navigate-circle" : "location-sharp"}
+          size={22}
+          color={isPickup ? SUCCESS_COLOR : ERROR_COLOR}
+          style={{ marginRight: 12 }}
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.locationTitle}>
+            {location ? location.name : isPickup ? "Pickup Location" : "Destination"}
+          </Text>
+          <Text style={styles.locationSubtitle} numberOfLines={1}>
+            {location ? location.address : "Tap to select location"}
+          </Text>
+        </View>
+
+        {isPickup && location && (
+          <TouchableOpacity onPress={handleReset}>
+            <Ionicons name="close-circle" size={24} color={ERROR_COLOR} />
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-
-      {/* Map */}
+      <StatusBar backgroundColor={BACKGROUND_COLOR} barStyle="dark-content" />
+      
+      {/* MAP */}
       <MapView
         ref={mapRef}
+        provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={
-          region ?? {
-            latitude: 12.9716,
-            longitude: 77.5946,
-            latitudeDelta: 0.5,
-            longitudeDelta: 0.5,
-          }
-        }
         showsUserLocation
+        onPress={handleMapPress}
+        initialRegion={{
+          latitude: 20.5937,
+          longitude: 78.9629,
+          latitudeDelta: 10,
+          longitudeDelta: 10,
+        }}
+        region={region}
       >
         {pickupLocation && (
-          <Marker coordinate={pickupLocation} title="Pickup" pinColor={COLORS.success} />
+          <Marker coordinate={pickupLocation} pinColor={SUCCESS_COLOR} title="Pickup" />
         )}
+
         {destinationLocation && (
-          <Marker coordinate={destinationLocation} title="Drop" pinColor={COLORS.danger} />
+          <Marker coordinate={destinationLocation} pinColor={ERROR_COLOR} title="Destination" />
         )}
+
         {routeCoordinates.length > 0 && (
-          <Polyline coordinates={routeCoordinates} strokeWidth={4} strokeColor={COLORS.primary} />
+          <Polyline coordinates={routeCoordinates} strokeWidth={4} strokeColor={PRIMARY_COLOR} />
         )}
       </MapView>
 
-      {/* Header gradient (keeps nice contrast) */}
-      <LinearGradient
-        colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-        style={styles.topGradient}
-      >
-        <Text style={styles.headerTitle}>📦 Box Delivery</Text>
-      </LinearGradient>
+      {/* BOTTOM SHEET */}
+      <View style={styles.bottomSheet}>
+        <View style={styles.card}>
+          {renderLocationInput(pickupLocation, "pickup")}
 
-      {/* Floating search inputs (Uber style) */}
-      <View style={styles.floatingContainer}>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={styles.floatingInput}
-          onPress={() => openSearchFor("pickup")}
-        >
-          <Ionicons name="navigate-circle" size={20} color={COLORS.success} />
-          <Text style={styles.floatingText}>
-            {pickupLocation ? pickupLocation.address : "Where from?"}
-          </Text>
-          <Ionicons name="search" size={18} color="#999" style={{ marginLeft: 8 }} />
-        </TouchableOpacity>
+          <View style={styles.separator} />
 
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={[styles.floatingInput, { marginTop: 10 }]}
-          onPress={() => openSearchFor("destination")}
-        >
-          <Ionicons name="location-sharp" size={20} color={COLORS.danger} />
-          <Text style={styles.floatingText}>
-            {destinationLocation ? destinationLocation.address : "Where to?"}
-          </Text>
-          <Ionicons name="search" size={18} color="#999" style={{ marginLeft: 8 }} />
-        </TouchableOpacity>
-      </View>
+          {renderLocationInput(destinationLocation, "destination")}
+        </View>
 
-      {/* Bottom small fare card */}
-      <View style={styles.bottomBox}>
-        {isCalculating ? (
-          <ActivityIndicator size="small" color={COLORS.primary} />
-        ) : routeInfo ? (
-          <View style={styles.rowBetween}>
-            <View>
-              <Text style={styles.smallText}>
-                {routeInfo.distance} km • {routeInfo.duration} min
+        {/* Route info */}
+        {routeInfo ? (
+          <View style={styles.routeContainer}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.routeDistance}>
+                {formatDistance(routeInfo.distance)}
               </Text>
-              <Text style={styles.priceText}>₹{routeInfo.fare}</Text>
+              <Text style={styles.routeDuration}>
+                {formatDuration(routeInfo.duration)}
+              </Text>
+
+              <Text style={styles.fareTitle}>Estimated Fare</Text>
+              <Text style={styles.fareValue}>₹{routeInfo.fare}</Text>
             </View>
-            <TouchableOpacity style={styles.confirmBtn} onPress={confirmBooking}>
-              <Text style={styles.confirmBtnText}>Confirm Booking</Text>
+
+            <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
+              <Text style={styles.confirmText}>Confirm</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <Text style={styles.smallText}>Select pickup & destination to see fare</Text>
+          <View style={styles.infoMsg}>
+            <Text style={styles.infoText}>
+              {pickupLocation
+                ? "Select your destination to calculate the route."
+                : "Select your pickup location."}
+            </Text>
+          </View>
         )}
       </View>
 
-      {/* Animated full-screen search sheet */}
-      {/*
-        We use an Animated.View that slides from top. It contains:
-         - back button
-         - text input
-         - "Use current location" button
-         - recent searches
-         - search results
-      */}
-      <Animated.View
-        pointerEvents={sheetVisible ? "auto" : "none"}
-        style={[
-          styles.sheet,
-          {
-            transform: [{ translateY: sheetTranslateY }],
-          },
-        ]}
-      >
-        <View style={styles.sheetHeader}>
-          <TouchableOpacity onPress={() => setSheetVisible(false)} style={styles.sheetBack}>
-            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-          </TouchableOpacity>
+      {/* SEARCH MODAL */}
+      <Modal visible={showSearchModal} animationType="slide">
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setShowSearchModal(false)}
+              style={{ padding: 6 }}
+            >
+              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            </TouchableOpacity>
 
-          <View style={styles.sheetInputWrap}>
-            <Text style={styles.sheetLabel}>{selecting === "pickup" ? "Pickup" : "Destination"}</Text>
             <TextInput
-              autoFocus
-              placeholder={selecting === "pickup" ? "Search pickup location" : "Search destination"}
-              placeholderTextColor="#999"
+              style={styles.modalInput}
+              placeholder="Search location..."
               value={searchQuery}
-              onChangeText={searchPlaces}
-              style={styles.sheetInput}
+              onChangeText={handleSearch}
+              autoFocus
             />
           </View>
 
-          <TouchableOpacity
-            onPress={() => useCurrentLocationAs(selecting)}
-            style={styles.currentBtn}
-          >
-            <Ionicons name="locate" size={20} color={COLORS.primary} />
-            <Text style={styles.currentBtnText}>Use current</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Recent searches (if any) */}
-        {recentSearches.length > 0 && (
-          <View style={styles.recentWrap}>
-            <Text style={styles.recentTitle}>Recent</Text>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={recentSearches}
-              keyExtractor={(it, i) => (it.address || it.name) + i}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.recentItem}
-                  onPress={() => selectLocation({ lat: item.latitude, lon: item.longitude, name: item.address })}
-                >
-                  <Ionicons name="time-outline" size={16} color="#666" />
-                  <Text numberOfLines={1} style={styles.recentText}>{item.address}</Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        )}
-
-        {/* Search results */}
-        <View style={styles.resultsWrap}>
           {searchLoading ? (
-            <ActivityIndicator size="large" color={COLORS.primary} />
+            <ActivityIndicator size="large" color={PRIMARY_COLOR} style={{ marginTop: 20 }} />
           ) : (
             <FlatList
-              keyboardShouldPersistTaps="handled"
               data={searchResults}
-              keyExtractor={(item) => String(item.id)}
+              keyExtractor={(i) => i.place_id}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.resultItem}
-                  onPress={() => selectLocation(item)}
+                  style={styles.searchItem}
+                  onPress={() => handleSelectSearchResult(item)}
                 >
-                  <Ionicons name="location-outline" size={20} color={COLORS.primary} />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text numberOfLines={2} style={styles.resultTitle}>{item.name.split(",")[0]}</Text>
-                    <Text numberOfLines={1} style={styles.resultSubtitle}>{item.name}</Text>
+                  <Ionicons name="location-outline" size={22} color={PRIMARY_COLOR} />
+                  <View style={{ marginLeft: 12 }}>
+                    <Text style={styles.searchName}>
+                      {item.description.split(",")[0]}
+                    </Text>
+                    <Text style={styles.searchAddress}>{item.description}</Text>
                   </View>
                 </TouchableOpacity>
               )}
-              ListEmptyComponent={
-                searchQuery.length > 1 ? (
-                  <View style={styles.emptyBox}>
-                    <Text style={{ color: "#666" }}>No results found.</Text>
-                  </View>
-                ) : (
-                  <View style={styles.emptyBox}>
-                    <Text style={{ color: "#666" }}>Try searching for an address or place</Text>
-                  </View>
-                )
-              }
             />
           )}
         </View>
-      </Animated.View>
+      </Modal>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <Text style={styles.loadingText}>Processing...</Text>
+        </View>
+      )}
     </View>
   );
 }
 
-/* ===== Styles ===== */
+// --------------------------------------------
+// STYLES
+// --------------------------------------------
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  map: { flex: 1 },
-  topGradient: {
-    position: "absolute",
-    top: 0,
-    width: "100%",
-    height: Platform.OS === "ios" ? 120 : 100,
-    paddingTop: Platform.OS === "ios" ? 40 : StatusBar.currentHeight,
-    paddingHorizontal: 16,
-    justifyContent: "center",
-    zIndex: 30,
-  },
-  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  container: { flex: 1, backgroundColor: BACKGROUND_COLOR },
 
-  floatingContainer: {
+  map: { flex: 1 },
+
+  bottomSheet: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 70 : 50,
-    left: 16,
-    right: 16,
-    zIndex: 40,
+    bottom: 0,
+    width: "100%",
+    padding: 15,
+    backgroundColor: BACKGROUND_COLOR,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    elevation: 20,
   },
-  floatingInput: {
+
+  card: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 12,
+    elevation: 4,
+  },
+
+  locationInput: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    paddingVertical: 12,
   },
-  floatingText: { flex: 1, marginLeft: 10, color: "#222", fontWeight: "600" },
 
-  bottomBox: {
-    position: "absolute",
-    bottom: 20,
-    left: 16,
-    right: 16,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    zIndex: 40,
+  separator: {
+    height: 1,
+    backgroundColor: "#eee",
+    marginLeft: 35,
+    marginVertical: 4,
   },
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  smallText: { color: "#666", fontWeight: "600" },
-  priceText: { fontSize: 20, fontWeight: "800", color: COLORS.primary },
+
+  locationTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+  },
+
+  locationSubtitle: {
+    fontSize: 12,
+    color: SUB_TEXT_COLOR,
+    marginTop: 2,
+  },
+
+  routeContainer: {
+    backgroundColor: "#fff",
+    padding: 15,
+    marginTop: 10,
+    borderRadius: 12,
+    flexDirection: "row",
+    elevation: 4,
+  },
+
+  routeDistance: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: TEXT_COLOR,
+  },
+
+  routeDuration: {
+    fontSize: 14,
+    color: SUB_TEXT_COLOR,
+    marginBottom: 8,
+  },
+
+  fareTitle: {
+    fontSize: 12,
+    color: "#666",
+  },
+
+  fareValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: PRIMARY_COLOR,
+    marginBottom: 10,
+  },
 
   confirmBtn: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+    backgroundColor: PRIMARY_COLOR,
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  confirmBtnText: { color: "#fff", fontWeight: "800" },
 
-  /* Sheet */
-  sheet: {
+  confirmText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+
+  infoMsg: {
+    marginTop: 10,
+    padding: 12,
+    backgroundColor: "#E3F2FD",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+
+  infoText: {
+    fontSize: 14,
+    color: TEXT_COLOR,
+  },
+
+  modal: { flex: 1, backgroundColor: "#fff" },
+
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 15,
+  },
+
+  modalInput: {
+    flex: 1,
+    height: 40,
+    backgroundColor: "#f4f4f4",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    marginLeft: 10,
+  },
+
+  searchItem: {
+    flexDirection: "row",
+    padding: 15,
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderColor: "#f1f1f1",
+  },
+
+  searchName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+  },
+
+  searchAddress: {
+    fontSize: 12,
+    color: SUB_TEXT_COLOR,
+  },
+
+  loading: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 60,
-    backgroundColor: "#fff",
-  },
-  sheetHeader: {
-    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.9)",
+    justifyContent: "center",
     alignItems: "center",
-    paddingTop: Platform.OS === "ios" ? 50 : 20,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderColor: "#EEE",
   },
-  sheetBack: { padding: 6, marginRight: 6 },
-  sheetInputWrap: { flex: 1 },
-  sheetLabel: { fontSize: 12, color: "#888", marginBottom: 4 },
-  sheetInput: {
-    backgroundColor: "#F6F6F8",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+
+  loadingText: {
     fontSize: 16,
+    fontWeight: "600",
+    color: PRIMARY_COLOR,
+    marginTop: 10,
   },
-  currentBtn: { marginLeft: 10, alignItems: "center" },
-  currentBtnText: { color: COLORS.primary, fontSize: 12, marginTop: 4 },
-
-  recentWrap: { paddingHorizontal: 12, paddingVertical: 10 },
-  recentTitle: { fontWeight: "700", color: "#444", marginBottom: 6 },
-  recentItem: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    elevation: 2,
-  },
-  recentText: { marginLeft: 6, color: "#444", maxWidth: width * 0.5 },
-
-  resultsWrap: { flex: 1, paddingVertical: 6 },
-  resultItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  resultTitle: { fontSize: 15, fontWeight: "700", color: "#111" },
-  resultSubtitle: { color: "#666", marginTop: 4, fontSize: 12 },
-
-  emptyBox: { alignItems: "center", marginTop: 30 },
 });

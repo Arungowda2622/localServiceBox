@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "587189827691",
+    "project_id": "localservicebox",
+    "storage_bucket": "localservicebox.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:587189827691:android:38b7839b25854c77e7992e",
+        "android_client_info": {
+          "package_name": "com.arun03.localServiceBox"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJ3WBP14Js37F6pmD74sfXeVrIH1OY4EM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

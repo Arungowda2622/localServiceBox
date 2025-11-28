@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-       "config": {
+      "config": {
         "googleMapsApiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
       }
     },
@@ -34,7 +34,9 @@
         "googleMaps": {
           "apiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
         }
-      }
+      },
+      "googleServicesFile": "./google-services.json",
+      "useNextNotificationsApi": true
     },
     "web": {
       "favicon": "./assets/favicon.png"

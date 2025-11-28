@@ -21,8 +21,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { GOOGLE_API_KEY } from "../googleApi/GoogleApi";
 const { height } = Dimensions.get("window");
 
-
-
 // Colors
 const PRIMARY_COLOR = "#007BFF";
 const SUCCESS_COLOR = "#4CAF50";

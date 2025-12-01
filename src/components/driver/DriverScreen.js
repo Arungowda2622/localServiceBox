@@ -33,9 +33,14 @@ Notifications.setNotificationHandler({
 });
 
 /* -------------------------------------------------- */
-/* 🔥 Get Expo Push Token                             */
+/* 🔥 Get Expo Push Token (but block Expo Go)          */
 /* -------------------------------------------------- */
 async function registerDriverForPushTokenAsync() {
+  if (Constants.appOwnership === "expo") {
+    console.log("🚫 Expo Go detected — NOT registering token.");
+    return null;
+  }
+
   let permission = await Notifications.getPermissionsAsync();
   if (permission.status !== "granted") {
     permission = await Notifications.requestPermissionsAsync();
@@ -48,6 +53,11 @@ async function registerDriverForPushTokenAsync() {
     })
   ).data;
 
+  if (token.startsWith("ExpoGo")) {
+    console.log("🚫 Expo Go token rejected:", token);
+    return null;
+  }
+
   return token;
 }
 
@@ -57,12 +67,8 @@ const DriverScreen = () => {
   const [waitingBoxBookings, setWaitingBoxBookings] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const user = auth.currentUser;
 
-  /* -------------------------------------------------- */
-  /* 🔥 Save driver push token                          */
-  /* -------------------------------------------------- */
   const saveDriverToken = async () => {
     if (!user) return;
 
@@ -81,19 +87,19 @@ const DriverScreen = () => {
     }
   };
 
-  /* -------------------------------------------------- */
-  /* 🔄 RUN ON MOUNT                                    */
-  /* -------------------------------------------------- */
   useEffect(() => {
     if (!user) return;
 
     saveDriverToken();
 
     const sub = Notifications.addPushTokenListener((newToken) => {
+      if (newToken.data.startsWith("ExpoGo")) return;
+
       updateDoc(doc(db, "users", user.uid), {
         fcmToken: newToken.data,
         updatedAt: new Date(),
       });
+
       console.log("Driver Token Updated:", newToken.data);
     });
 
@@ -101,12 +107,11 @@ const DriverScreen = () => {
   }, [user]);
 
   /* -------------------------------------------------- */
-  /* 🔥 Fetch Bookings WITH User Info                   */
+  /* 🔥 Fetch Bookings                                  */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!user) return;
 
-    /* ---------------- Ride Bookings ---------------- */
     const qWaiting = query(
       collection(db, "bookings"),
       where("status", "==", "waiting")
@@ -116,25 +121,20 @@ const DriverScreen = () => {
       const data = await Promise.all(
         snapshot.docs.map(async (d) => {
           const booking = d.data();
-
-          // Fetch user info
-          const userRef = doc(db, "users", booking.userId);
-          const userSnap = await getDoc(userRef);
-          const userData = userSnap.exists() ? userSnap.data() : {};
+          const userSnap = await getDoc(doc(db, "users", booking.userId));
 
           return {
             id: d.id,
             type: "ride",
             ...booking,
-            customerName: userData.fullName || "Unknown User",
-            customerPhone: userData.phone || "N/A",
+            customerName: userSnap.data()?.fullName || "Unknown User",
+            customerPhone: userSnap.data()?.phone || "N/A",
           };
         })
       );
       setWaitingBookings(data);
     });
 
-    /* ---------------- Box Deliveries ---------------- */
     const qBoxWaiting = query(
       collection(db, "boxDelivery"),
       where("status", "==", "waiting")
@@ -144,163 +144,68 @@ const DriverScreen = () => {
       const data = await Promise.all(
         snapshot.docs.map(async (d) => {
           const booking = d.data();
-
-          // Fetch user info
-          const userRef = doc(db, "users", booking.userId);
-          const userSnap = await getDoc(userRef);
-          const userData = userSnap.exists() ? userSnap.data() : {};
+          const userSnap = await getDoc(doc(db, "users", booking.userId));
 
           return {
             id: d.id,
             type: "box",
             ...booking,
-            customerName: userData.fullName || "Unknown User",
-            customerPhone: userData.phone || "N/A",
+            customerName: userSnap.data()?.fullName || "Unknown User",
+            customerPhone: userSnap.data()?.phone || "N/A",
           };
         })
       );
       setWaitingBoxBookings(data);
     });
 
-    /* ---------------- Accepted Rides ---------------- */
-    const qMy = query(
-      collection(db, "bookings"),
-      where("driverId", "==", user.uid)
+    const unsubscribeMy = onSnapshot(
+      query(collection(db, "bookings"), where("driverId", "==", user.uid)),
+      (snapshot) => {
+        setMyBookings(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      }
     );
-
-    const unsubMy = onSnapshot(qMy, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        type: "ride",
-        ...d.data(),
-      }));
-      setMyBookings(data);
-      setLoading(false);
-    });
 
     return () => {
       unsubWaiting();
       unsubBoxWaiting();
-      unsubMy();
+      unsubscribeMy();
     };
   }, [user]);
 
-  /* -------------------------------------------------- */
-  /* 🟢 Merge waiting lists                             */
-  /* -------------------------------------------------- */
   const mergedWaiting = [...waitingBookings, ...waitingBoxBookings];
 
-  /* -------------------------------------------------- */
-  /* 🟨 Accept Booking                                  */
-  /* -------------------------------------------------- */
   const handleAccept = async (item) => {
-    try {
-      const colName = item.type === "box" ? "boxDelivery" : "bookings";
-      const ref = doc(db, colName, item.id);
+    const colName = item.type === "box" ? "boxDelivery" : "bookings";
+    const ref = doc(db, colName, item.id);
 
-      const snap = await getDoc(ref);
-      if (!snap.exists()) return Alert.alert("Error", "Booking no longer exists.");
+    const snap = await getDoc(ref);
+    if (!snap.exists())
+      return Alert.alert("Error", "Booking no longer exists.");
 
-      const booking = snap.data();
-      if (booking.status !== "waiting" || booking.driverId)
-        return Alert.alert("Too Late", "Another driver accepted this.");
+    const booking = snap.data();
+    if (booking.status !== "waiting" || booking.driverId)
+      return Alert.alert("Too Late", "Another driver accepted this.");
 
-      const driverSnap = await getDoc(doc(db, "users", user.uid));
-      const driver = driverSnap.data();
+    const driver = (await getDoc(doc(db, "users", user.uid))).data();
 
-      await updateDoc(ref, {
-        status: "accepted",
-        driverId: user.uid,
-        driverName: driver.fullName,
-        driverPhone: driver.phone,
-        assignedDriver: driver.fullName,
-        updatedAt: new Date(),
-      });
+    await updateDoc(ref, {
+      status: "accepted",
+      driverId: user.uid,
+      driverName: driver.fullName,
+      driverPhone: driver.phone,
+      updatedAt: new Date(),
+    });
 
-      Alert.alert("Success", "Booking accepted!");
-    } catch (err) {
-      console.log("Accept Error:", err);
-      Alert.alert("Error", "Could not accept this booking.");
-    }
+    Alert.alert("Success", "Booking accepted!");
   };
 
-  /* -------------------------------------------------- */
-  /* LOGOUT                                             */
-  /* -------------------------------------------------- */
-  const handleLogout = () =>
-    auth
-      .signOut()
-      .then(() => Alert.alert("Logged out", "You have been logged out."))
-      .catch((err) => Alert.alert("Error", err.message));
-
-  /* -------------------------------------------------- */
-  /* Render Booking Card                                */
-  /* -------------------------------------------------- */
-  const renderBooking = ({ item }) => (
-    <View
-      style={{
-        padding: 15,
-        marginHorizontal: 15,
-        marginVertical: 8,
-        backgroundColor: "#fff",
-        borderRadius: 12,
-        elevation: 3,
-      }}
-    >
-      <Text style={{ fontSize: 16, fontWeight: "700" }}>
-        {item.type === "box" ? "📦 Box Delivery" : "🚕 Ride Booking"}
-      </Text>
-
-      {/* Customer Info */}
-      <Text style={{ marginTop: 6, fontSize: 15, fontWeight: "600" }}>
-        👤 {item.customerName}
-      </Text>
-
-      <Text style={{ marginTop: 3, fontSize: 14 }}>
-        📞 {item.customerPhone}
-      </Text>
-
-      {/* Pickup / Drop */}
-      <Text style={{ marginTop: 8, fontSize: 16, fontWeight: "700" }}>
-        📍 {item.pickupName || item.pickup}
-      </Text>
-
-      <Text style={{ marginTop: 3, fontSize: 14 }}>
-        🛑 {item.destinationName || item.destination}
-      </Text>
-
-      {/* Fare */}
-      <Text style={{ marginTop: 8, fontSize: 15, fontWeight: "600" }}>
-        💰 Fare: ₹{item.fare}
-      </Text>
-
-      {/* Accept Button */}
-      <Pressable
-        onPress={() => handleAccept(item)}
-        style={{
-          backgroundColor: "#007bff",
-          padding: 10,
-          borderRadius: 8,
-          marginTop: 12,
-        }}
-      >
-        <Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>
-          Accept
-        </Text>
-      </Pressable>
-    </View>
-  );
-
-  /* -------------------------------------------------- */
-  /* LOADING SCREEN                                     */
-  /* -------------------------------------------------- */
-  if (loading) {
+  if (loading)
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#007bff" />
       </View>
     );
-  }
 
   /* -------------------------------------------------- */
   /* MAIN UI                                            */

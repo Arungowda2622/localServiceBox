@@ -1,9 +1,13 @@
 import 'react-native-gesture-handler';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createDrawerNavigator } from "@react-navigation/drawer";
-import { ActivityIndicator, View } from 'react-native';
+
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "./src/components/firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
@@ -34,6 +38,18 @@ import DeliveryPayment from './src/components/boxDelivery/DeliveryPayment';
 import AddDriverScreen from './src/components/adminScreens/AddDriverScreen';
 import DriverScreen from './src/components/driver/DriverScreen';
 import BikeTaxiWaiting from './src/components/ourServices/BikeTaxiWaiting';
+
+
+// ------------------------------------------------------
+// 🟢 Handle Notifications
+// ------------------------------------------------------
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -67,10 +83,37 @@ function MainStack() {
 }
 
 export default function App() {
+  const navigationRef = useRef(null);
+
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // ✅ store role
+  const [role, setRole] = useState(null);
 
+
+  // ------------------------------------------------------
+  // 🟢 Handle Notification Click → Navigate to Screen
+  // ------------------------------------------------------
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data;
+
+        console.log("📩 Notification Clicked:", data);
+
+        if (data?.bookingId) {
+          navigationRef.current?.navigate("BikeTaxiWaiting", {
+            bookingId: data.bookingId,
+          });
+        }
+      }
+    );
+    return () => subscription.remove();
+  }, []);
+
+
+  // ------------------------------------------------------
+  // 🔥 Firebase Auth Listener
+  // ------------------------------------------------------
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -80,18 +123,15 @@ export default function App() {
 
           if (userSnap.exists()) {
             const userData = userSnap.data();
-            console.log("✅ User role:", userData.role);
-
             setUser(firebaseUser);
             setRole(userData.role || "user");
           } else {
-            console.log("❌ Auth user not found in Firestore — logging out");
             await signOut(auth);
             setUser(null);
             setRole(null);
           }
         } catch (err) {
-          console.error("Error checking Firestore user:", err);
+          console.error("User fetch error:", err);
           setUser(null);
           setRole(null);
         }
@@ -99,11 +139,13 @@ export default function App() {
         setUser(null);
         setRole(null);
       }
+
       setInitializing(false);
     });
 
     return unsubscribe;
   }, []);
+
 
   if (initializing) {
     return (
@@ -113,16 +155,15 @@ export default function App() {
     );
   }
 
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       {user ? (
         role === "driver" ? (
-          // ✅ If driver, go directly to DriverScreen
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="DriverScreen" component={DriverScreen} />
           </Stack.Navigator>
         ) : (
-          // ✅ Otherwise show main Drawer navigation
           <Drawer.Navigator
             drawerContent={(props) => <CustomDrawer {...props} />}
             screenOptions={{
@@ -136,7 +177,6 @@ export default function App() {
           </Drawer.Navigator>
         )
       ) : (
-        // ✅ Login/Signup stack
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="SignUp" component={SignUp} />

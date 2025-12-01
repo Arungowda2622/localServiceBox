@@ -4,13 +4,16 @@
     "slug": "localServiceBox",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/lsbIcon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/lsbIcon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
+    },
+    "experiments": {
+      "expoGoDGEnabled": false
     },
     "ios": {
       "supportsTablet": true,
@@ -20,10 +23,13 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/lsbIcon.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.RECORD_AUDIO",
         "android.permission.POST_NOTIFICATIONS"
@@ -51,7 +57,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/lsbIcon.png",
           "color": "#007bff",
           "mode": "production"
         }
@@ -67,6 +73,9 @@
     "updates": {
       "url": "https://u.expo.dev/d302719d-343d-4324-9ceb-b12bb76807bc",
       "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

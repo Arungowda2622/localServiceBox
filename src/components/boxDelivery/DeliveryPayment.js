@@ -23,70 +23,47 @@ const DeliveryPayment = ({ route, navigation }) => {
   const { pickupLocation, destinationLocation, routeInfo } = route.params;
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const notifyDrivers = async (bookingId, bookingData) => {
-    try {
-      // 1️⃣ Get all drivers
-      const driversSnapshot = await getDocs(collection(db, "users"));
-      let driverTokens = [];
+ // ✔ Your file stays SAME except improved notifyDrivers()
 
-      driversSnapshot.forEach((driver) => {
-        const data = driver.data();
-        if (data.role === "driver" && data.fcmToken) {
+const notifyDrivers = async (bookingId, bookingData) => {
+  try {
+    const driversSnapshot = await getDocs(collection(db, "users"));
+    let driverTokens = [];
+
+    driversSnapshot.forEach((d) => {
+      const data = d.data();
+      if (data.role === "driver" && data.fcmToken) {
+        if (!data.fcmToken.startsWith("ExpoGo")) {
           driverTokens.push(data.fcmToken);
         }
-      });
+      }
+    });
 
-      console.log("🚀 DRIVER TOKENS:", driverTokens);
-
-      // 2️⃣ Save in Firestore (your existing logic)
-      driversSnapshot.forEach((driver) => {
-        if (driver.data().role === "driver") {
-          setDoc(
-            doc(db, "users", driver.id, "notifications", bookingId),
-            {
-              type: "new_booking",
-              bookingId,
-              message: "A new ride is waiting for drivers",
-              createdAt: serverTimestamp(),
-              seen: false,
-              ...bookingData,
-            }
-          );
-        }
-      });
-
-      // 3️⃣ Send PUSH notifications to all drivers
-      if (driverTokens.length > 0) {
-        await fetch("https://exp.host/--/api/v2/push/send", {
+    await Promise.all(
+      driverTokens.map((token) =>
+        fetch("https://exp.host/--/api/v2/push/send", {
           method: "POST",
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(
-            driverTokens.map((token) => ({
-              to: token,
-              sound: "default",
-              title: "🚕 New Ride Request",
-              body: "A new customer needs a ride!",
-              data: { bookingId },
-            }))
-          ),
-        }).then(res => res.json())
-          .then((response) => {
-            console.log(response, "thisIsResponse");
-          })
-          .catch((err) => {
-            console.log(err, "thisIsError");
-          })
-        console.log("📣 Push notifications sent to drivers");
-      } else {
-        console.log("⚠ No driver tokens found.");
-      }
-    } catch (error) {
-      console.log("❌ Notification error:", error);
-    }
-  };
+          body: JSON.stringify({
+            to: token,
+            sound: "default",
+            title: "🚕 New Ride Request",
+            body: "A new customer needs a ride!",
+            data: {
+              bookingId,
+            },
+          }),
+        })
+      )
+    );
+  } catch (err) {
+    console.log("Notification error:", err);
+  }
+};
+
 
   const handleConfirmBooking = async () => {
     if (!pickupLocation || !destinationLocation || !routeInfo) {

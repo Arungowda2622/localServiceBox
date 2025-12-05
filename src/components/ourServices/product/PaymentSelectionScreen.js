@@ -11,13 +11,7 @@ import {
   TextInput,
 } from "react-native";
 import { db } from "../../firebase/firebaseConfig";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, addDoc, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import Header from "../../header/Header";
 
@@ -89,7 +83,10 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error("UPI payment error:", error);
-      Alert.alert("Payment Failed ❌", "Unable to initiate payment. Try again.");
+      Alert.alert(
+        "Payment Failed ❌",
+        "Unable to initiate payment. Try again."
+      );
     }
   };
 
@@ -104,68 +101,78 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   // 🔥 SEND NOTIFICATION TO ALL DRIVERS
   const notifyDrivers = async (orderId, orderData) => {
     try {
-      // 1️⃣ Get all drivers with tokens
       const driversSnap = await getDocs(collection(db, "users"));
       let driverTokens = [];
 
       driversSnap.forEach((d) => {
         const user = d.data();
+
+        // Only valid standalone app tokens
         if (user.role === "driver" && user.fcmToken) {
-          driverTokens.push(user.fcmToken);
+          if (user.fcmToken.startsWith("ExponentPushToken")) {
+            driverTokens.push(user.fcmToken);
+          }
         }
       });
 
-      console.log("🚕 DRIVER TOKENS:", driverTokens);
+      console.log("DriverTokens:", driverTokens);
 
-      // 2️⃣ Save a realtime notification for drivers in Firestore
-      driversSnap.forEach((d) => {
-        const user = d.data();
-        if (user.role === "driver") {
-          addDoc(collection(db, "users", d.id, "notifications"), {
-            type: "new_order",
-            orderId,
-            message: "A new order has been placed!",
-            createdAt: new Date(),
-            seen: false,
-            ...orderData,
-          });
-        }
-      });
+      // 🔹 Save in Firestore notifications for all drivers
+      await Promise.all(
+        driversSnap.docs.map((docSnap) => {
+          const user = docSnap.data();
+          if (user.role === "driver") {
+            return addDoc(
+              collection(db, "users", docSnap.id, "notifications"),
+              {
+                type: "new_order",
+                orderId,
+                message: "A new product order has been placed.",
+                createdAt: new Date(),
+                seen: false,
+                ...orderData,
+              }
+            );
+          }
+        })
+      );
 
-      // 3️⃣ Send push notifications
-      if (driverTokens.length > 0) {
-        await fetch("https://exp.host/--/api/v2/push/send", {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(
-            driverTokens.map((token) => ({
+      // 🔹 SEND PUSH NOTIFICATION (One-by-one recommended)
+      await Promise.all(
+        driverTokens.map((token) =>
+          fetch("https://exp.host/--/api/v2/push/send", {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
               to: token,
               sound: "default",
               title: "📦 New Order!",
-              body: "A new product order is waiting for drivers.",
-              data: { orderId },
-            }))
-          ),
-        })
-          .then((res) => res.json())
-          .then((json) => console.log("📨 Expo Response:", json))
-          .catch((err) => console.log("Push Error:", err));
-      } else {
-        console.log("⚠ No driver tokens found.");
-      }
+              body: "A new customer has placed an order.",
+              data: {
+                orderId,
+                type: "productOrder",
+              },
+            }),
+          })
+        )
+      );
+
+      console.log("Push notifications sent successfully!");
     } catch (err) {
-      console.log("Error sending driver notifications:", err);
+      console.log("Push Notification Error:", err);
     }
   };
-
 
   // 🔥 UPDATED Confirm ORDER function
   const handleConfirmOrder = async () => {
     if (paymentMethod === "Online Payment" && !utrNumber.trim()) {
-      Alert.alert("Missing UTR", "Please enter your UTR number before confirming.");
+      Alert.alert(
+        "Missing UTR",
+        "Please enter your UTR number before confirming."
+      );
       return;
     }
 
@@ -212,8 +219,8 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
         address: routeSelectedAddress
           ? routeSelectedAddress
           : addresses.length > 0
-            ? addresses[0]
-            : null,
+          ? addresses[0]
+          : null,
         upi: selectedUPI?.upi || null,
         status:
           paymentMethod === "Online Payment"
@@ -232,8 +239,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
 
       Alert.alert(
         "Order Placed 🎉",
-        `Your order has been placed successfully!\nUTR: ${utrNumber || "N/A"
-        }`,
+        `Your order has been placed successfully!\nUTR: ${utrNumber || "N/A"}`,
         [{ text: "OK", onPress: () => navigation.navigate("OuerServices") }]
       );
 
@@ -241,7 +247,6 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       setUtrNumber("");
       setPaymentDone(false);
       setPaymentMethod("");
-
     } catch (err) {
       console.error("Order Save Error:", err);
       setLoading(false);
@@ -249,12 +254,11 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
     }
   };
 
-
   const currentAddress = routeSelectedAddress
     ? routeSelectedAddress
     : addresses.length > 0
-      ? addresses[0]
-      : null;
+    ? addresses[0]
+    : null;
 
   return (
     <View style={styles.safeArea}>
@@ -367,7 +371,10 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       {paymentMethod === "Cash on Delivery" && (
         <View style={styles.bottomContainer}>
           <Text style={styles.totalText}>Total: ₹{total}</Text>
-          <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmOrder}>
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={handleConfirmOrder}
+          >
             <Text style={styles.confirmButtonText}>CONFIRM ORDER</Text>
           </TouchableOpacity>
         </View>

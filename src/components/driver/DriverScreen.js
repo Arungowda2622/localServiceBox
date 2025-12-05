@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// DriverScreen.js
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,9 +8,14 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
+  Animated,
+  Dimensions,
 } from "react-native";
+
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
+import { Ionicons } from "@expo/vector-icons";
+
 import { auth, db } from "../firebase/firebaseConfig";
 import {
   collection,
@@ -21,9 +27,9 @@ import {
   getDoc,
 } from "firebase/firestore";
 
-/* -------------------------------------------------- */
-/* 🟢 REQUIRED: Notification Handler                   */
-/* -------------------------------------------------- */
+/********************************************
+ NOTIFICATION HANDLER
+********************************************/
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -32,12 +38,12 @@ Notifications.setNotificationHandler({
   }),
 });
 
-/* -------------------------------------------------- */
-/* 🔥 Get Expo Push Token (but block Expo Go)          */
-/* -------------------------------------------------- */
+/********************************************
+ GET PUSH TOKEN
+********************************************/
 async function registerDriverForPushTokenAsync() {
   if (Constants.appOwnership === "expo") {
-    console.log("🚫 Expo Go detected — NOT registering token.");
+    console.log("🚫 Expo Go detected — token NOT allowed.");
     return null;
   }
 
@@ -49,32 +55,32 @@ async function registerDriverForPushTokenAsync() {
 
   const token = (
     await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig.extra.eas.projectId,
+      projectId: Constants.expoConfig?.extra?.eas?.projectId,
     })
   ).data;
 
-  if (token.startsWith("ExpoGo")) {
-    console.log("🚫 Expo Go token rejected:", token);
-    return null;
-  }
+  if (!token || token.startsWith("ExpoGo")) return null;
 
+  console.log("Driver Push Token:", token);
   return token;
 }
 
 const DriverScreen = () => {
+  const user = auth.currentUser;
+
   const [activeTab, setActiveTab] = useState("waiting");
   const [waitingBookings, setWaitingBookings] = useState([]);
   const [waitingBoxBookings, setWaitingBoxBookings] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const user = auth.currentUser;
 
+  /********************************************
+   SAVE DRIVER PUSH TOKEN
+  ********************************************/
   const saveDriverToken = async () => {
-    if (!user) return;
-
     try {
       const token = await registerDriverForPushTokenAsync();
-      if (!token) return;
+      if (!token || !user) return;
 
       await updateDoc(doc(db, "users", user.uid), {
         fcmToken: token,
@@ -82,124 +88,255 @@ const DriverScreen = () => {
       });
 
       console.log("Driver Token Saved:", token);
-    } catch (e) {
-      console.log("Error saving driver token:", e);
+    } catch (err) {
+      console.log("Token save error:", err);
     }
   };
 
   useEffect(() => {
-    if (!user) return;
-
-    saveDriverToken();
-
-    const sub = Notifications.addPushTokenListener((newToken) => {
-      if (newToken.data.startsWith("ExpoGo")) return;
-
-      updateDoc(doc(db, "users", user.uid), {
-        fcmToken: newToken.data,
-        updatedAt: new Date(),
-      });
-
-      console.log("Driver Token Updated:", newToken.data);
-    });
-
-    return () => sub.remove();
+    if (user) saveDriverToken();
   }, [user]);
 
-  /* -------------------------------------------------- */
-  /* 🔥 Fetch Bookings                                  */
-  /* -------------------------------------------------- */
+  /********************************************
+   LOGOUT FEATURE
+  ********************************************/
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      console.log("Driver logged out");
+    } catch (err) {
+      Alert.alert("Error", "Failed to logout.");
+    }
+  };
+
+  /********************************************
+   NOTIFICATION LISTENERS
+********************************************/
+  useEffect(() => {
+    // Foreground Notification
+    const receiveSub = Notifications.addNotificationReceivedListener(() => {
+      setActiveTab("waiting");
+    });
+
+    // Tap Notification
+    const tapSub = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data;
+        if (data?.bookingId) {
+          setActiveTab("waiting");
+        }
+      }
+    );
+
+    return () => {
+      receiveSub.remove();
+      tapSub.remove();
+    };
+  }, []);
+
+  /********************************************
+   FETCH BOOKINGS
+********************************************/
   useEffect(() => {
     if (!user) return;
 
-    const qWaiting = query(
+    const waitQuery = query(
       collection(db, "bookings"),
       where("status", "==", "waiting")
     );
 
-    const unsubWaiting = onSnapshot(qWaiting, async (snapshot) => {
+    const unsubWait = onSnapshot(waitQuery, async (snapshot) => {
       const data = await Promise.all(
         snapshot.docs.map(async (d) => {
           const booking = d.data();
-          const userSnap = await getDoc(doc(db, "users", booking.userId));
-
+          const ud = await getDoc(doc(db, "users", booking.userId));
           return {
             id: d.id,
             type: "ride",
             ...booking,
-            customerName: userSnap.data()?.fullName || "Unknown User",
-            customerPhone: userSnap.data()?.phone || "N/A",
+            customerName: ud.data()?.fullName,
+            customerPhone: ud.data()?.phone,
           };
         })
       );
       setWaitingBookings(data);
     });
 
-    const qBoxWaiting = query(
+    const waitBoxQuery = query(
       collection(db, "boxDelivery"),
       where("status", "==", "waiting")
     );
 
-    const unsubBoxWaiting = onSnapshot(qBoxWaiting, async (snapshot) => {
+    const unsubWaitBox = onSnapshot(waitBoxQuery, async (snapshot) => {
       const data = await Promise.all(
         snapshot.docs.map(async (d) => {
           const booking = d.data();
-          const userSnap = await getDoc(doc(db, "users", booking.userId));
-
+          const ud = await getDoc(doc(db, "users", booking.userId));
           return {
             id: d.id,
             type: "box",
             ...booking,
-            customerName: userSnap.data()?.fullName || "Unknown User",
-            customerPhone: userSnap.data()?.phone || "N/A",
+            customerName: ud.data()?.fullName,
+            customerPhone: ud.data()?.phone,
           };
         })
       );
       setWaitingBoxBookings(data);
     });
 
-    const unsubscribeMy = onSnapshot(
-      query(collection(db, "bookings"), where("driverId", "==", user.uid)),
-      (snapshot) => {
-        setMyBookings(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false);
-      }
+    const myQuery = query(
+      collection(db, "bookings"),
+      where("driverId", "==", user.uid)
     );
 
+    const unsubMy = onSnapshot(myQuery, (snapshot) => {
+      setMyBookings(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+
     return () => {
-      unsubWaiting();
-      unsubBoxWaiting();
-      unsubscribeMy();
+      unsubWait();
+      unsubWaitBox();
+      unsubMy();
     };
   }, [user]);
 
-  const mergedWaiting = [...waitingBookings, ...waitingBoxBookings];
-
+  /********************************************
+   ACCEPT BOOKING
+********************************************/
   const handleAccept = async (item) => {
-    const colName = item.type === "box" ? "boxDelivery" : "bookings";
-    const ref = doc(db, colName, item.id);
+    try {
+      const col = item.type === "box" ? "boxDelivery" : "bookings";
+      const ref = doc(db, col, item.id);
 
-    const snap = await getDoc(ref);
-    if (!snap.exists())
-      return Alert.alert("Error", "Booking no longer exists.");
+      const snap = await getDoc(ref);
+      const booking = snap.data();
 
-    const booking = snap.data();
-    if (booking.status !== "waiting" || booking.driverId)
-      return Alert.alert("Too Late", "Another driver accepted this.");
+      if (booking.status !== "waiting")
+        return Alert.alert("Already accepted by someone else");
 
-    const driver = (await getDoc(doc(db, "users", user.uid))).data();
+      const driver = await getDoc(doc(db, "users", user.uid));
 
-    await updateDoc(ref, {
-      status: "accepted",
-      driverId: user.uid,
-      driverName: driver.fullName,
-      driverPhone: driver.phone,
-      updatedAt: new Date(),
-    });
+      await updateDoc(ref, {
+        status: "accepted",
+        driverId: user.uid,
+        driverName: driver.data()?.fullName,
+        driverPhone: driver.data()?.phone,
+        updatedAt: new Date(),
+      });
 
-    Alert.alert("Success", "Booking accepted!");
+      Alert.alert("Success", "Booking accepted!");
+    } catch (err) {
+      console.log("Accept error:", err);
+    }
   };
 
+  /********************************************
+   CANCEL BOOKING (Working everywhere incl. waiting)
+********************************************/
+  const handleCancelBooking = async (item) => {
+    try {
+      const col = item.type === "box" ? "boxDelivery" : "bookings";
+      const ref = doc(db, col, item.id);
+
+      await updateDoc(ref, {
+        status: "canceled",
+        driverId: user.uid, // remain assigned
+        canceledBy: "driver",
+        updatedAt: new Date(),
+      });
+
+      Alert.alert("Cancelled", "Ride moved to Cancel tab.");
+    } catch (err) {
+      console.log("Cancel error:", err);
+    }
+  };
+
+  /********************************************
+   TAB UI CALCULATIONS
+********************************************/
+  const waitingCount =
+    waitingBookings.length + waitingBoxBookings.length;
+
+  const cancelCount = myBookings.filter((b) => b.status === "canceled").length;
+
+  const historyCount = myBookings.filter((b) =>
+    ["accepted", "completed"].includes(b.status)
+  ).length;
+
+  const getDisplayedData = () => {
+    if (activeTab === "waiting")
+      return [...waitingBookings, ...waitingBoxBookings];
+
+    if (activeTab === "cancel")
+      return myBookings.filter((b) => b.status === "canceled");
+
+    if (activeTab === "history")
+      return myBookings.filter((b) =>
+        ["accepted", "completed"].includes(b.status)
+      );
+
+    return [];
+  };
+
+  /********************************************
+   CARD UI
+********************************************/
+  const renderBooking = ({ item }) => (
+    <View
+      style={{
+        backgroundColor: "#fff",
+        margin: 15,
+        padding: 15,
+        borderRadius: 12,
+        elevation: 2,
+      }}
+    >
+      <Text style={{ fontWeight: "800", fontSize: 16 }}>
+        {item.type === "box" ? "📦 Box Delivery" : "🚕 Ride Booking"}
+      </Text>
+
+      <Text>Customer: {item.customerName}</Text>
+      <Text>Phone: {item.customerPhone}</Text>
+
+      {/* ACTION BUTTONS */}
+      {activeTab === "waiting" && (
+        <>
+          <TouchableOpacity
+            onPress={() => handleAccept(item)}
+            style={{
+              marginTop: 10,
+              padding: 10,
+              backgroundColor: "#007bff",
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
+              Accept Booking
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => handleCancelBooking(item)}
+            style={{
+              marginTop: 10,
+              padding: 10,
+              backgroundColor: "#ff3b30",
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
+              Cancel Booking
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+
+  /********************************************
+   LOADING
+********************************************/
   if (loading)
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -207,70 +344,43 @@ const DriverScreen = () => {
       </View>
     );
 
-  /* -------------------------------------------------- */
-  /* MAIN UI                                            */
-  /* -------------------------------------------------- */
+  /********************************************
+   MAIN UI
+********************************************/
   return (
-    <View style={{ flex: 1, backgroundColor: "#f4f4f4", paddingTop: 45 }}>
+    <View style={{ flex: 1, paddingTop: 45 }}>
+      {/* HEADER */}
       <View
         style={{
           flexDirection: "row",
           justifyContent: "space-between",
           paddingHorizontal: 20,
+          marginBottom: 10,
         }}
       >
-        <Text style={{ fontSize: 24, fontWeight: "700" }}>🚖 Driver Panel</Text>
+        <Text style={{ fontSize: 24, fontWeight: "800" }}>🚖 Driver Panel</Text>
 
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={{ color: "red", fontWeight: "700", fontSize: 16 }}>
+        {/* LOGOUT BUTTON */}
+        <TouchableOpacity
+          onPress={handleLogout}
+          style={{ flexDirection: "row", alignItems: "center" }}
+        >
+          <Ionicons name="log-out-outline" size={22} color="red" />
+          <Text style={{ color: "red", fontSize: 16, fontWeight: "700", marginLeft: 5 }}>
             Logout
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
-      <View
-        style={{
-          flexDirection: "row",
-          marginHorizontal: 20,
-          marginTop: 20,
-          backgroundColor: "#ddd",
-          borderRadius: 10,
-          padding: 4,
-        }}
-      >
-        <Pressable
-          onPress={() => setActiveTab("waiting")}
-          style={{
-            flex: 1,
-            padding: 10,
-            borderRadius: 8,
-            backgroundColor:
-              activeTab === "waiting" ? "#007bff" : "transparent",
-          }}
-        >
-          <Text
-            style={{
-              textAlign: "center",
-              fontWeight: "700",
-              color: activeTab === "waiting" ? "#fff" : "#000",
-            }}
-          >
-            Waiting Bookings
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* Booking List */}
+      {/* LIST */}
       <FlatList
-        data={mergedWaiting}
+        data={getDisplayedData()}
         keyExtractor={(item) => item.id}
         renderItem={renderBooking}
         ListEmptyComponent={
-          <Text style={{ textAlign: "center", marginTop: 20, color: "#666" }}>
-            No bookings found
-          </Text>
+          <Text style={{ textAlign: "center", marginTop: 20 }}>No bookings found</Text>
         }
+        contentContainerStyle={{ paddingBottom: 100 }}
       />
     </View>
   );

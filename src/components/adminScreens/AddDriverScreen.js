@@ -27,7 +27,6 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { createUserWithEmailAndPassword } from "firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "../header/Header";
 
@@ -56,28 +55,39 @@ const AddDriverScreen = ({ navigation }) => {
   const [city, setCity] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // 🔹 Fetch drivers in real-time
+  // 🔹 Fetch drivers (realtime)
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const driverList = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((d) => d.role === "driver");
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((u) => u.role === "driver");
+
       setDrivers(driverList);
       setFilteredDrivers(driverList);
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
 
-  // 🔹 Generate driver ID like DRV0001
+  // 🔹 Generate incremental DRV ID safely
   const generateDriverId = async () => {
     const snapshot = await getDocs(collection(db, "users"));
-    const count = snapshot.size + 1;
-    return `DRV${String(count).padStart(4, "0")}`;
+    let maxId = 0;
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.driverId) {
+        const num = parseInt(data.driverId.replace("DRV", ""));
+        if (!isNaN(num) && num > maxId) maxId = num;
+      }
+    });
+
+    return `DRV${String(maxId + 1).padStart(4, "0")}`;
   };
 
-  // 🔹 Reset Form
+  // 🔹 Reset form
   const resetForm = () => {
     setName("");
     setEmail("");
@@ -85,22 +95,48 @@ const AddDriverScreen = ({ navigation }) => {
     setVehicleNumber("");
     setLicenseNumber("");
     setCity("");
+
     setEditingDriver(null);
   };
 
-  // 🔹 Add / Update driver
+  // 🔹 EDIT driver → Fill form
+  const handleEditDriver = (driver) => {
+    setEditingDriver(driver);
+
+    setName(driver.fullName || "");
+    setEmail(driver.email || "");
+    setPhone(driver.phone || "");
+    setVehicleNumber(driver.vehicleNumber || "");
+    setLicenseNumber(driver.licenseNumber || "");
+    setCity(driver.city || "");
+
+    setFormVisible(true);
+  };
+
+  // 🔹 Validate & Save
   const handleSaveDriver = async () => {
-    if (!name || !email || !phone || !vehicleNumber || !licenseNumber || !city) {
+    if (
+      !name ||
+      !email ||
+      !phone ||
+      !vehicleNumber ||
+      !licenseNumber ||
+      !city
+    ) {
       Alert.alert("Error", "Please fill all fields");
+      return;
+    }
+
+    if (phone.length !== 10) {
+      Alert.alert("Error", "Phone number must be 10 digits.");
       return;
     }
 
     try {
       setSaving(true);
-      const password = "pass123";
 
       if (editingDriver) {
-        // ✅ Update driver
+        // Update driver
         const ref = doc(db, "users", editingDriver.id);
         await updateDoc(ref, {
           fullName: name,
@@ -111,21 +147,18 @@ const AddDriverScreen = ({ navigation }) => {
           city,
           updatedAt: serverTimestamp(),
         });
-        Alert.alert("✅ Updated", "Driver details updated successfully");
+
+        Alert.alert("Updated", "Driver updated successfully");
       } else {
-        // ✅ New driver
+        // Create new Firestore-only driver
         const driverId = await generateDriverId();
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-
-        await setDoc(doc(db, "users", user.uid), {
-          uid: user.uid,
-          driverId, // 🔹 store custom driver ID
+        await setDoc(doc(db, "users", driverId), {
+          id: driverId,
+          driverId,
           fullName: name,
           email,
           phone,
-          password,
           role: "driver",
           status: "available",
           licenseNumber,
@@ -135,68 +168,82 @@ const AddDriverScreen = ({ navigation }) => {
         });
 
         Alert.alert(
-          "✅ Driver Added",
-          `Driver created successfully!\n\nDriver ID: ${driverId}\nEmail: ${email}\nPassword: ${password}`
+          "Driver Added",
+          `Driver created successfully!\nDriver ID: ${driverId}`
         );
       }
 
       resetForm();
       setFormVisible(false);
     } catch (error) {
-      console.error("❌ Error saving driver:", error);
-      if (error.code === "auth/email-already-in-use") {
-        Alert.alert("Error", "This email already exists.");
-      } else {
-        Alert.alert("Error", error.message);
-      }
+      Alert.alert("Error", error.message);
+      console.error(error);
     } finally {
       setSaving(false);
     }
   };
 
-  // 🔹 Delete driver
-  const handleDeleteDriver = (driverId) => {
-    Alert.alert("Confirm Delete", "Are you sure you want to delete this driver?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteDoc(doc(db, "users", driverId));
-            Alert.alert("Deleted ✅", "Driver removed successfully");
-          } catch (error) {
-            console.error("Error deleting driver:", error);
-            Alert.alert("Error", "Failed to delete driver");
-          }
+  // 🔹 Delete Driver
+  const handleDeleteDriver = (id) => {
+    Alert.alert(
+      "Confirm Delete",
+      "Are you sure you want to delete this driver?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, "users", id));
+              Alert.alert("Deleted", "Driver removed successfully.");
+            } catch (error) {
+              console.error(error);
+              Alert.alert("Error", "Failed to delete driver.");
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
-  // 🔹 Filter drivers by search text (fullName or driverId)
+  // 🔹 Filter list
   const handleSearch = (text) => {
     setSearchText(text);
-    if (text.trim() === "") {
-      setFilteredDrivers(drivers);
-    } else {
-      const filtered = drivers.filter(
-        (d) =>
-          d.fullName?.toLowerCase().includes(text.toLowerCase()) ||
-          d.driverId?.toLowerCase().includes(text.toLowerCase())
-      );
-      setFilteredDrivers(filtered);
-    }
+
+    if (text.trim() === "") return setFilteredDrivers(drivers);
+
+    const filtered = drivers.filter(
+      (d) =>
+        d.fullName?.toLowerCase().includes(text.toLowerCase()) ||
+        d.driverId?.toLowerCase().includes(text.toLowerCase())
+    );
+
+    setFilteredDrivers(filtered);
   };
 
+  // 🔹 Render Driver Card
   const renderDriver = ({ item }) => (
     <View style={styles.driverCard}>
       <View style={styles.cardHeader}>
         <Text style={styles.driverName}>
-          <Ionicons name="person-circle-outline" size={20} color={PRIMARY_COLOR} />{" "}
-          {item.fullName} ({item.driverId || "N/A"})
+          <Ionicons
+            name="person-circle-outline"
+            size={20}
+            color={PRIMARY_COLOR}
+          />{" "}
+          {item.fullName} ({item.driverId})
         </Text>
-        <Text style={[styles.statusPill, { backgroundColor: item.status === "available" ? ACCENT_GREEN : ACCENT_RED }]}>
+
+        <Text
+          style={[
+            styles.statusPill,
+            {
+              backgroundColor:
+                item.status === "available" ? ACCENT_GREEN : ACCENT_RED,
+            },
+          ]}
+        >
           {item.status?.toUpperCase()}
         </Text>
       </View>
@@ -206,14 +253,17 @@ const AddDriverScreen = ({ navigation }) => {
           <Ionicons name="mail-outline" size={16} color={SUB_TEXT_COLOR} />
           <Text style={styles.driverInfoText}>{item.email}</Text>
         </View>
+
         <View style={styles.detailItem}>
           <Ionicons name="call-outline" size={16} color={SUB_TEXT_COLOR} />
           <Text style={styles.driverInfoText}>{item.phone}</Text>
         </View>
+
         <View style={styles.detailItem}>
           <Ionicons name="car-outline" size={16} color={SUB_TEXT_COLOR} />
           <Text style={styles.driverInfoText}>{item.vehicleNumber}</Text>
         </View>
+
         <View style={styles.detailItem}>
           <Ionicons name="id-card-outline" size={16} color={SUB_TEXT_COLOR} />
           <Text style={styles.driverInfoText}>{item.licenseNumber}</Text>
@@ -226,7 +276,9 @@ const AddDriverScreen = ({ navigation }) => {
           style={[styles.actionButton, styles.editButton]}
         >
           <Ionicons name="create-outline" size={18} color={PRIMARY_COLOR} />
-          <Text style={[styles.actionButtonText, { color: PRIMARY_COLOR }]}>Edit</Text>
+          <Text style={[styles.actionButtonText, { color: PRIMARY_COLOR }]}>
+            Edit
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -234,7 +286,9 @@ const AddDriverScreen = ({ navigation }) => {
           style={[styles.actionButton, styles.deleteButton]}
         >
           <Ionicons name="trash-outline" size={18} color={ACCENT_RED} />
-          <Text style={[styles.actionButtonText, { color: ACCENT_RED }]}>Delete</Text>
+          <Text style={[styles.actionButtonText, { color: ACCENT_RED }]}>
+            Delete
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -245,7 +299,7 @@ const AddDriverScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor={BACKGROUND_COLOR} />
       <Header navigation={navigation} title={"Manage Drivers"} />
 
-      {/* 🔹 Search Bar */}
+      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <Ionicons name="search-outline" size={20} color={SUB_TEXT_COLOR} />
         <TextInput
@@ -256,6 +310,7 @@ const AddDriverScreen = ({ navigation }) => {
         />
       </View>
 
+      {/* Add New Driver Button */}
       <TouchableOpacity
         style={styles.addDriverButton}
         onPress={() => {
@@ -267,8 +322,13 @@ const AddDriverScreen = ({ navigation }) => {
         <Text style={styles.addDriverText}>Add New Driver</Text>
       </TouchableOpacity>
 
+      {/* Driver List */}
       {loading ? (
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} style={{ marginTop: 40 }} />
+        <ActivityIndicator
+          size="large"
+          color={PRIMARY_COLOR}
+          style={{ marginTop: 40 }}
+        />
       ) : filteredDrivers.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="car-sport-outline" size={60} color="#CCC" />
@@ -284,7 +344,7 @@ const AddDriverScreen = ({ navigation }) => {
       )}
 
       {/* Add/Edit Modal */}
-      <Modal visible={formVisible} animationType="slide" onRequestClose={() => setFormVisible(false)}>
+      <Modal visible={formVisible} animationType="slide">
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -295,13 +355,22 @@ const AddDriverScreen = ({ navigation }) => {
             </Text>
 
             <Text style={styles.inputLabel}>Full Name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Driver Name" />
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Driver Name"
+            />
 
             <Text style={styles.inputLabel}>Email Address</Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                editingDriver && { backgroundColor: "#EEE" },
+              ]}
               value={email}
-              onChangeText={setEmail}
+              editable={!editingDriver}
+              onChangeText={!editingDriver ? setEmail : undefined}
               placeholder="driver@example.com"
               keyboardType="email-address"
             />
@@ -311,7 +380,7 @@ const AddDriverScreen = ({ navigation }) => {
               style={styles.input}
               value={phone}
               onChangeText={setPhone}
-              placeholder="10-digit phone number"
+              placeholder="10-digit number"
               keyboardType="phone-pad"
               maxLength={10}
             />
@@ -321,7 +390,7 @@ const AddDriverScreen = ({ navigation }) => {
               style={styles.input}
               value={vehicleNumber}
               onChangeText={setVehicleNumber}
-              placeholder="e.g., KA 01 AB 1234"
+              placeholder="e.g., KA01AB1234"
               autoCapitalize="characters"
             />
 
@@ -335,10 +404,18 @@ const AddDriverScreen = ({ navigation }) => {
             />
 
             <Text style={styles.inputLabel}>City</Text>
-            <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="Enter city name" />
+            <TextInput
+              style={styles.input}
+              value={city}
+              onChangeText={setCity}
+              placeholder="Enter city name"
+            />
 
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: PRIMARY_COLOR, marginTop: 20 }]}
+              style={[
+                styles.button,
+                { backgroundColor: PRIMARY_COLOR, marginTop: 20 },
+              ]}
               onPress={handleSaveDriver}
               disabled={saving}
             >
@@ -355,6 +432,16 @@ const AddDriverScreen = ({ navigation }) => {
                 </Text>
               )}
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.button,
+                { backgroundColor: ACCENT_RED, marginTop: 10 },
+              ]}
+              onPress={() => setFormVisible(false)}
+            >
+              <Text style={styles.buttonText}>Close</Text>
+            </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
@@ -364,6 +451,7 @@ const AddDriverScreen = ({ navigation }) => {
 
 export default AddDriverScreen;
 
+/* --- STYLES --- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BACKGROUND_COLOR },
   flatListContent: { paddingHorizontal: 15, paddingBottom: 100 },
@@ -375,7 +463,12 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     margin: 15,
   },
-  addDriverText: { color: "#FFF", fontWeight: "700", fontSize: 17, marginLeft: 8 },
+  addDriverText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 17,
+    marginLeft: 8,
+  },
   searchContainer: {
     flexDirection: "row",
     backgroundColor: "#FFF",
@@ -388,6 +481,7 @@ const styles = StyleSheet.create({
     borderColor: "#E0E0E0",
   },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 15, color: TEXT_COLOR },
+
   driverCard: {
     backgroundColor: CARD_BG,
     borderRadius: 15,
@@ -397,7 +491,12 @@ const styles = StyleSheet.create({
     borderLeftWidth: 5,
     borderLeftColor: PRIMARY_COLOR,
   },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   driverName: { fontSize: 18, fontWeight: "800", color: TEXT_COLOR },
   statusPill: {
     paddingHorizontal: 10,
@@ -405,13 +504,22 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     fontSize: 12,
     fontWeight: "700",
-    overflow: "hidden",
     color: "#FFF",
+    overflow: "hidden",
   },
   detailsGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: 10 },
-  detailItem: { width: "50%", flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  detailItem: {
+    width: "50%",
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
   driverInfoText: { fontSize: 14, color: SUB_TEXT_COLOR, fontWeight: "500" },
-  actionRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10 },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 10,
+  },
   actionButton: {
     flex: 1,
     flexDirection: "row",
@@ -421,14 +529,42 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
     borderWidth: 1,
   },
-  editButton: { borderColor: PRIMARY_COLOR + "30", backgroundColor: PRIMARY_COLOR + "05" },
-  deleteButton: { borderColor: ACCENT_RED + "30", backgroundColor: ACCENT_RED + "05" },
+  editButton: {
+    borderColor: PRIMARY_COLOR + "30",
+    backgroundColor: PRIMARY_COLOR + "05",
+  },
+  deleteButton: {
+    borderColor: ACCENT_RED + "30",
+    backgroundColor: ACCENT_RED + "05",
+  },
   actionButtonText: { fontWeight: "600", fontSize: 14, marginLeft: 5 },
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", marginTop: 50 },
-  noDrivers: { textAlign: "center", fontSize: 16, color: SUB_TEXT_COLOR, marginTop: 15 },
-  modalContainer: { padding: 20 },
-  modalTitle: { fontSize: 20, fontWeight: "800", color: TEXT_COLOR, marginBottom: 10 },
-  inputLabel: { fontSize: 14, color: TEXT_COLOR, fontWeight: "600", marginBottom: 5, marginTop: 10 },
+
+  emptyContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 50,
+  },
+  noDrivers: {
+    textAlign: "center",
+    fontSize: 16,
+    color: SUB_TEXT_COLOR,
+    marginTop: 15,
+  },
+
+  modalContainer: { padding: 20, paddingBottom: 50 },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: TEXT_COLOR,
+    marginBottom: 10,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: TEXT_COLOR,
+    fontWeight: "600",
+    marginTop: 10,
+    marginBottom: 5,
+  },
   input: {
     backgroundColor: "#FFF",
     borderRadius: 10,

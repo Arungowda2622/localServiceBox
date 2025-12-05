@@ -5,71 +5,72 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
-} from 'react-native';
-import Feather from 'react-native-vector-icons/Feather';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import Header from '../header/Header';
-import { db } from '../firebase/firebaseConfig';
-import { getAuth } from 'firebase/auth';
+} from "react-native";
+import Feather from "react-native-vector-icons/Feather";
+import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
+import Header from "../header/Header";
+import { db } from "../firebase/firebaseConfig";
+import { getAuth } from "firebase/auth";
 import {
   addDoc,
   collection,
   serverTimestamp,
   getDocs,
   doc,
-  setDoc
-} from 'firebase/firestore';
+  setDoc,
+} from "firebase/firestore";
 
-const BikeTaxiPayment = ({ route, navigation = { goBack: () => { } } }) => {
-  const { pickupLocation, destinationLocation, routeInfo } = route?.params || {};
+const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
+  const { pickupLocation, destinationLocation, routeInfo } =
+    route?.params || {};
   const finalFare = routeInfo?.fare || 0;
 
   // ✔ Your file stays SAME except improved notifyDrivers()
 
-const notifyDrivers = async (bookingId, bookingData) => {
-  try {
-    const driversSnapshot = await getDocs(collection(db, "users"));
-    let driverTokens = [];
+  // INSIDE BikeTaxiPayment.js
 
-    driversSnapshot.forEach((d) => {
-      const data = d.data();
-      if (data.role === "driver" && data.fcmToken) {
-        if (!data.fcmToken.startsWith("ExpoGo")) {
-          driverTokens.push(data.fcmToken);
+  const notifyDrivers = async (bookingId, bookingData) => {
+    try {
+      const driversSnapshot = await getDocs(collection(db, "users"));
+      let driverTokens = [];
+
+      driversSnapshot.forEach((d) => {
+        const data = d.data();
+        if (data.role === "driver" && data.fcmToken) {
+          if (data.fcmToken.startsWith("ExponentPushToken")) {
+            driverTokens.push(data.fcmToken);
+          }
         }
-      }
-    });
+      });
 
-    await Promise.all(
-      driverTokens.map((token) =>
-        fetch("https://exp.host/--/api/v2/push/send", {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            to: token,
-            sound: "default",
-            title: "🚕 New Ride Request",
-            body: "A new customer needs a ride!",
-            data: {
-              bookingId,
+      await Promise.all(
+        driverTokens.map((token) =>
+          fetch("https://exp.host/--/api/v2/push/send", {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
             },
-          }),
-        })
-      )
-    );
-  } catch (err) {
-    console.log("Notification error:", err);
-  }
-};
+            body: JSON.stringify({
+              to: token,
+              sound: "default",
+              title: "🚕 New Ride Request",
+              body: "A customer needs a ride now!",
+              data: { bookingId },
+            }),
+          })
+        )
+      );
 
-
+      console.log("Driver notifications sent:", driverTokens.length);
+    } catch (err) {
+      console.log("Notification error:", err);
+    }
+  };
 
   const handleConfirmBooking = async () => {
     if (!pickupLocation || !destinationLocation || !routeInfo) {
-      Alert.alert('Error', 'Incomplete ride details.');
+      Alert.alert("Error", "Incomplete ride details.");
       return;
     }
 
@@ -78,7 +79,7 @@ const notifyDrivers = async (bookingId, bookingData) => {
       const user = auth.currentUser;
 
       if (!user) {
-        Alert.alert('Error', 'You must be logged in to book a ride.');
+        Alert.alert("Error", "You must be logged in to book a ride.");
         return;
       }
 
@@ -121,7 +122,6 @@ const notifyDrivers = async (bookingId, bookingData) => {
       navigation.navigate("BikeTaxiWaiting", {
         bookingId: docRef.id,
       });
-
     } catch (error) {
       console.error("Error saving booking:", error);
       Alert.alert("Error", "Failed to create booking. Please try again.");
@@ -137,7 +137,12 @@ const notifyDrivers = async (bookingId, bookingData) => {
 
         <View style={styles.locationCard}>
           <View style={styles.locationItem}>
-            <Feather name="circle" size={12} color="#4CAF50" style={styles.icon} />
+            <Feather
+              name="circle"
+              size={12}
+              color="#4CAF50"
+              style={styles.icon}
+            />
             <Text style={styles.locationLabel}>Pickup:</Text>
             <Text style={styles.locationValue} numberOfLines={1}>
               {pickupLocation?.name || "Not selected"}
@@ -147,7 +152,12 @@ const notifyDrivers = async (bookingId, bookingData) => {
           <View style={styles.locationDivider} />
 
           <View style={styles.locationItem}>
-            <Feather name="square" size={12} color="#EA4335" style={styles.icon} />
+            <Feather
+              name="square"
+              size={12}
+              color="#EA4335"
+              style={styles.icon}
+            />
             <Text style={styles.locationLabel}>Destination:</Text>
             <Text style={styles.locationValue} numberOfLines={1}>
               {destinationLocation?.name || "Not selected"}
@@ -175,7 +185,11 @@ const notifyDrivers = async (bookingId, bookingData) => {
         <Text style={styles.sectionTitle}>Payment Method</Text>
 
         <View style={styles.paymentButton}>
-          <MaterialCommunityIcons name="cash-multiple" size={26} color="#4CAF50" />
+          <MaterialCommunityIcons
+            name="cash-multiple"
+            size={26}
+            color="#4CAF50"
+          />
           <View style={styles.paymentTextContainer}>
             <Text style={styles.paymentMethodText}>Cash</Text>
             <Text style={styles.paymentSubtitle}>
@@ -204,120 +218,119 @@ const notifyDrivers = async (bookingId, bookingData) => {
 
 export default BikeTaxiPayment;
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: "#F7F7F7",
   },
   main: {
     padding: 20,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
+    fontWeight: "700",
+    color: "#333",
     marginTop: 15,
     marginBottom: 10,
   },
   locationCard: {
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 10,
     marginBottom: 15,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 3,
   },
   locationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 8,
   },
   locationDivider: {
     height: 1,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: "#F0F0F0",
     marginLeft: 40,
     marginVertical: 2,
   },
   icon: {
     marginRight: 10,
     width: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   locationLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#999',
+    fontWeight: "500",
+    color: "#999",
     width: 80,
   },
   locationValue: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   summaryCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 15,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#EFEFEF',
+    borderColor: "#EFEFEF",
   },
   summaryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   summaryLabel: {
     flex: 1,
     marginLeft: 10,
     fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    color: "#666",
+    fontWeight: "500",
   },
   summaryValue: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   fareCard: {
-    backgroundColor: '#E6F0FF',
+    backgroundColor: "#E6F0FF",
     borderRadius: 12,
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 25,
     borderWidth: 1,
-    borderColor: '#007BFF50',
+    borderColor: "#007BFF50",
   },
   fareLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#007BFF',
+    fontWeight: "600",
+    color: "#007BFF",
   },
   fareValue: {
     fontSize: 48,
-    fontWeight: '900',
-    color: '#007BFF',
+    fontWeight: "900",
+    color: "#007BFF",
     marginVertical: 5,
   },
   fareSubtitle: {
     fontSize: 13,
-    color: '#6699CC',
+    color: "#6699CC",
   },
   paymentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 15,
     borderWidth: 2,
-    borderColor: '#EFEFEF',
-    shadowColor: '#000',
+    borderColor: "#EFEFEF",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
@@ -329,38 +342,38 @@ const styles = StyleSheet.create({
   },
   paymentMethodText: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
+    fontWeight: "700",
+    color: "#333",
   },
   paymentSubtitle: {
     fontSize: 13,
-    color: '#666',
+    color: "#666",
     marginTop: 2,
   },
   footer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderTopWidth: 1,
-    borderTopColor: '#EFEFEF',
-    shadowColor: '#000',
+    borderTopColor: "#EFEFEF",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.05,
     shadowRadius: 5,
   },
   confirmButton: {
-    backgroundColor: '#007BFF',
+    backgroundColor: "#007BFF",
     borderRadius: 10,
     padding: 15,
-    alignItems: 'center',
+    alignItems: "center",
   },
   confirmButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: "800",
   },
 });

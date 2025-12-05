@@ -10,7 +10,7 @@ import Constants from "expo-constants";
 
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "./src/components/firebase/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 // Screens
 import Login from './src/components/login/Login';
@@ -39,154 +39,154 @@ import AddDriverScreen from './src/components/adminScreens/AddDriverScreen';
 import DriverScreen from './src/components/driver/DriverScreen';
 import BikeTaxiWaiting from './src/components/ourServices/BikeTaxiWaiting';
 
+// Notification Handler
 Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-    }),
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
 });
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
 
 // ----------------------------
-// MAIN APP STACK FOR USERS
+// USER STACK
 // ----------------------------
 function MainStack() {
-    return (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="OuerServices" component={OuerServicesHome} />
-            <Stack.Screen name="BikeTaxi" component={BikeTaxi} />
-            <Stack.Screen name="Product" component={Product} />
-            <Stack.Screen name="Cart" component={CartScreen} />
-            <Stack.Screen name="PaymentSelection" component={PaymentSelectionScreen} />
-            <Stack.Screen name="AddressSelection" component={AddressSelectionScreen} />
-            <Stack.Screen name="BikeTaxiPayment" component={BikeTaxiPayment} />
-            <Stack.Screen name="BikeTaxiTracking" component={BikeTaxiTracking} />
-            <Stack.Screen name="AdminHome" component={Home} />
-            <Stack.Screen name="AddAdmin" component={AddAdmin} />
-            <Stack.Screen name="AddProduct" component={AddProduct} />
-            <Stack.Screen name="NewAddress" component={NewAddress} />
-            <Stack.Screen name="AddUpi" component={AddUpi} />
-            <Stack.Screen name="Orders" component={Orders} />
-            <Stack.Screen name="UpdateOrders" component={UpdateOrders} />
-            <Stack.Screen name="BakiTaxiPrice" component={BakiTaxiPrice} />
-            <Stack.Screen name="BoxDelivery" component={BoxDelivery} />
-            <Stack.Screen name="DeliveryPayment" component={DeliveryPayment} />
-            <Stack.Screen name="AddDriverScreen" component={AddDriverScreen} />
-            <Stack.Screen name="DriverScreen" component={DriverScreen} />
-            <Stack.Screen name="BikeTaxiWaiting" component={BikeTaxiWaiting} />
-        </Stack.Navigator>
-    );
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="OuerServices" component={OuerServicesHome} />
+      <Stack.Screen name="BikeTaxi" component={BikeTaxi} />
+      <Stack.Screen name="Product" component={Product} />
+      <Stack.Screen name="Cart" component={CartScreen} />
+      <Stack.Screen name="PaymentSelection" component={PaymentSelectionScreen} />
+      <Stack.Screen name="AddressSelection" component={AddressSelectionScreen} />
+      <Stack.Screen name="BikeTaxiPayment" component={BikeTaxiPayment} />
+      <Stack.Screen name="BikeTaxiTracking" component={BikeTaxiTracking} />
+      <Stack.Screen name="AdminHome" component={Home} />
+      <Stack.Screen name="AddAdmin" component={AddAdmin} />
+      <Stack.Screen name="AddProduct" component={AddProduct} />
+      <Stack.Screen name="NewAddress" component={NewAddress} />
+      <Stack.Screen name="AddUpi" component={AddUpi} />
+      <Stack.Screen name="Orders" component={Orders} />
+      <Stack.Screen name="UpdateOrders" component={UpdateOrders} />
+      <Stack.Screen name="BakiTaxiPrice" component={BakiTaxiPrice} />
+      <Stack.Screen name="BoxDelivery" component={BoxDelivery} />
+      <Stack.Screen name="DeliveryPayment" component={DeliveryPayment} />
+      <Stack.Screen name="AddDriverScreen" component={AddDriverScreen} />
+      <Stack.Screen name="DriverScreen" component={DriverScreen} />
+      <Stack.Screen name="BikeTaxiWaiting" component={BikeTaxiWaiting} />
+    </Stack.Navigator>
+  );
 }
 
 // ----------------------------
-// ROOT APP COMPONENT
+// ROOT APP
 // ----------------------------
 export default function App() {
-    const navigationRef = useRef(null);
+  const navigationRef = useRef(null);
+  const [initializing, setInitializing] = useState(true);
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null);
 
-    const [initializing, setInitializing] = useState(true);
-    const [user, setUser] = useState(null);
-    const [role, setRole] = useState(null);
+  // -----------------------------------------------
+  // NOTIFICATION CLICK → OPEN THE APP (APK only)
+  // -----------------------------------------------
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data;
 
-    // ------------------------------------------------------
-    // 💬 Notification Tap → Navigate to Screen
-    // ------------------------------------------------------
-    useEffect(() => {
-        const subscription = Notifications.addNotificationResponseReceivedListener(
-            (response) => {
-                const data = response.notification.request.content.data;
+      console.log("📩 Notification Clicked:", data);
 
-                console.log("📩 Notification Clicked:", data);
-
-                if (data?.bookingId) {
-                    console.log("Opening BikeTaxiWaiting screen...");
-                    navigationRef.current?.navigate("BikeTaxiWaiting", {
-                        bookingId: data.bookingId,
-                    });
-                }
-            }
-        );
-
-        return () => subscription.remove();
-    }, []);
-
-    // ------------------------------------------------------
-    // 👤 Firebase Auth Listener
-    // ------------------------------------------------------
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-                try {
-                    const userRef = doc(db, "users", firebaseUser.uid);
-                    const userSnap = await getDoc(userRef);
-
-                    if (userSnap.exists()) {
-                        setUser(firebaseUser);
-                        setRole(userSnap.data().role || "user");
-                    } else {
-                        await signOut(auth);
-                        setUser(null);
-                        setRole(null);
-                    }
-                } catch (err) {
-                    console.error("User fetch error:", err);
-                    setUser(null);
-                    setRole(null);
-                }
-            } else {
-                setUser(null);
-                setRole(null);
-            }
-
-            setInitializing(false);
+      if (data?.bookingId) {
+        navigationRef.current?.navigate("BikeTaxiWaiting", {
+          bookingId: data.bookingId,
         });
+      }
+    });
 
-        return unsubscribe;
-    }, []);
+    return () => sub.remove();
+  }, []);
 
-    if (initializing) {
-        return (
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                <ActivityIndicator size="large" color="#000" />
-            </View>
-        );
-    }
+  // ------------------------------------------------
+  // AUTH LISTENER — Refresh token on DRIVER login
+  // ------------------------------------------------
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
 
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          setUser(firebaseUser);
+          setRole(data.role || "user");
+
+          // 🔥 Driver login → Update token
+          if (data.role === "driver" && Constants.appOwnership !== "expo") {
+            setTimeout(async () => {
+              const tokenObject = await Notifications.getExpoPushTokenAsync({
+                projectId: Constants.expoConfig.extra.eas.projectId,
+              });
+
+              const token = tokenObject.data;
+
+              if (token && token.startsWith("ExponentPushToken")) {
+                await updateDoc(userRef, {
+                  fcmToken: token,
+                  updatedAt: new Date(),
+                });
+                console.log("🔥 Driver login token refreshed:", token);
+              }
+            }, 1500);
+          }
+        } else {
+          await signOut(auth);
+        }
+      } else {
+        setUser(null);
+        setRole(null);
+      }
+
+      setInitializing(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  if (initializing) {
     return (
-        <NavigationContainer ref={navigationRef}>
-            {user ? (
-                role === "driver" ? (
-                    // ------------------------------------------------------
-                    // 🟢 FIXED DRIVER STACK — Includes BikeTaxiWaiting!
-                    // ------------------------------------------------------
-                    <Stack.Navigator screenOptions={{ headerShown: false }}>
-                        <Stack.Screen name="DriverScreen" component={DriverScreen} />
-                        <Stack.Screen name="BikeTaxiWaiting" component={BikeTaxiWaiting} />
-                    </Stack.Navigator>
-                ) : (
-                    // NORMAL USER NAVIGATION
-                    <Drawer.Navigator
-                        drawerContent={(props) => <CustomDrawer {...props} />}
-                        screenOptions={{
-                            headerShown: false,
-                            drawerType: "front",
-                            swipeEnabled: true,
-                        }}
-                    >
-                        <Drawer.Screen name="Home" component={MainStack} />
-                        <Drawer.Screen name="Profile" component={Profile} />
-                    </Drawer.Navigator>
-                )
-            ) : (
-                // LOGIN SCREENS
-                <Stack.Navigator screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="Login" component={Login} />
-                    <Stack.Screen name="SignUp" component={SignUp} />
-                </Stack.Navigator>
-            )}
-        </NavigationContainer>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
     );
+  }
+
+  return (
+    <NavigationContainer ref={navigationRef}>
+      {user ? (
+        role === "driver" ? (
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="DriverScreen" component={DriverScreen} />
+            <Stack.Screen name="BikeTaxiWaiting" component={BikeTaxiWaiting} />
+          </Stack.Navigator>
+        ) : (
+          <Drawer.Navigator
+            drawerContent={(props) => <CustomDrawer {...props} />}
+            screenOptions={{ headerShown: false }}
+          >
+            <Drawer.Screen name="Home" component={MainStack} />
+            <Drawer.Screen name="Profile" component={Profile} />
+          </Drawer.Navigator>
+        )
+      ) : (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Login" component={Login} />
+          <Stack.Screen name="SignUp" component={SignUp} />
+        </Stack.Navigator>
+      )}
+    </NavigationContainer>
+  );
 }

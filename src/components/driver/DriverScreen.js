@@ -39,30 +39,35 @@ Notifications.setNotificationHandler({
 });
 
 /********************************************
- GET PUSH TOKEN
+ CORRECT EXPO PUSH TOKEN FUNCTION
 ********************************************/
 async function registerDriverForPushTokenAsync() {
-  if (Constants.appOwnership === "expo") {
-    console.log("🚫 Expo Go detected — token NOT allowed.");
+  try {
+    let permission = await Notifications.getPermissionsAsync();
+    if (permission.status !== "granted") {
+      permission = await Notifications.requestPermissionsAsync();
+    }
+    if (permission.status !== "granted") return null;
+
+    // MUST include projectId for standalone APK
+    const token = (
+      await Notifications.getExpoPushTokenAsync({
+        projectId: Constants.expoConfig?.extra?.eas?.projectId,
+      })
+    ).data;
+
+    console.log("📌 Generated Token:", token);
+
+    // VALID EXPO TOKEN CHECK
+    if (token && token.startsWith("ExponentPushToken")) {
+      return token;
+    }
+
+    return null;
+  } catch (err) {
+    console.log("Token error:", err);
     return null;
   }
-
-  let permission = await Notifications.getPermissionsAsync();
-  if (permission.status !== "granted") {
-    permission = await Notifications.requestPermissionsAsync();
-  }
-  if (permission.status !== "granted") return null;
-
-  const token = (
-    await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig?.extra?.eas?.projectId,
-    })
-  ).data;
-
-  if (!token || token.startsWith("ExpoGo")) return null;
-
-  console.log("Driver Push Token:", token);
-  return token;
 }
 
 const DriverScreen = () => {
@@ -75,19 +80,24 @@ const DriverScreen = () => {
   const [loading, setLoading] = useState(true);
 
   /********************************************
-   SAVE DRIVER PUSH TOKEN
-  ********************************************/
+   SAVE DRIVER PUSH TOKEN (FIXED)
+********************************************/
   const saveDriverToken = async () => {
     try {
+      if (!user) return;
+
       const token = await registerDriverForPushTokenAsync();
-      if (!token || !user) return;
+      if (!token) {
+        console.log("❌ No valid token generated");
+        return;
+      }
 
       await updateDoc(doc(db, "users", user.uid), {
         fcmToken: token,
         updatedAt: new Date(),
       });
 
-      console.log("Driver Token Saved:", token);
+      console.log("✅ Token saved to Firestore:", token);
     } catch (err) {
       console.log("Token save error:", err);
     }
@@ -98,12 +108,11 @@ const DriverScreen = () => {
   }, [user]);
 
   /********************************************
-   LOGOUT FEATURE
-  ********************************************/
+   LOGOUT
+********************************************/
   const handleLogout = async () => {
     try {
       await auth.signOut();
-      console.log("Driver logged out");
     } catch (err) {
       Alert.alert("Error", "Failed to logout.");
     }
@@ -113,16 +122,20 @@ const DriverScreen = () => {
    NOTIFICATION LISTENERS
 ********************************************/
   useEffect(() => {
-    // Foreground Notification
-    const receiveSub = Notifications.addNotificationReceivedListener(() => {
+    // Receive notification in foreground
+    const receiveSub = Notifications.addNotificationReceivedListener((notif) => {
+      console.log("📩 Notification received:", notif);
       setActiveTab("waiting");
     });
 
-    // Tap Notification
+    // When notification is tapped
     const tapSub = Notifications.addNotificationResponseReceivedListener(
       (response) => {
+        console.log("📲 Notification tapped");
         const data = response.notification.request.content.data;
+
         if (data?.bookingId) {
+          console.log("Opening waiting tab...");
           setActiveTab("waiting");
         }
       }
@@ -232,7 +245,7 @@ const DriverScreen = () => {
   };
 
   /********************************************
-   CANCEL BOOKING (Working everywhere incl. waiting)
+   CANCEL BOOKING
 ********************************************/
   const handleCancelBooking = async (item) => {
     try {
@@ -241,7 +254,7 @@ const DriverScreen = () => {
 
       await updateDoc(ref, {
         status: "canceled",
-        driverId: user.uid, // remain assigned
+        driverId: user.uid,
         canceledBy: "driver",
         updatedAt: new Date(),
       });
@@ -253,7 +266,7 @@ const DriverScreen = () => {
   };
 
   /********************************************
-   TAB UI CALCULATIONS
+   TAB DATA
 ********************************************/
   const waitingCount =
     waitingBookings.length + waitingBoxBookings.length;
@@ -280,7 +293,7 @@ const DriverScreen = () => {
   };
 
   /********************************************
-   CARD UI
+   BOOKING CARD
 ********************************************/
   const renderBooking = ({ item }) => (
     <View
@@ -299,7 +312,6 @@ const DriverScreen = () => {
       <Text>Customer: {item.customerName}</Text>
       <Text>Phone: {item.customerPhone}</Text>
 
-      {/* ACTION BUTTONS */}
       {activeTab === "waiting" && (
         <>
           <TouchableOpacity
@@ -335,7 +347,7 @@ const DriverScreen = () => {
   );
 
   /********************************************
-   LOADING
+   LOADING SCREEN
 ********************************************/
   if (loading)
     return (
@@ -360,15 +372,8 @@ const DriverScreen = () => {
       >
         <Text style={{ fontSize: 24, fontWeight: "800" }}>🚖 Driver Panel</Text>
 
-        {/* LOGOUT BUTTON */}
-        <TouchableOpacity
-          onPress={handleLogout}
-          style={{ flexDirection: "row", alignItems: "center" }}
-        >
-          <Ionicons name="log-out-outline" size={22} color="red" />
-          <Text style={{ color: "red", fontSize: 16, fontWeight: "700", marginLeft: 5 }}>
-            Logout
-          </Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={26} color="red" />
         </TouchableOpacity>
       </View>
 
@@ -378,7 +383,9 @@ const DriverScreen = () => {
         keyExtractor={(item) => item.id}
         renderItem={renderBooking}
         ListEmptyComponent={
-          <Text style={{ textAlign: "center", marginTop: 20 }}>No bookings found</Text>
+          <Text style={{ textAlign: "center", marginTop: 20 }}>
+            No bookings found
+          </Text>
         }
         contentContainerStyle={{ paddingBottom: 100 }}
       />

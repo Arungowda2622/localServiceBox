@@ -232,6 +232,7 @@ export default function BoxDelivery({ navigation }) {
       setRouteInfo({
         distance: distanceKm,
         duration: durationMin,
+        formattedDuration: formatDuration(durationMin), 
         fare,
       });
 

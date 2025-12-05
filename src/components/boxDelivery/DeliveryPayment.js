@@ -106,7 +106,7 @@ const DeliveryPayment = ({ route, navigation }) => {
         destinationName: destinationLocation?.name || "",
 
         distance: routeInfo?.distance,
-        duration: routeInfo?.formattedDuration,
+        duration: routeInfo?.formattedDuration ?? routeInfo?.duration ?? "0 min",
         fare: routeInfo?.fare,
 
         paymentMethod: "Cash",
@@ -122,6 +122,10 @@ const DeliveryPayment = ({ route, navigation }) => {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+
+      console.log('====================================');
+      console.log(deliveryData,"deliveryData");
+      console.log('====================================');
 
       // 📝 SAVE BOOKING
       const docRef = await addDoc(collection(db, "boxDelivery"), deliveryData);

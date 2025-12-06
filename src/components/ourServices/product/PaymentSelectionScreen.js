@@ -233,7 +233,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       const newOrderRef = await addDoc(collection(db, "orders"), newOrder);
 
       // 📢 SEND DRIVER NOTIFICATION
-      await notifyDrivers(newOrderRef.id, newOrder);
+      // await notifyDrivers(newOrderRef.id, newOrder);
 
       setLoading(false);
 

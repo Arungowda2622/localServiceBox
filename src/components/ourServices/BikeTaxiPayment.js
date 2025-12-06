@@ -116,7 +116,7 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
       const docRef = await addDoc(collection(db, "bookings"), bookingData);
 
       // 🔥 Send notification to drivers
-      await notifyDrivers(docRef.id, bookingData);
+      // await notifyDrivers(docRef.id, bookingData);
 
       // 🔥 Redirect to waiting screen
       navigation.navigate("BikeTaxiWaiting", {

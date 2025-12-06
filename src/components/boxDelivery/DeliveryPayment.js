@@ -131,7 +131,7 @@ const DeliveryPayment = ({ route, navigation }) => {
       const docRef = await addDoc(collection(db, "boxDelivery"), deliveryData);
 
       // 🔔 SEND NOTIFICATION TO DRIVERS
-      await notifyDrivers(docRef.id, deliveryData);
+      // await notifyDrivers(docRef.id, deliveryData);
 
       setIsProcessing(false);
 

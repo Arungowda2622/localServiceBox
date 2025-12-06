@@ -275,56 +275,102 @@ const DriverScreen = () => {
   /********************************************
    BOOKING CARD
 ********************************************/
-  const BookingCard = ({ item }) => (
-    <View
-      style={{
-        backgroundColor: "#fff",
-        margin: 15,
-        padding: 15,
-        borderRadius: 12,
-        elevation: 2,
-      }}
-    >
-      <Text style={{ fontWeight: "800", fontSize: 16 }}>
-        {item.type === "box" ? "📦 Box Delivery" : "🚕 Ride Booking"}
-      </Text>
+  const BookingCard = ({ item }) => {
+    const pickupTitle = item.pickupName || "Pickup Location";
+    const pickupAddress = item.pickup || "";
 
-      <Text>Customer: {item.customerName}</Text>
-      <Text>Phone: {item.customerPhone}</Text>
+    const destinationTitle = item.destinationName || "Destination";
+    const destinationAddress = item.destination || "";
 
-      {activeTab === "waiting" && (
-        <>
-          <TouchableOpacity
-            onPress={() => acceptBooking(item)}
-            style={{
-              marginTop: 10,
-              padding: 10,
-              backgroundColor: "#007bff",
-              borderRadius: 8,
-            }}
-          >
-            <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
-              Accept Booking
+    return (
+      <View
+        style={{
+          backgroundColor: "#fff",
+          margin: 15,
+          padding: 15,
+          borderRadius: 12,
+          elevation: 2,
+        }}
+      >
+        <Text style={{ fontWeight: "800", fontSize: 16 }}>
+          {item.type === "box" ? "📦 Box Delivery" : "🚕 Ride Booking"}
+        </Text>
+
+        {/* CUSTOMER INFO */}
+        <Text style={{ marginTop: 5 }}>👤 {item.customerName}</Text>
+        <Text>📞 {item.customerPhone}</Text>
+
+        {/* PICKUP */}
+        <View style={{ marginTop: 8 }}>
+          <Text style={{ fontWeight: "700", color: "#4CAF50" }}>📍 Pickup</Text>
+          <Text numberOfLines={2}>{pickupTitle}</Text>
+          {pickupAddress ? (
+            <Text numberOfLines={2} style={{ fontSize: 12, color: "#666" }}>
+              {pickupAddress}
             </Text>
-          </TouchableOpacity>
+          ) : null}
+        </View>
 
-          <TouchableOpacity
-            onPress={() => cancelBooking(item)}
-            style={{
-              marginTop: 10,
-              padding: 10,
-              backgroundColor: "#ff3b30",
-              borderRadius: 8,
-            }}
-          >
-            <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
-              Cancel Booking
+        {/* DESTINATION */}
+        <View style={{ marginTop: 6 }}>
+          <Text style={{ fontWeight: "700", color: "#EA4335" }}>
+            🏁 Destination
+          </Text>
+          <Text numberOfLines={2}>{destinationTitle}</Text>
+          {destinationAddress ? (
+            <Text numberOfLines={2} style={{ fontSize: 12, color: "#666" }}>
+              {destinationAddress}
             </Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </View>
-  );
+          ) : null}
+        </View>
+
+        {/* ACTIONS */}
+        {activeTab === "waiting" && (
+          <>
+            <TouchableOpacity
+              onPress={() => acceptBooking(item)}
+              style={{
+                marginTop: 12,
+                padding: 10,
+                backgroundColor: "#007bff",
+                borderRadius: 8,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#fff",
+                  textAlign: "center",
+                  fontWeight: "700",
+                }}
+              >
+                Accept Booking
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => cancelBooking(item)}
+              style={{
+                marginTop: 8,
+                padding: 10,
+                backgroundColor: "#ff3b30",
+                borderRadius: 8,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#fff",
+                  textAlign: "center",
+                  fontWeight: "700",
+                }}
+              >
+                Cancel Booking
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    );
+  };
 
   if (loading)
     return (

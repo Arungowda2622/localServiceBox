@@ -2,9 +2,9 @@
   "expo": {
     "name": "localServiceBox",
     "slug": "localServiceBox",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/lsbIcon.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -23,8 +23,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/lsbIcon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#FFA500"
       },
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
@@ -42,7 +42,8 @@
         }
       },
       "googleServicesFile": "./google-services.json",
-      "useNextNotificationsApi": true
+      "useNextNotificationsApi": true,
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"

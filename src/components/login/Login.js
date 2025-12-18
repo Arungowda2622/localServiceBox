@@ -153,7 +153,7 @@ const Login = ({ navigation }) => {
         </View>
 
         {/* Remember Me + Forgot Password */}
-        <View style={styles.mainBox}>
+        {/* <View style={styles.mainBox}>
           <View style={styles.checkBox}>
             <Checkbox
               value={isChecked}
@@ -165,7 +165,7 @@ const Login = ({ navigation }) => {
           <Pressable onPress={handleForgotPass}>
             <Text style={styles.forgotPassLabel}>Forgot password?</Text>
           </Pressable>
-        </View>
+        </View> */}
 
         {/* Login Button */}
         <Pressable onPress={handleLogin} style={styles.loginBtn}>

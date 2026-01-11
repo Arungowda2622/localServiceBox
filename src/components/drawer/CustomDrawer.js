@@ -1,74 +1,88 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { DrawerContentScrollView } from '@react-navigation/drawer';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from "react";
+import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { DrawerContentScrollView } from "@react-navigation/drawer";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebaseConfig";
-import { onAuthStateChanged } from "firebase/auth";
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import { signOut } from "firebase/auth";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 export default function CustomDrawer(props) {
   const { navigation } = props;
   const [userData, setUserData] = useState(null);
 
+  // 🔹 Fetch user data ONCE (no auth listener here)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          console.log("User data:", docSnap.data());
-          setUserData(docSnap.data());
-        }
-      } else {
-        console.log("No user logged in");
+    const fetchUser = async () => {
+      if (!auth.currentUser) return;
+
+      const docRef = doc(db, "users", auth.currentUser.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        setUserData(docSnap.data());
       }
-    });
-    return unsubscribe;
+    };
+
+    fetchUser();
   }, []);
 
+  // 🔹 Correct Logout
   const handleLogout = async () => {
-    navigation.closeDrawer();
-    await AsyncStorage.removeItem('user');
-    await signOut(auth);
+    try {
+      navigation.closeDrawer();
+      await signOut(auth);
+      // ❌ Do NOT navigate manually
+      // App.js will automatically show Login screen
+    } catch (error) {
+      console.log("Logout error:", error);
+    }
   };
 
   return (
-    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
-      {/* 🔹 Header Section */}
-      <View style={styles.header}>
-        <Image source={require('../../../assets/profile_pic.png')} style={styles.profilePic} />
-        <Text style={styles.name}>{userData?.fullName || 'User Name'}</Text>
-        <Text style={styles.phone}>{userData?.phone || '+91 XXXXX XXXXX'}</Text>
+    <DrawerContentScrollView
+      {...props}
+      contentContainerStyle={styles.container}
+    >
+      {/* ================= USER INFO ================= */}
+      <View style={styles.userSection}>
+        <Image
+          source={require("../../../assets/profile_pic.png")}
+          style={styles.avatar}
+        />
+
+        <View style={{ marginLeft: 12 }}>
+          <Text style={styles.userName}>
+            {userData?.fullName || "User Name"}
+          </Text>
+          <Text style={styles.userPhone}>
+            {userData?.phone || "+91 XXXXX XXXXX"}
+          </Text>
+        </View>
       </View>
 
-      {/* 🔹 Menu Section */}
-      <View style={styles.menu}>
-        {/* <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.menuItem}>
-          <Ionicons name="person-circle-outline" size={22} color="#333" style={styles.menuIcon} />
-          <Text style={styles.menuText}>Profile</Text>
-        </TouchableOpacity> */}
+      {/* ================= MENU ================= */}
+      <View style={styles.menuSection}>
+        <DrawerItem
+          icon="cart-outline"
+          label="My Orders"
+          onPress={() => navigation.navigate("Home", { screen: "Orders" })}
+        />
 
-        <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'Orders' })} style={styles.menuItem}>
-          <Ionicons name="cart-outline" size={22} color="#333" style={styles.menuIcon} />
-          <Text style={styles.menuText}>Orders</Text>
-        </TouchableOpacity>
-        {
-          userData?.role === "admin" ?
-            <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'AdminHome' })} style={styles.menuItem}>
-              <Ionicons name="settings-outline" size={22} color="#333" style={styles.menuIcon} />
-              <Text style={styles.menuText}>Settings</Text>
-            </TouchableOpacity>
-            :
-            null
-        }
+        {userData?.role === "admin" && (
+          <DrawerItem
+            icon="settings-outline"
+            label="Admin Settings"
+            onPress={() =>
+              navigation.navigate("Home", { screen: "AdminHome" })
+            }
+          />
+        )}
       </View>
 
-      {/* 🔹 Footer Section */}
+      {/* ================= LOGOUT ================= */}
       <View style={styles.footer}>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Ionicons name="log-out-outline" size={20} color="#fff" style={{ marginRight: 6 }} />
+        <TouchableOpacity style={styles.logoutRow} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={22} color="#DC2626" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </View>
@@ -76,57 +90,95 @@ export default function CustomDrawer(props) {
   );
 }
 
+/* ================= MENU ITEM COMPONENT ================= */
+const DrawerItem = ({ icon, label, onPress }) => (
+  <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+    <View style={styles.iconWrapper}>
+      <Ionicons name={icon} size={20} color="#EA580C" />
+    </View>
+    <Text style={styles.menuText}>{label}</Text>
+  </TouchableOpacity>
+);
+
+/* ================= STYLES ================= */
 const styles = StyleSheet.create({
-  header: {
-    paddingVertical: 40,
-    alignItems: 'center',
+  container: {
+    flex: 1,
+    backgroundColor: "#FFF7ED",
   },
-  profilePic: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: 10,
+
+  userSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: "#FB923C",
+    borderRadius: 13,
   },
-  name: {
-    fontSize: 18,
-    fontWeight: 'bold',
+
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
-  phone: {
-    fontSize: 14,
+
+  userName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
-  menu: {
-    marginTop: 20,
+
+  userPhone: {
+    fontSize: 13,
+    color: "#FFEDD5",
+    marginTop: 2,
+  },
+
+  menuSection: {
+    paddingVertical: 12,
+  },
+
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
     paddingHorizontal: 20,
   },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+
+  iconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFEDD5",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  menuIcon: {
-    marginRight: 15,
-  },
+
   menuText: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: 15,
+    marginLeft: 16,
+    color: "#111827",
+    fontWeight: "500",
   },
+
   footer: {
-    marginTop: 'auto',
+    marginTop: "auto",
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#FED7AA",
     padding: 20,
   },
-  logoutButton: {
-    flexDirection: 'row',
-    backgroundColor: '#ff4444',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+
+  logoutRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
+
   logoutText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 15,
+    color: "#DC2626",
+    marginLeft: 14,
+    fontWeight: "600",
   },
 });

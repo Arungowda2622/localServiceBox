@@ -1,66 +1,65 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import React from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const Footer = ({ navigation }) => {
-
-  const navItems = [
-    // { name: 'Bike Taxi', icon: '🛵' },
-    { name: 'Orders', icon: '🧾' },
-    { name: 'Profile', icon: '👤' },
-  ];
-
-  const handlePress = (item) => {
-    if (item.name === 'Profile') {
-      navigation.openDrawer();
-    } else {
-      navigation.navigate(item.name);
-    }
-  };
-
   return (
-    <View style={footerStyles.container}>
-      <View style={footerStyles.navBar}>
-        {navItems.map((item, index) => (
-          <Pressable
-            key={index}
-            style={footerStyles.navItem}
-            onPress={() => handlePress(item)}
-          >
-            <Text style={footerStyles.icon}>{item.icon}</Text>
-            <Text style={footerStyles.text}>{item.name}</Text>
-          </Pressable>
-        ))}
-      </View>
+    <View style={styles.wrapper}>
+
+      {/* LEFT */}
+      <Pressable style={styles.navItem} onPress={() => navigation.navigate('Orders')}>
+        <Ionicons name="cube-outline" size={22} color="#666" />
+        <Text style={styles.text}>Orders</Text>
+      </Pressable>
+
+      {/* CENTER FAB */}
+      <Pressable
+        style={styles.fab}
+        onPress={() => navigation.navigate('BikeTaxi')}
+      >
+        <Ionicons name="add" size={30} color="#fff" />
+      </Pressable>
+
+      {/* RIGHT */}
+      <Pressable style={styles.navItem} onPress={() => navigation.openDrawer()}>
+        <Ionicons name="person-outline" size={22} color="#666" />
+        <Text style={styles.text}>Profile</Text>
+      </Pressable>
+
     </View>
   );
 };
 
 export default Footer;
 
-const footerStyles = StyleSheet.create({
-  container: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
-    paddingBottom: 30,
-  },
-  navBar: {
+const styles = StyleSheet.create({
+  wrapper: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 10,
+    paddingBottom: 26,
+    paddingTop: 10,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    elevation: 20,
   },
+
   navItem: {
     alignItems: 'center',
-    paddingHorizontal: 5,
   },
-  icon: {
-    fontSize: 24,
-    color: 'gray',
-    marginBottom: 2,
-  },
+
   text: {
     fontSize: 12,
-    color: 'gray',
-    fontWeight: '500',
+    color: '#666',
+  },
+
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#2F6BFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -30,
+    elevation: 25,
   },
 });

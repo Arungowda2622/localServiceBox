@@ -1,131 +1,133 @@
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import {
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Footer from '../footer/Footer';
 
-const OuerServicesHome = ({ navigation, route }) => {
+const OuerServicesHome = ({ navigation }) => {
 
   const services = [
-    { id: 1, serviceName: "Bike Taxi", title: "BikeTaxi", subtitle: "Book now" },
-    { id: 2, serviceName: "Box Delivery", title: "BoxDelivery", subtitle: "Send anything" },
-    { id: 3, serviceName: "Services", title: "Services", subtitle: "Your everyday rides" },
-    { id: 4, serviceName: "Product", title: "Product", subtitle: "Get Products" },
+    { id: 1, serviceName: "Bike Taxi", title: "BikeTaxi", subtitle: "Book now", icon: "🛵", colors: ['#36D1DC', '#5B86E5'] },
+    { id: 2, serviceName: "Box Delivery", title: "BoxDelivery", subtitle: "Send anything", icon: "📦", colors: ['#FF512F', '#DD2476'] },
+    { id: 3, serviceName: "Services", title: "Services", subtitle: "Coming soon", icon: "🚗", colors: ['#8E2DE2', '#4A00E0'] },
+    { id: 4, serviceName: "Product", title: "Product", subtitle: "Get products", icon: "🛒", colors: ['#11998E', '#38EF7D'] },
   ];
 
-  const handleSelectedService = (rowData) => {
-    if (rowData.title === "Services") {
-      Alert.alert("Service unavailable right now. Coming soon!");
+  const handleSelectedService = (item) => {
+    if (item.title === "Services") {
+      Alert.alert("Coming Soon 🚀", "This service will be available shortly.");
     } else {
-      navigation.navigate(rowData.title, { data: rowData });
+      navigation.navigate(item.title, { data: item });
     }
-  }
+  };
 
   const renderOurServices = ({ item, index }) => {
     const isEven = index % 2 === 0;
-    let iconContent = null;
-    if (item.id === 1) iconContent = <Text style={styles.cardImageText}>🛵</Text>; 
-    else if (item.id === 2) iconContent = <Text style={styles.cardImageText}>📦</Text>; 
-    else if (item.id === 3) iconContent = <Text style={styles.cardImageText}>🚗</Text>;
-    else if (item.id === 4) iconContent = <Text style={styles.cardImageText}>🛒</Text>;
+
     return (
       <View style={[styles.serviceItem, isEven ? styles.leftItem : styles.rightItem]}>
         <Pressable
-          style={({ pressed }) => [
-            styles.btns,
-            { opacity: pressed ? 0.95 : 1 }
-          ]}
+          style={({ pressed }) => [{ transform: [{ scale: pressed ? 0.96 : 1 }] }]}
           onPress={() => handleSelectedService(item)}
         >
-          <View style={styles.cardImageContainer}>
-            {iconContent}
-          </View>
-          <View style={styles.cardTextContainer}>
-            <Text style={styles.btnSubTxt}>{item.subtitle || 'Book now'}</Text>
-            <Text style={styles.btnTxt}>{item.serviceName}</Text>
-          </View>
+          <LinearGradient colors={item.colors} style={styles.card}>
+            <View style={styles.iconWrapper}>
+              <Text style={styles.icon}>{item.icon}</Text>
+            </View>
+
+            <View>
+              <Text style={styles.subtitle}>{item.subtitle}</Text>
+              <Text style={styles.title}>{item.serviceName}</Text>
+            </View>
+          </LinearGradient>
         </Pressable>
       </View>
     );
   };
 
   return (
-    <View style={styles.safeArea}>
+    <LinearGradient
+      colors={['#EEF2F3', '#D9E4F5']}
+      style={styles.safeArea}
+    >
+      {/* Decorative Background Shapes */}
+      <View style={styles.bgCircleOne} />
+      <View style={styles.bgCircleTwo} />
+
       <View style={styles.container}>
-        <Text style={styles.sectionLabel}>OuerServices</Text>
-        <View style={styles.main}>
-          <FlatList
-            data={services}
-            renderItem={renderOurServices}
-            keyExtractor={(item) => item.id.toString()}
-            numColumns={2}
-            contentContainerStyle={styles.listContent}
-            scrollEnabled={false}
-          />
-        </View>
+        <Text style={styles.sectionLabel}>Our Services</Text>
+
+        <FlatList
+          data={services}
+          renderItem={renderOurServices}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2}
+          contentContainerStyle={styles.listContent}
+          scrollEnabled={false}
+        />
       </View>
+
       <Footer navigation={navigation} />
-    </View>
+    </LinearGradient>
   );
 };
 
 export default OuerServicesHome;
 
-// --- STYLES ---
+/* ================= STYLES ================= */
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F7F7F7', // Overall screen background
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF', // Set content background to white
-    marginTop: 35
   },
 
-  // --- Header/Search Bar Styles ---
-  header: {
+  /* Background blobs */
+  bgCircleOne: {
+    position: 'absolute',
+    top: -120,
+    left: -80,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(54, 209, 220, 0.25)',
+  },
+  bgCircleTwo: {
+    position: 'absolute',
+    bottom: 120,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(91, 134, 229, 0.25)',
+  },
+
+  container: {
+    flex: 1,
+    paddingTop: 40,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F7F7F7',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 15,
-  },
-  searchIcon: {
-    fontSize: 18,
-    marginRight: 8,
-    color: 'gray',
-  },
-  searchText: {
-    fontSize: 16,
-    color: '#333',
-  },
+
   sectionLabel: {
-    fontWeight: "bold",
-    fontSize: 20,
+    fontSize: 24,
+    fontWeight: '900',
     color: '#1C1C1E',
-    marginBottom: 10,
+    marginBottom: 20,
     textAlign: 'center',
   },
 
-  // --- Grid Styles ---
-  main: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: 16,
-    paddingTop: 5,
-  },
   listContent: {
-    paddingVertical: 4,
+    paddingBottom: 12,
   },
+
   serviceItem: {
     width: '50%',
-    paddingVertical: 8,
+    marginBottom: 18,
   },
   leftItem: {
     paddingRight: 8,
@@ -133,66 +135,49 @@ const styles = StyleSheet.create({
   rightItem: {
     paddingLeft: 8,
   },
-  btns: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 10,
-    height: 140, // Uniform card height
-    // Style to make the card look like the screenshot's boxes
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
 
-    // Subtle Shadow
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 1,
-    elevation: 1,
+  card: {
+  height: 175,   // ⬅️ increased from 155
+  borderRadius: 20,
+  padding: 18,
+  justifyContent: 'space-between',
+  shadowColor: '#000',
+  shadowOpacity: 0.25,
+  shadowOffset: { width: 0, height: 8 },
+  shadowRadius: 12,
+  elevation: 8,
+},
+
+
+  iconWrapper: {
+  width: 64,          // ⬅️ increased
+  height: 64,
+  borderRadius: 32,
+  backgroundColor: '#FFFFFF',   // ⬅️ solid white
+  justifyContent: 'center',
+  alignItems: 'center',
+
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowOffset: { width: 0, height: 4 },
+  shadowRadius: 6,
+  elevation: 6,
+},
+
+  icon: {
+    fontSize: 32,
   },
-  cardImageContainer: {
-    flex: 1, // Takes up the top space
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    paddingLeft: 5,
-  },
-  cardImageText: {
-    fontSize: 40, // Large icon/image placeholder
-  },
-  cardTextContainer: {
-    padding: 5,
-    paddingBottom: 0,
-  },
-  btnSubTxt: {
-    // Top text (e.g., "Send anything")
-    color: "gray",
-    fontWeight: "500",
+
+  subtitle: {
     fontSize: 12,
-    textAlign: 'left',
-    marginBottom: 0,
-  },
-  btnTxt: {
-    // Main Service Name (your original content)
-    color: "#1C1C1E",
-    fontWeight: "700",
-    fontSize: 18,
-    textAlign: 'left',
-  },
-
-  // --- Other Sections Placeholder ---
-  placeholderCard: {
-    backgroundColor: '#E6E6FA', // Light purple background for contrast
-    marginHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 150,
-  },
-  placeholderText: {
-    fontSize: 16,
+    color: '#F1F1F1',
     fontWeight: '600',
-    color: '#4B0082',
-  }
+  },
+  title: {
+  fontSize: 20,
+  fontWeight: '800',
+  color: '#FFFFFF',
+  marginTop: 4,
+},
+
 });

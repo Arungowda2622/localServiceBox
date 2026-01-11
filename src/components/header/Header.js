@@ -1,11 +1,18 @@
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import React from 'react';
 import { Ionicons } from "@expo/vector-icons";
 
 const Header = ({ title, navigation, cartCount = 0, onCartPress }) => {
+
+  const handleBack = () => {
+    console.log('====================================');
+    console.log("clicking");
+    console.log('====================================');
+    navigation.goBack();
+  };
+
   return (
     <View style={headerStyles.container}>
-      <Pressable onPress={() => navigation.goBack()} style={headerStyles.left}>
+      <Pressable onPress={handleBack} style={headerStyles.left}>
         <Ionicons name='arrow-back-outline' size={26} style={{ marginRight: 15 }} />
         <Text style={headerStyles.title}>{title || "Drop"}</Text>
       </Pressable>

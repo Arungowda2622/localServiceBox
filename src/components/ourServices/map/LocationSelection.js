@@ -21,6 +21,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { db } from "../../firebase/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import { GOOGLE_API_KEY } from "../../googleApi/GoogleApi";
+import Header from "../../header/Header";
 
 const { height } = Dimensions.get("window");
 const PRIMARY_COLOR = "#007BFF";
@@ -484,6 +485,7 @@ const LocationSelection = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={BACKGROUND_COLOR} />
+      <Header title="Bike Taxi" navigation={navigation} />
       <View style={styles.mapViewContainer}>
         <MapView
           ref={mapRef}

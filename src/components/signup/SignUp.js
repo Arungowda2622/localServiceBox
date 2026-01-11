@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import React, { useState } from "react";
 import Checkbox from "expo-checkbox";
@@ -28,6 +29,7 @@ const SignUp = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const iconSource = showPass ? "eye-off-outline" : "eye";
 
@@ -45,25 +47,100 @@ const SignUp = ({ navigation }) => {
     navigation.navigate("Login");
   };
 
+  const isValidEmail = (email) => {
+    const trimmedEmail = email.trim().toLowerCase();
+    const regex = /^[a-z0-9._%+-]+@gmail\.com$/;
+    return regex.test(trimmedEmail);
+  };
+
+  const isValidPhone = (phone) => {
+    const regex = /^[0-9]{10}$/;
+    return regex.test(phone);
+  };
+
+  const validateForm = () => {
+    // 🔴 Missing fields
+    if (
+      !fullName.trim() ||
+      !email.trim() ||
+      !phone.trim() ||
+      !password ||
+      !confirmPassword
+    ) {
+      Alert.alert("Missing Fields", "Please fill all the fields");
+      return false;
+    }
+
+    // 🔴 Gmail-only validation (HERE 👇)
+    if (!isValidEmail(email)) {
+      Alert.alert("Invalid Email", "Only Gmail addresses are allowed");
+      return false;
+    }
+
+    if (fullName.length < 3) {
+      Alert.alert(
+        "Validation Error",
+        "Full name must be at least 3 characters"
+      );
+      return false;
+    }
+
+    if (!isValidPhone(phone)) {
+      Alert.alert("Validation Error", "Phone number must be 10 digits");
+      return false;
+    }
+
+    if (password.length < 6) {
+      Alert.alert("Validation Error", "Password must be at least 6 characters");
+      return false;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Validation Error", "Passwords do not match");
+      return false;
+    }
+
+    if (!isChecked) {
+      Alert.alert("Validation Error", "Please accept Terms & Conditions");
+      return false;
+    }
+
+    return true;
+  };
+
   const handleCreateAccount = async () => {
+    if (!validateForm()) return;
+
+    setLoading(true); // 🔵 START loader
+
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
       const user = userCredential.user;
+
       await setDoc(doc(db, "users", user.uid), {
         fullName,
         email,
         phone,
-        password,
-        role:"user",
+        role: "user",
         createdAt: new Date().toISOString(),
       });
+
       Alert.alert("Success", "Account created successfully!");
       navigation.navigate("Login");
     } catch (error) {
-      console.error(error);
-      Alert.alert("Signup Failed", error.message);
+      if (error.code === "auth/email-already-in-use") {
+        Alert.alert("Signup Failed", "Email already exists");
+      } else {
+        Alert.alert("Signup Failed", error.message);
+      }
+    } finally {
+      setLoading(false); // 🔵 STOP loader
     }
-
   };
 
   return (
@@ -151,9 +228,18 @@ const SignUp = ({ navigation }) => {
             </Text>
           </View>
         </View>
-        <Pressable onPress={handleCreateAccount} style={styles.loginBtn}>
-          <Text style={styles.loginLabel}>Create account</Text>
+        <Pressable
+          onPress={handleCreateAccount}
+          style={[styles.loginBtn, loading && { opacity: 0.7 }]}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.loginLabel}>Create account</Text>
+          )}
         </Pressable>
+
         <View style={styles.doHaveBox}>
           <Text style={styles.singUpLabel}>Already have an account?</Text>
           <Pressable onPress={handleSignUp}>

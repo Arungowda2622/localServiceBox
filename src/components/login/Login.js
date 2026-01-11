@@ -10,261 +10,261 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import React, { useRef, useState } from "react";
-import Checkbox from "expo-checkbox";
+import React, { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "../firebase/firebaseConfig";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import colors from "../theme/colors";
 
 const { width, height } = Dimensions.get("window");
+
+/* 🔹 Firebase Error Mapper */
+const getAuthErrorMessage = (error) => {
+  switch (error.code) {
+    case "auth/user-not-found":
+      return "No account found with this email.";
+
+    case "auth/wrong-password":
+      return "Incorrect password. Please try again.";
+
+    case "auth/invalid-email":
+      return "Invalid email address.";
+
+    case "auth/user-disabled":
+      return "This account has been disabled.";
+
+    case "auth/too-many-requests":
+      return "Too many failed attempts. Please try again later.";
+
+    case "auth/network-request-failed":
+      return "Network error. Please check your internet connection.";
+
+    default:
+      return "Something went wrong. Please try again.";
+  }
+};
+
+const getReadableAuthError = (error) => {
+  switch (error.code) {
+    case "auth/user-not-found":
+      return "No account found with this email.";
+    case "auth/wrong-password":
+      return "Incorrect password.";
+    case "auth/invalid-email":
+      return "Invalid email address.";
+    case "auth/user-disabled":
+      return "This account has been disabled.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Try again later.";
+    case "auth/network-request-failed":
+      return "No internet connection.";
+    default:
+      return "Login failed. Please try again.";
+  }
+};
+
 
 const Login = ({ navigation }) => {
   const [mail, setMail] = useState("");
   const [password, setPassword] = useState("");
-  const [isChecked, setChecked] = useState(false);
   const [showPass, setShowPass] = useState(false);
-  const [isShowForgotPass, setIsShowForgotPass] = useState(false);
-  const [isShowNewPasswordModal, setIsShowNewPasswordModal] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [isShowForgotPass, setIsShowForgotPass] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   const iconSource = showPass ? "eye-off-outline" : "eye";
 
-  // ✅ Toggle password visibility
-  const handleShowPass = () => setShowPass(!showPass);
+  const isValidGmail = (email) => {
+    const regex = /^[a-z0-9._%+-]+@gmail\.com$/;
+    return regex.test(email.trim().toLowerCase());
+  };
 
-  // ✅ Login handler
-  const handleLogin = async () => {
-    if (!mail || !password) {
-      Alert.alert("Error", "Please enter both email and password");
+  /* 🔹 LOGIN */
+ const handleLogin = async () => {
+  if (!mail || !password) {
+    Alert.alert("Error", "Please enter email and password");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      mail.trim().toLowerCase(),
+      password
+    );
+
+    const user = userCredential.user;
+
+   
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      Alert.alert("Error", "User profile not found");
+      await signOut(auth);
       return;
     }
 
-    setLoading(true);
+    // ✅ DO NOTHING ELSE
+    // App.js will auto-redirect based on auth state
+
+  } catch (error) {
+    Alert.alert("Login Failed", getReadableAuthError(error));
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  /* 🔹 RESET PASSWORD */
+  const handleSendResetEmail = async () => {
+    if (!resetEmail) {
+      Alert.alert("Missing Email", "Please enter your email address.");
+      return;
+    }
+
+    if (!isValidGmail(resetEmail)) {
+      Alert.alert("Invalid Email", "Please enter a valid Gmail address.");
+      return;
+    }
+
     try {
-      // Step 1: Sign in using Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, mail, password);
-      const user = userCredential.user;
-      console.log("✅ Firebase Auth User:", user.uid);
-
-      // Step 2: Fetch Firestore user data using UID
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        Alert.alert("Error", "User profile not found in Firestore.");
-        setLoading(false);
-        return;
-      }
-
-      const userData = userSnap.data();
-      console.log("✅ Firestore Data:", userData);
-
-      // Step 3: Save user data in AsyncStorage
-      await AsyncStorage.setItem("user", JSON.stringify(userData));
-
-      // Step 4: Navigate based on role
-      if (userData.role === "driver") {
-        Alert.alert("Welcome Driver", "Login successful!");
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "DriverScreen", params: { driverData: userData } }],
-        });
-      } else {
-        Alert.alert("Welcome", "Login successful!");
-      }
+      setResetLoading(true);
+      await sendPasswordResetEmail(auth, resetEmail.trim().toLowerCase());
+      Alert.alert("Success", "Password reset link sent to your Gmail.");
+      setIsShowForgotPass(false);
+      setResetEmail("");
     } catch (error) {
-      console.error("❌ Login Error:", error);
-      Alert.alert("Login Failed", error.message);
+      Alert.alert("Error", getAuthErrorMessage(error));
     } finally {
-      setLoading(false);
+      setResetLoading(false);
     }
-  };
-
-  const handleSignUp = () => navigation.navigate("SignUp");
-  const handleForgotPass = () => setIsShowForgotPass(true);
-
-  const handleSubmitPhone = () => {
-    if (!phoneNumber) {
-      Alert.alert("Error", "Please enter your phone number");
-      return;
-    }
-    setIsShowForgotPass(false);
-    setIsShowNewPasswordModal(true);
-  };
-
-  const handleResetPassword = () => {
-    if (!newPassword || newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-    Alert.alert("Success", "Password reset functionality not implemented yet.");
   };
 
   return (
     <View style={styles.main}>
-      <View style={{ alignItems: "center" }}>
+      {/* Header */}
+      <View style={styles.header}>
         <Image
           source={require("../../../assets/LsbLogo.jpg")}
-          style={styles.iconImage}
+          style={styles.logo}
         />
-        <Text style={styles.topLabel}>Hi, Welcome back!</Text>
-        <Text style={styles.profileLabel}>Let's get started.</Text>
+        <Text style={styles.welcome}>Welcome Back 👋</Text>
+        <Text style={styles.subtitle}>Login to continue</Text>
       </View>
 
-      <View style={{ marginTop: 20 }}>
-        <Text style={styles.signInLabel}>Login</Text>
-        <Text style={styles.infoLoginLabel}>
-          Please fill in your details to Login
-        </Text>
-
-        {/* Email Input */}
-        <View style={[styles.container, { marginTop: 10 }]}>
-          <Ionicons name="mail-outline" size={24} />
+      {/* Card */}
+      <View style={styles.card}>
+        {/* Email */}
+        <View style={styles.inputBox}>
+          <Ionicons
+            name="mail-outline"
+            size={20}
+            color={colors.textSecondary}
+          />
           <TextInput
-            placeholder="Enter your email"
-            onChangeText={setMail}
+            placeholder="Gmail address"
+            placeholderTextColor={colors.placeholder}
             value={mail}
-            autoCapitalize="none"
+            onChangeText={setMail}
             keyboardType="email-address"
-            style={{ flex: 1, marginLeft: 10 }}
+            autoCapitalize="none"
+            style={styles.input}
           />
         </View>
 
-        {/* Password Input */}
-        <View style={[styles.container, { justifyContent: "space-between" }]}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Ionicons name="lock-closed-outline" size={24} />
-            <TextInput
-              placeholder="Enter your password"
-              onChangeText={setPassword}
-              value={password}
-              secureTextEntry={!showPass}
-              style={{ width: "75%", marginLeft: 10 }}
+        {/* Password */}
+        <View style={styles.inputBox}>
+          <Ionicons
+            name="lock-closed-outline"
+            size={20}
+            color={colors.textSecondary}
+          />
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor={colors.placeholder}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPass}
+            style={styles.input}
+          />
+          <Pressable onPress={() => setShowPass(!showPass)}>
+            <Ionicons
+              name={iconSource}
+              size={20}
+              color={colors.textSecondary}
             />
-          </View>
-          <Pressable onPress={handleShowPass}>
-            <Ionicons name={iconSource} size={24} style={{ marginRight: 15 }} />
           </Pressable>
         </View>
 
-        {/* Remember Me + Forgot Password */}
-        {/* <View style={styles.mainBox}>
-          <View style={styles.checkBox}>
-            <Checkbox
-              value={isChecked}
-              onValueChange={setChecked}
-              color={isChecked ? "#4630EB" : undefined}
-            />
-            <Text style={styles.paragraph}>Remember me</Text>
-          </View>
-          <Pressable onPress={handleForgotPass}>
-            <Text style={styles.forgotPassLabel}>Forgot password?</Text>
-          </Pressable>
-        </View> */}
+        {/* Forgot */}
+        <Pressable onPress={() => setIsShowForgotPass(true)}>
+          <Text style={styles.forgot}>Forgot password?</Text>
+        </Pressable>
 
-        {/* Login Button */}
+        {/* Button */}
         <Pressable onPress={handleLogin} style={styles.loginBtn}>
           {loading ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={colors.white} />
           ) : (
-            <Text style={styles.loginLabel}>Login</Text>
+            <Text style={styles.loginText}>Login</Text>
           )}
         </Pressable>
 
-        {/* Sign Up Link */}
-        <View style={styles.doHaveBox}>
-          <Text style={styles.singUpLabel}>Don't have an account?</Text>
-          <Pressable onPress={handleSignUp}>
-            <Text
-              style={[styles.singUpLabel, { color: "#4630EB", marginLeft: 10 }]}
-            >
-              Sign Up
-            </Text>
+        {/* Signup */}
+        <View style={styles.signupRow}>
+          <Text style={styles.signupText}>Don’t have an account?</Text>
+          <Pressable onPress={() => navigation.navigate("SignUp")}>
+            <Text style={styles.signupLink}> Sign Up</Text>
           </Pressable>
         </View>
       </View>
 
       {/* Forgot Password Modal */}
       <Modal visible={isShowForgotPass} transparent animationType="slide">
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setIsShowForgotPass(false)}
-        >
-          <Pressable style={styles.bottomModal} onPress={() => {}}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text style={styles.modalTitle}>Reset Password</Text>
-              <Ionicons
-                onPress={() => setIsShowForgotPass(false)}
-                name="close-circle-outline"
-                size={30}
-              />
-            </View>
-
-            <Text style={styles.modalText}>
-              Enter your phone number to reset your password
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter your registered Gmail
             </Text>
-            <View style={styles.modalInput}>
-              <Ionicons name="person-outline" size={24} />
+
+            <View style={styles.inputBox}>
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color={colors.textSecondary}
+              />
               <TextInput
-                placeholder="Enter your phone number"
-                keyboardType="phone-pad"
-                onChangeText={setPhoneNumber}
-                value={phoneNumber}
-                style={{ flex: 1, marginLeft: 10 }}
+                placeholder="Gmail address"
+                placeholderTextColor={colors.placeholder}
+                value={resetEmail}
+                onChangeText={setResetEmail}
+                style={styles.input}
               />
             </View>
 
-            <Pressable onPress={handleSubmitPhone} style={styles.modalButton}>
-              <Text style={styles.modalButtonText}>Submit</Text>
+            <Pressable onPress={handleSendResetEmail} style={styles.loginBtn}>
+              {resetLoading ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.loginText}>Send Reset Link</Text>
+              )}
             </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
-      {/* Reset Password Modal */}
-      <Modal visible={isShowNewPasswordModal} transparent animationType="slide">
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setIsShowNewPasswordModal(false)}
-        >
-          <Pressable style={styles.bottomModal} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Create New Password</Text>
-            <View style={styles.modalInput}>
-              <Ionicons name="lock-closed-outline" size={20} color="#555" />
-              <TextInput
-                placeholder="New Password"
-                secureTextEntry
-                onChangeText={setNewPassword}
-                value={newPassword}
-                style={{ flex: 1, marginLeft: 10 }}
-              />
-            </View>
-            <View style={styles.modalInput}>
-              <Ionicons name="lock-closed-outline" size={20} color="#555" />
-              <TextInput
-                placeholder="Re-enter Password"
-                secureTextEntry
-                onChangeText={setConfirmPassword}
-                value={confirmPassword}
-                style={{ flex: 1, marginLeft: 10 }}
-              />
-            </View>
-            <Pressable onPress={handleResetPassword} style={styles.modalButton}>
-              <Text style={styles.modalButtonText}>Submit</Text>
+            <Pressable onPress={() => setIsShowForgotPass(false)}>
+              <Text style={styles.cancel}>Cancel</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -272,79 +272,112 @@ const Login = ({ navigation }) => {
 
 export default Login;
 
+/* 🎨 STYLES */
 const styles = StyleSheet.create({
-  main: { flex: 1, padding: 24 },
-  iconImage: {
-    marginTop: 50,
-    height: height * 0.08,
-    width: width * 0.2,
-    resizeMode: "stretch",
+  main: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  topLabel: { fontWeight: "500", fontSize: 25, color: "#000000", marginVertical: 5 },
-  profileLabel: { fontWeight: "500", fontSize: 16 },
-  signInLabel: { fontWeight: "400", fontSize: 35, marginVertical: 10 },
-  infoLoginLabel: { fontWeight: "600", fontSize: 13, color: "#0516D3", marginTop: 7 },
-  container: {
-    padding: 10,
-    backgroundColor: "white",
-    borderRadius: 13,
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 10,
-  },
-  checkBox: { flexDirection: "row", alignItems: "center" },
-  mainBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginVertical: 10,
-  },
-  paragraph: { fontWeight: "400", fontSize: 13, marginLeft: 5 },
-  forgotPassLabel: { fontWeight: "500", fontSize: 13, color: "#0516D3" },
-  loginBtn: {
-    padding: 15,
-    alignItems: "center",
-    backgroundColor: "#0516D3",
-    marginVertical: 10,
-    marginTop: 20,
-    borderRadius: 13,
-  },
-  loginLabel: { fontWeight: "600", fontSize: 17, color: "#FFFFFF" },
-  doHaveBox: {
+  header: {
+    height: height * 0.35,
+    backgroundColor: colors.orange,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
-    marginVertical: 10,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  singUpLabel: { fontWeight: "500", fontSize: 14 },
+  logo: {
+    height: 60,
+    width: 60,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  welcome: {
+    color: colors.textPrimary,
+    fontSize: 26,
+    fontWeight: "700",
+  },
+  subtitle: {
+    color: colors.textSecondary,
+    marginTop: 6,
+  },
+  card: {
+    backgroundColor: colors.card,
+    marginHorizontal: 20,
+    marginTop: -50,
+    padding: 20,
+    borderRadius: 20,
+    elevation: 10,
+  },
+  inputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.inputBackground,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    marginTop: 15,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    marginLeft: 10,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  forgot: {
+    color: colors.primary,
+    fontSize: 13,
+    marginTop: 12,
+    alignSelf: "flex-end",
+  },
+  loginBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 15,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 25,
+  },
+  loginText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  signupRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  signupText: {
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  signupLink: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
   modalOverlay: {
     flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  bottomModal: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.overlay,
+    justifyContent: "center",
     padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    elevation: 5,
   },
-  modalTitle: { fontSize: 18, fontWeight: "600", marginBottom: 10 },
-  modalText: { fontSize: 14, color: "#555", marginBottom: 15 },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    flexDirection: "row",
-    alignItems: "center",
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 20,
   },
-  modalButton: {
-    backgroundColor: "#0516D3",
-    paddingVertical: 12,
-    alignItems: "center",
-    borderRadius: 10,
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.textPrimary,
   },
-  modalButtonText: { color: "#fff", fontWeight: "600" },
+  modalSubtitle: {
+    marginTop: 6,
+    color: colors.textSecondary,
+  },
+  cancel: {
+    marginTop: 15,
+    textAlign: "center",
+    color: colors.placeholder,
+  },
 });

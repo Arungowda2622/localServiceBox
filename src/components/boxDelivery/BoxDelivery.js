@@ -19,6 +19,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { GOOGLE_API_KEY } from "../googleApi/GoogleApi";
+import Header from "../header/Header";
 const { height } = Dimensions.get("window");
 
 // Colors
@@ -404,8 +405,7 @@ export default function BoxDelivery({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={BACKGROUND_COLOR} barStyle="dark-content" />
-      
+     <Header title="Box Delivery" navigation={navigation} /> 
       {/* MAP */}
       <MapView
         ref={mapRef}

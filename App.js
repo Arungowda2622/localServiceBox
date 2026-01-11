@@ -51,9 +51,7 @@ Notifications.setNotificationHandler({
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
 
-// ----------------------------
-// USER STACK
-// ----------------------------
+/* ================= USER STACK ================= */
 function MainStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -82,84 +80,94 @@ function MainStack() {
   );
 }
 
-// ----------------------------
-// ROOT APP
-// ----------------------------
+/* ================= ROOT APP ================= */
 export default function App() {
   const navigationRef = useRef(null);
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
 
-  // -----------------------------------------------
-  // NOTIFICATION CLICK → OPEN THE APP (APK only)
-  // -----------------------------------------------
+  /* 🔔 Notification click handler */
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data;
+    const sub = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data;
 
-      console.log("📩 Notification Clicked:", data);
-
-      if (data?.bookingId) {
-        navigationRef.current?.navigate("BikeTaxiWaiting", {
-          bookingId: data.bookingId,
-        });
+        if (data?.bookingId) {
+          navigationRef.current?.navigate("BikeTaxiWaiting", {
+            bookingId: data.bookingId,
+          });
+        }
       }
-    });
+    );
 
     return () => sub.remove();
   }, []);
 
-  // ------------------------------------------------
-  // AUTH LISTENER — Refresh token on DRIVER login
-  // ------------------------------------------------
+  /* 🔐 AUTH STATE LISTENER (SINGLE SOURCE OF TRUTH) */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
+      if (!firebaseUser) {
+        setUser(null);
+        setRole(null);
+        setInitializing(false);
+        return;
+      }
+
+      try {
         const userRef = doc(db, "users", firebaseUser.uid);
         const userSnap = await getDoc(userRef);
 
-        if (userSnap.exists()) {
+        if (!userSnap.exists()) {
+          await signOut(auth);
+          setUser(null);
+          setRole(null);
+        } else {
           const data = userSnap.data();
           setUser(firebaseUser);
           setRole(data.role || "user");
 
-          // 🔥 Driver login → Update token
+          /* 🔥 DRIVER → update push token */
           if (data.role === "driver" && Constants.appOwnership !== "expo") {
             setTimeout(async () => {
-              const tokenObject = await Notifications.getExpoPushTokenAsync({
-                projectId: Constants.expoConfig.extra.eas.projectId,
-              });
+              try {
+                const tokenObject =
+                  await Notifications.getExpoPushTokenAsync({
+                    projectId: Constants.expoConfig.extra.eas.projectId,
+                  });
 
-              const token = tokenObject.data;
+                const token = tokenObject.data;
 
-              if (token && token.startsWith("ExponentPushToken")) {
-                await updateDoc(userRef, {
-                  fcmToken: token,
-                  updatedAt: new Date(),
-                });
-                console.log("🔥 Driver login token refreshed:", token);
+                if (token?.startsWith("ExponentPushToken")) {
+                  await updateDoc(userRef, {
+                    fcmToken: token,
+                    updatedAt: new Date(),
+                  });
+                }
+              } catch (err) {
+                console.log("Token update error:", err);
               }
             }, 1500);
           }
-        } else {
-          await signOut(auth);
         }
-      } else {
+      } catch (error) {
+        console.log("Auth listener error:", error);
+        await signOut(auth);
         setUser(null);
         setRole(null);
+      } finally {
+        setInitializing(false);
       }
-
-      setInitializing(false);
     });
 
     return unsubscribe;
   }, []);
 
+  /* 🔄 Splash Loader */
   if (initializing) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#000" />
+        <ActivityIndicator size="large" />
       </View>
     );
   }

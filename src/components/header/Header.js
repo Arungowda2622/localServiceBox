@@ -46,7 +46,6 @@ const headerStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
-    marginTop:20
   },
   left: { flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: 'bold', color: '#333' },

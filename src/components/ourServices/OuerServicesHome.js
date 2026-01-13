@@ -15,16 +15,12 @@ const OuerServicesHome = ({ navigation }) => {
   const services = [
     { id: 1, serviceName: "Bike Taxi", title: "BikeTaxi", subtitle: "Book now", icon: "🛵", colors: ['#36D1DC', '#5B86E5'] },
     { id: 2, serviceName: "Box Delivery", title: "BoxDelivery", subtitle: "Send anything", icon: "📦", colors: ['#FF512F', '#DD2476'] },
-    { id: 3, serviceName: "Services", title: "Services", subtitle: "Coming soon", icon: "🚗", colors: ['#8E2DE2', '#4A00E0'] },
+    { id: 3, serviceName: "Services", title: "Services", subtitle: "Other", icon: "🚗", colors: ['#8E2DE2', '#4A00E0'] },
     { id: 4, serviceName: "Product", title: "Product", subtitle: "Get products", icon: "🛒", colors: ['#11998E', '#38EF7D'] },
   ];
 
   const handleSelectedService = (item) => {
-    if (item.title === "Services") {
-      Alert.alert("Coming Soon 🚀", "This service will be available shortly.");
-    } else {
-      navigation.navigate(item.title, { data: item });
-    }
+    navigation.navigate(item.title, { data: item });
   };
 
   const renderOurServices = ({ item, index }) => {

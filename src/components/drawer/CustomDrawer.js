@@ -29,10 +29,17 @@ export default function CustomDrawer(props) {
   // 🔹 Correct Logout
   const handleLogout = async () => {
     try {
-      navigation.closeDrawer();
+      // 1️⃣ Firebase logout (this is the KEY step)
       await signOut(auth);
+
+      // 2️⃣ Remove ONLY auth-related storage
+      await AsyncStorage.removeItem("authUser");
+
+      // 3️⃣ Optional: close drawer (safe)
+      navigation.closeDrawer();
+
       // ❌ Do NOT navigate manually
-      // App.js will automatically show Login screen
+      // App.js will automatically render Login screen
     } catch (error) {
       console.log("Logout error:", error);
     }
@@ -72,9 +79,7 @@ export default function CustomDrawer(props) {
           <DrawerItem
             icon="settings-outline"
             label="Admin Settings"
-            onPress={() =>
-              navigation.navigate("Home", { screen: "AdminHome" })
-            }
+            onPress={() => navigation.navigate("Home", { screen: "AdminHome" })}
           />
         )}
       </View>

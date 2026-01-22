@@ -1,4 +1,3 @@
-// DriverScreen.js
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -7,6 +6,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  ScrollView,
 } from "react-native";
 
 import * as Notifications from "expo-notifications";
@@ -84,17 +85,28 @@ const DriverScreen = () => {
     if (!user) return;
 
     // Do NOT save if running inside Expo Go
-    if (Constants.appOwnership === "expo") return;
+    // if (Constants.appOwnership === "expo") return;
 
     const token = await generateDriverPushToken();
     if (!token) return;
 
-    await updateDoc(doc(db, "users", user.uid), {
-      fcmToken: token,
-      updatedAt: new Date(),
-    });
+    try {
+      // Save token under multiple fields to match different consumers
+      // Some parts of the app write `fcmToken` (App.js) while older code
+      // used `expoPushToken`. Storing both keeps compatibility.
+      await updateDoc(doc(db, "users", user.uid), {
+        expoPushToken: token,
+        fcmToken: token,
+        // store the EAS project id used to generate the token so server
+        // can group tokens by project and avoid mixing different experiences
+        expoProjectId: Constants?.expoConfig?.extra?.eas?.projectId || null,
+        updatedAt: new Date(),
+      });
 
-    console.log("Driver token saved:", token);
+      console.log("Driver token saved:", token);
+    } catch (err) {
+      console.warn("Failed to save driver token:", err);
+    }
   };
 
   useEffect(() => {
@@ -124,8 +136,13 @@ const DriverScreen = () => {
     // Tapped notification
     const tapSub = Notifications.addNotificationResponseReceivedListener(
       (response) => {
-        console.log("📨 Notification tapped:", response);
-        setActiveTab("waiting");
+        const data = response.notification.request.content.data;
+
+        if (data?.bookingId) {
+          setActiveTab("waiting");
+          // open a modal showing only that booking's details for quick action
+          setSelectedBookingId(data.bookingId);
+        }
       }
     );
 
@@ -134,6 +151,28 @@ const DriverScreen = () => {
       tapSub.remove();
     };
   }, []);
+
+  // Selected booking from notification (modal)
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchSelected = async () => {
+      if (!selectedBookingId) return setSelectedBooking(null);
+      try {
+        const snap = await getDoc(doc(db, "bookings", selectedBookingId));
+        if (!mounted) return;
+        setSelectedBooking({ id: snap.id, ...(snap.data() || {}) });
+      } catch (err) {
+        console.warn("Failed to fetch selected booking:", err);
+      }
+    };
+    fetchSelected();
+    return () => {
+      mounted = false;
+    };
+  }, [selectedBookingId]);
 
   /********************************************
    🔥 FETCH BOOKINGS (Realtime Listener)
@@ -228,6 +267,8 @@ const DriverScreen = () => {
         driverId: user.uid,
         driverName: driverSnap.data()?.fullName,
         driverPhone: driverSnap.data()?.phone,
+        assignedDriver: driverSnap.data()?.fullName,
+        driverVehicle: driverSnap.data()?.vehicle || null,
         updatedAt: new Date(),
       });
 
@@ -372,6 +413,59 @@ const DriverScreen = () => {
     );
   };
 
+    // Modal UI for selected booking (from notification tap)
+    const SelectedBookingModal = () => {
+      if (!selectedBooking) return null;
+
+      return (
+        <Modal visible={!!selectedBookingId} transparent animationType="slide">
+          <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
+            <View style={{ backgroundColor: "#fff", borderRadius: 12, padding: 16 }}>
+              <ScrollView>
+                <Text style={{ fontWeight: "800", fontSize: 18, marginBottom: 8 }}>
+                  {selectedBooking.type === "box" ? "📦 Box Delivery" : "🚕 Ride Booking"}
+                </Text>
+                <Text>Customer: {selectedBooking.customerName}</Text>
+                <Text>Phone: {selectedBooking.customerPhone}</Text>
+                <Text style={{ marginTop: 8, fontWeight: "700" }}>Pickup</Text>
+                <Text>{selectedBooking.pickupName}</Text>
+                <Text style={{ fontSize: 12, color: "#666" }}>{selectedBooking.pickup}</Text>
+                <Text style={{ marginTop: 8, fontWeight: "700" }}>Destination</Text>
+                <Text>{selectedBooking.destinationName}</Text>
+                <Text style={{ fontSize: 12, color: "#666" }}>{selectedBooking.destination}</Text>
+
+                <View style={{ flexDirection: "row", marginTop: 14, justifyContent: "space-between" }}>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      await acceptBooking(selectedBooking);
+                      setSelectedBookingId(null);
+                    }}
+                    style={{ backgroundColor: "#007bff", padding: 12, borderRadius: 8, flex: 1, marginRight: 8 }}
+                  >
+                    <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>Accept</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={async () => {
+                      await cancelBooking(selectedBooking);
+                      setSelectedBookingId(null);
+                    }}
+                    style={{ backgroundColor: "#ff3b30", padding: 12, borderRadius: 8, flex: 1 }}
+                  >
+                    <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity onPress={() => setSelectedBookingId(null)} style={{ marginTop: 12 }}>
+                  <Text style={{ textAlign: "center", color: "#666" }}>Close</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      );
+    };
+
   if (loading)
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -439,6 +533,7 @@ const DriverScreen = () => {
           </Text>
         }
       />
+      <SelectedBookingModal />
     </View>
   );
 };

@@ -15,58 +15,13 @@ import {
   addDoc,
   collection,
   serverTimestamp,
-  getDocs,
-  doc,
-  setDoc,
 } from "firebase/firestore";
+import { notifyDrivers } from "../utils/notifyDrivers";
 
 const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
   const { pickupLocation, destinationLocation, routeInfo } =
     route?.params || {};
   const finalFare = routeInfo?.fare || 0;
-
-  // ✔ Your file stays SAME except improved notifyDrivers()
-
-  // INSIDE BikeTaxiPayment.js
-
-  const notifyDrivers = async (bookingId, bookingData) => {
-    try {
-      const driversSnapshot = await getDocs(collection(db, "users"));
-      let driverTokens = [];
-
-      driversSnapshot.forEach((d) => {
-        const data = d.data();
-        if (data.role === "driver" && data.fcmToken) {
-          if (data.fcmToken.startsWith("ExponentPushToken")) {
-            driverTokens.push(data.fcmToken);
-          }
-        }
-      });
-
-      await Promise.all(
-        driverTokens.map((token) =>
-          fetch("https://exp.host/--/api/v2/push/send", {
-            method: "POST",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              to: token,
-              sound: "default",
-              title: "🚕 New Ride Request",
-              body: "A customer needs a ride now!",
-              data: { bookingId },
-            }),
-          })
-        )
-      );
-
-      console.log("Driver notifications sent:", driverTokens.length);
-    } catch (err) {
-      console.log("Notification error:", err);
-    }
-  };
 
   const handleConfirmBooking = async () => {
     if (!pickupLocation || !destinationLocation || !routeInfo) {
@@ -114,6 +69,11 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
 
       // 🔥 Add booking
       const docRef = await addDoc(collection(db, "bookings"), bookingData);
+      
+
+      // 🔥 Send notification to drivers
+      await notifyDrivers(docRef.id, bookingData);
+
 
       // 🔥 Send notification to drivers
       // await notifyDrivers(docRef.id, bookingData);

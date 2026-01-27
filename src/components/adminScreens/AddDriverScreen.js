@@ -22,6 +22,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   orderBy,
@@ -207,6 +208,94 @@ const AddDriverScreen = ({ navigation }) => {
     );
   };
 
+  // ===== Driver History Modal & Logic =====
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [historyDriver, setHistoryDriver] = useState(null);
+  const [fromDateText, setFromDateText] = useState("");
+  const [toDateText, setToDateText] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyResult, setHistoryResult] = useState({ count: 0, total: 0 });
+  const [historyEntries, setHistoryEntries] = useState([]);
+
+  const openHistoryModal = (driver) => {
+    setHistoryDriver(driver);
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - 7);
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    setFromDateText(fmt(from));
+    setToDateText(fmt(to));
+    setHistoryResult({ count: 0, total: 0 });
+    setHistoryEntries([]);
+    setHistoryModalVisible(true);
+  };
+
+  const fetchDriverHistory = async () => {
+    if (!historyDriver) return;
+
+    const parseDate = (s, endOfDay = false) => {
+      const parts = s.split("-");
+      if (parts.length !== 3) return null;
+      const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      if (endOfDay) d.setHours(23,59,59,999); else d.setHours(0,0,0,0);
+      return d;
+    };
+
+    const from = parseDate(fromDateText);
+    const to = parseDate(toDateText, true);
+    if (!from || !to || from > to) {
+      Alert.alert('Invalid Dates', 'Please enter a valid date range (YYYY-MM-DD).');
+      return;
+    }
+
+    setHistoryLoading(true);
+    try {
+      const entries = [];
+
+      // rides
+      const bookingsSnap = await getDocs(query(collection(db, 'bookings'), orderBy('createdAt', 'desc')));
+      bookingsSnap.forEach((d) => {
+        const b = d.data();
+        if (b.driverId === historyDriver.id) {
+          const cd = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : (b.createdAt instanceof Date ? b.createdAt : null);
+          if (cd && cd >= from && cd <= to) entries.push({ id: d.id, type: 'ride', date: cd, fare: b.fare || 0, customerId: b.userId });
+        }
+      });
+
+      // box deliveries
+      const boxSnap = await getDocs(query(collection(db, 'boxDelivery'), orderBy('createdAt', 'desc')));
+      boxSnap.forEach((d) => {
+        const b = d.data();
+        if (b.driverId === historyDriver.id) {
+          const cd = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : (b.createdAt instanceof Date ? b.createdAt : null);
+          if (cd && cd >= from && cd <= to) entries.push({ id: d.id, type: 'box', date: cd, fare: b.fare || b.price || 0, customerId: b.userId });
+        }
+      });
+
+      const enriched = await Promise.all(entries.map(async (e) => {
+        let customerName = '';
+        try {
+          if (e.customerId) {
+            const usnap = await getDoc(doc(db, 'users', e.customerId));
+            if (usnap.exists()) customerName = usnap.data()?.fullName || '';
+          }
+        } catch (err) {
+          // ignore
+        }
+        return { ...e, customerName };
+      }));
+
+      const total = enriched.reduce((s, it) => s + (parseFloat(it.fare) || 0), 0);
+      setHistoryEntries(enriched.sort((a,b)=>b.date - a.date));
+      setHistoryResult({ count: enriched.length, total });
+    } catch (err) {
+      console.error('Failed to fetch driver history', err);
+      Alert.alert('Error', 'Failed to load history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   // 🔹 Filter list
   const handleSearch = (text) => {
     setSearchText(text);
@@ -282,13 +371,19 @@ const AddDriverScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
+          onPress={() => openHistoryModal(item)}
+          style={[styles.actionButton, styles.historyButton]}
+        >
+          <Ionicons name="time-outline" size={18} color="#6B21A8" />
+          <Text style={[styles.actionButtonText, { color: '#6B21A8' }]}>History</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           onPress={() => handleDeleteDriver(item.id)}
           style={[styles.actionButton, styles.deleteButton]}
         >
           <Ionicons name="trash-outline" size={18} color={ACCENT_RED} />
-          <Text style={[styles.actionButtonText, { color: ACCENT_RED }]}>
-            Delete
-          </Text>
+          <Text style={[styles.actionButtonText, { color: ACCENT_RED }]}>Delete</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -445,6 +540,62 @@ const AddDriverScreen = ({ navigation }) => {
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ===== Driver History Modal ===== */}
+      <Modal visible={historyModalVisible} animationType="slide">
+        <View style={{ flex: 1, marginTop: 40}}>
+        <Header
+          navigation={{
+            goBack: () => setHistoryModalVisible(false),
+          }}
+          title="Driver History"
+        />
+        <View style={{ flex: 1, padding: 20 }}>
+          <Text style={styles.modalTitle}>
+            {historyDriver ? `History — ${historyDriver.fullName}` : 'Driver History'}
+          </Text>
+
+          <Text style={styles.inputLabel}>From (YYYY-MM-DD)</Text>
+          <TextInput style={styles.input} value={fromDateText} onChangeText={setFromDateText} />
+
+          <Text style={styles.inputLabel}>To (YYYY-MM-DD)</Text>
+          <TextInput style={styles.input} value={toDateText} onChangeText={setToDateText} />
+
+          <View style={{ flexDirection: 'row', marginTop: 12 }}>
+            <TouchableOpacity onPress={fetchDriverHistory} style={[styles.button, { backgroundColor: PRIMARY_COLOR, marginRight: 8 }] }>
+              {historyLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Load</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setHistoryModalVisible(false)} style={[styles.button, { backgroundColor: ACCENT_RED }] }>
+              <Text style={styles.buttonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ marginTop: 18 }}>
+            <Text style={{ fontWeight: '700' }}>Total Trips: {historyResult.count}</Text>
+            <Text style={{ fontWeight: '700', marginTop: 6 }}>Total Earnings: ₹ {historyResult.total.toFixed(2)}</Text>
+          </View>
+
+          <View style={{ marginTop: 12, flex: 1 }}>
+            {historyEntries.length === 0 ? (
+              <Text style={{ marginTop: 20, color: '#666' }}>No trips for selected range.</Text>
+            ) : (
+              <FlatList
+                data={historyEntries}
+                keyExtractor={(it) => it.id}
+                renderItem={({ item }) => (
+                  <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' }}>
+                    <Text style={{ fontWeight: '700' }}>{item.type === 'ride' ? 'Ride' : 'Box'}</Text>
+                    <Text style={{ color: '#444' }}>{item.customerName || 'Customer' } • {item.date.toISOString().slice(0,19).replace('T',' ')}</Text>
+                    <Text style={{ marginTop: 6, fontWeight: '700' }}>₹ {item.fare}</Text>
+                  </View>
+                )}
+              />
+            )}
+          </View>
+        </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -537,6 +688,10 @@ const styles = StyleSheet.create({
     borderColor: ACCENT_RED + "30",
     backgroundColor: ACCENT_RED + "05",
   },
+  historyButton: {
+    borderColor: '#6B21A8' + '30',
+    backgroundColor: '#6B21A8' + '05',
+  },
   actionButtonText: { fontWeight: "600", fontSize: 14, marginLeft: 5 },
 
   emptyContainer: {
@@ -575,7 +730,7 @@ const styles = StyleSheet.create({
   },
   button: {
     alignItems: "center",
-    paddingVertical: 15,
+    padding: 15,
     borderRadius: 10,
     flexDirection: "row",
     justifyContent: "center",

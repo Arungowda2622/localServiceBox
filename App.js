@@ -24,6 +24,7 @@ import CustomDrawer from "./src/components/drawer/CustomDrawer";
 import Home from "./src/components/adminScreens/Home";
 import AddAdmin from "./src/components/adminScreens/AddAdmin";
 import AddProduct from "./src/components/product/AddProduct";
+import AddOwner from "./src/components/adminScreens/AddOwner";
 import NewAddress from "./src/components/ourServices/product/NewAddress";
 import AddUpi from "./src/components/adminScreens/AddUpi";
 import Orders from "./src/components/screens/Orders";
@@ -61,6 +62,7 @@ function MainStack() {
       <Stack.Screen name="BikeTaxiTracking" component={BikeTaxiTracking} />
       <Stack.Screen name="AdminHome" component={Home} />
       <Stack.Screen name="AddAdmin" component={AddAdmin} />
+      <Stack.Screen name="AddOwner" component={AddOwner} />
       <Stack.Screen name="AddProduct" component={AddProduct} />
       <Stack.Screen name="NewAddress" component={NewAddress} />
       <Stack.Screen name="AddUpi" component={AddUpi} />
@@ -78,16 +80,62 @@ function MainStack() {
 }
 
 /* ================= ROOT APP ================= */
+// Exported helper — can be called by other modules to force the app
+// back to an unauthenticated state (use carefully).
+export let forceLogout = () => {};
+
 export default function App() {
   const navigationRef = useRef(null);
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
 
+  // Provide an external hook to force clearing the app's user/role state.
+  forceLogout = () => {
+    try {
+      setUser(null);
+      setRole(null);
+      setInitializing(false);
+      console.log('forceLogout called — cleared app user state');
+    } catch (e) {
+      console.warn('forceLogout failed:', e);
+    }
+  };
+
   /* 🔐 AUTH STATE LISTENER (SINGLE SOURCE OF TRUTH) */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('onAuthStateChanged fired, firebaseUser:', firebaseUser ? firebaseUser.uid : null);
       if (!firebaseUser) {
+        // Try to restore a persisted profile if the Firebase user is null.
+        // This handles cases where the app was killed without explicit logout
+        // but we still have a stored user profile locally.
+        // However, if a logout is in progress (we set `loggingOut`), skip
+        // restore to avoid immediately re-authenticating from local data.
+        try {
+          const loggingOut = await AsyncStorage.getItem('loggingOut');
+          if (loggingOut) {
+            console.log('App: skip restore because loggingOut flag present');
+            await AsyncStorage.removeItem('loggingOut');
+            setUser(null);
+            setRole(null);
+            setInitializing(false);
+            return;
+          }
+
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log('App: restored user from AsyncStorage', parsed.uid, parsed.role);
+            setUser({ restored: true, uid: parsed.uid, email: parsed.email });
+            setRole(parsed.role || 'user');
+            setInitializing(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('Failed to restore user from AsyncStorage:', err);
+        }
+
         setUser(null);
         setRole(null);
         setInitializing(false);
@@ -104,6 +152,7 @@ export default function App() {
           setRole(null);
         } else {
           const data = userSnap.data();
+          console.log('App: live user fetched from Firestore', firebaseUser.uid, data.role);
           setUser(firebaseUser);
           setRole(data.role || "user");
           AsyncStorage.setItem(

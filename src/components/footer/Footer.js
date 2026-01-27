@@ -16,7 +16,7 @@ const Footer = ({ navigation }) => {
       {/* CENTER FAB */}
       <Pressable
         style={styles.fab}
-        onPress={() => navigation.navigate("BikeTaxi")}
+        onPress={() => navigation.navigate("AddProduct",{ fromFooter: true })}
       >
         <Ionicons name="add" size={30} color="#fff" />
       </Pressable>

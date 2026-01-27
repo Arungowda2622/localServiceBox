@@ -48,7 +48,7 @@ const Orders = ({ navigation }) => {
 
   useEffect(() => {
     if (activeTab === "product") fetchData("orders", setOrders);
-    else if (activeTab === "bike") fetchData("rides", setRides);
+    else if (activeTab === "bike") fetchData("bookings", setRides);
     else fetchData("boxDelivery", setDeliveries);
   }, [activeTab]);
 

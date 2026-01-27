@@ -13,6 +13,7 @@ import {
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { auth, db } from "../firebase/firebaseConfig";
 import {
@@ -119,6 +120,11 @@ const DriverScreen = () => {
   const handleLogout = async () => {
     try {
       await auth.signOut();
+      try {
+        await AsyncStorage.removeItem('user');
+      } catch (e) {
+        console.warn('Failed to clear stored user on logout:', e);
+      }
     } catch (err) {
       Alert.alert("Error", "Failed to logout.");
     }
@@ -232,9 +238,41 @@ const DriverScreen = () => {
       where("driverId", "==", user.uid)
     );
 
-    const unsubMy = onSnapshot(myQuery, (snap) => {
-      setMyBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoading(false);
+    const unsubMy = onSnapshot(myQuery, async (snap) => {
+      try {
+        const list = await Promise.all(
+          snap.docs.map(async (d) => {
+            const b = d.data();
+            // Fetch customer details so driver sees name/phone on their bookings
+            let customerName = null;
+            let customerPhone = null;
+            try {
+              if (b.userId) {
+                const userSnap = await getDoc(doc(db, "users", b.userId));
+                if (userSnap.exists()) {
+                  customerName = userSnap.data()?.fullName || null;
+                  customerPhone = userSnap.data()?.phone || null;
+                }
+              }
+            } catch (err) {
+              console.warn("Failed to fetch customer for my booking:", err);
+            }
+
+            return {
+              id: d.id,
+              ...b,
+              customerName,
+              customerPhone,
+            };
+          })
+        );
+
+        setMyBookings(list);
+      } catch (err) {
+        console.warn("Failed to map my bookings:", err);
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => {

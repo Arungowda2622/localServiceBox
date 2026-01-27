@@ -43,6 +43,12 @@ const Home = ({ navigation }) => {
       color: colors.gradientPink,
       onPress: () => navigation.navigate("AddDriverScreen"),
     },
+    {
+      title: "Add Owner",
+      icon: "storefront-outline",
+      color: colors.gradientPrimary,
+      onPress: () => navigation.navigate("AddOwner"),
+    },
   ];
 
   return (

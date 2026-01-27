@@ -3,8 +3,10 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { DrawerContentScrollView } from "@react-navigation/drawer";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebaseConfig";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signOut } from "firebase/auth";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { forceLogout } from "../../../App";
 
 export default function CustomDrawer(props) {
   const { navigation } = props;
@@ -13,13 +15,25 @@ export default function CustomDrawer(props) {
   // 🔹 Fetch user data ONCE (no auth listener here)
   useEffect(() => {
     const fetchUser = async () => {
-      if (!auth.currentUser) return;
+      // 1) Prefer live data from Firebase Auth if available
+      if (auth.currentUser) {
+        const docRef = doc(db, "users", auth.currentUser.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setUserData(docSnap.data());
+          return;
+        }
+      }
 
-      const docRef = doc(db, "users", auth.currentUser.uid);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setUserData(docSnap.data());
+      // 2) Fallback: try to read persisted profile from AsyncStorage
+      try {
+        const stored = await AsyncStorage.getItem('user');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.userData) setUserData(parsed.userData);
+        }
+      } catch (err) {
+        console.warn('Failed to read stored user for drawer:', err);
       }
     };
 
@@ -29,14 +43,52 @@ export default function CustomDrawer(props) {
   // 🔹 Correct Logout
   const handleLogout = async () => {
     try {
-      // 1️⃣ Firebase logout (this is the KEY step)
-      await signOut(auth);
+      // 1️⃣ Mark that a logout is in-progress so the auth listener
+      // won't attempt to restore the persisted user while we sign out.
+      try {
+        await AsyncStorage.setItem("loggingOut", "1");
+      } catch (e) {
+        console.warn("Failed to set loggingOut flag:", e);
+      }
 
-      // 2️⃣ Remove ONLY auth-related storage
-      await AsyncStorage.removeItem("authUser");
+      // 2️⃣ Remove persisted profile to avoid later restores
+      try {
+        await AsyncStorage.removeItem("user");
+        console.log("Cleared stored 'user' before signOut");
+      } catch (e) {
+        console.warn("Failed to remove stored 'user' before signOut:", e);
+      }
+
+      // 3️⃣ Firebase logout (this is the KEY step)
+      await signOut(auth);
 
       // 3️⃣ Optional: close drawer (safe)
       navigation.closeDrawer();
+
+      console.log('signOut completed from drawer logout');
+
+      // Clear the loggingOut flag now that signOut finished
+      try {
+        await AsyncStorage.removeItem("loggingOut");
+      } catch (e) {
+        console.warn("Failed to clear loggingOut flag:", e);
+      }
+
+      // If the firebase auth state didn't change (we were in 'restored' mode),
+      // force the app-level user state to clear so the Login stack appears.
+      try {
+        if (typeof forceLogout === 'function') {
+          forceLogout();
+        }
+      } catch (e) {
+        console.warn('forceLogout call failed:', e);
+      }
+
+      // 4️⃣ Do not attempt to navigate to 'Login' here. The top-level
+      // navigator does not necessarily expose a 'Login' route and calling
+      // navigate/reset from the drawer can produce navigation warnings.
+      // The app's `onAuthStateChanged` listener in `App.js` will handle
+      // switching the visible navigator when signOut completes.
 
       // ❌ Do NOT navigate manually
       // App.js will automatically render Login screen

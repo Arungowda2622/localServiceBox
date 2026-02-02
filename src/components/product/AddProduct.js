@@ -9,9 +9,11 @@ import {
   ScrollView,
   FlatList,
   Modal,
-  TouchableOpacity,
 } from "react-native";
-import { db } from "../firebase/firebaseConfig";
+import { Ionicons } from "@expo/vector-icons";
+import Header from "../header/Header";
+
+import { auth, db } from "../firebase/firebaseConfig";
 import {
   collection,
   addDoc,
@@ -19,12 +21,14 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
+  query,
+  where,
+  getDoc,
 } from "firebase/firestore";
-import Header from "../header/Header";
-import { Ionicons } from "@expo/vector-icons";
 
 const ProductManager = ({ navigation }) => {
   const [products, setProducts] = useState([]);
+  const [role, setRole] = useState(null);
 
   // MODALS
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -40,18 +44,55 @@ const ProductManager = ({ navigation }) => {
   const [editProduct, setEditProduct] = useState(null);
 
   /* -------------------------------------------------- */
-  /* 🔥 Real-time Fetch Products                         */
+  /* 🔐 FETCH LOGGED-IN USER ROLE                         */
   /* -------------------------------------------------- */
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "products"), (snapshot) => {
-      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setProducts(list);
-    });
-    return () => unsub();
+    const fetchRole = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const snap = await getDoc(doc(db, "users", user.uid));
+      if (snap.exists()) {
+        setRole(snap.data().role);
+      }
+    };
+
+    fetchRole();
   }, []);
 
   /* -------------------------------------------------- */
-  /* 🟢 Add Product                                      */
+  /* 🔥 REAL-TIME FETCH PRODUCTS (ROLE BASED)            */
+  /* -------------------------------------------------- */
+  useEffect(() => {
+    if (!role) return;
+
+    const user = auth.currentUser;
+    let q;
+
+    if (role === "admin") {
+      // 🔥 Admin → all products
+      q = collection(db, "products");
+    } else {
+      // 🔥 ShopOwner → only own products
+      q = query(
+        collection(db, "products"),
+        where("ownerId", "==", user.uid)
+      );
+    }
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      setProducts(list);
+    });
+
+    return () => unsub();
+  }, [role]);
+
+  /* -------------------------------------------------- */
+  /* 🟢 ADD PRODUCT                                      */
   /* -------------------------------------------------- */
   const handleAddProduct = async () => {
     const { name, price, imageUrl, description } = productDetails;
@@ -72,16 +113,26 @@ const ProductManager = ({ navigation }) => {
     }
 
     try {
+      const user = auth.currentUser;
+
       await addDoc(collection(db, "products"), {
         name,
         price: Number(price),
         images: imgArr,
         description,
-        createdAt: new Date().toISOString(),
+        ownerId: user.uid,        // ✅ IMPORTANT
+        createdByRole: role,      // optional
+        createdAt: new Date(),
       });
 
       setAddModalVisible(false);
-      setProductDetails({ name: "", price: "", imageUrl: "", description: "" });
+      setProductDetails({
+        name: "",
+        price: "",
+        imageUrl: "",
+        description: "",
+      });
+
       Alert.alert("Success", "Product added!");
     } catch (error) {
       Alert.alert("Error", "Could not add product");
@@ -89,10 +140,10 @@ const ProductManager = ({ navigation }) => {
   };
 
   /* -------------------------------------------------- */
-  /* ✏️ Update Product                                    */
+  /* ✏️ UPDATE PRODUCT                                   */
   /* -------------------------------------------------- */
   const handleUpdateProduct = async () => {
-    if (!editProduct.name || !editProduct.price) {
+    if (!editProduct?.name || !editProduct?.price) {
       Alert.alert("Missing Fields", "Name & price required");
       return;
     }
@@ -108,6 +159,7 @@ const ProductManager = ({ navigation }) => {
         price: Number(editProduct.price),
         images: imgArr,
         description: editProduct.description,
+        updatedAt: new Date(),
       });
 
       setEditModalVisible(false);
@@ -118,7 +170,7 @@ const ProductManager = ({ navigation }) => {
   };
 
   /* -------------------------------------------------- */
-  /* ❌ Delete Product                                   */
+  /* ❌ DELETE PRODUCT                                   */
   /* -------------------------------------------------- */
   const handleDeleteProduct = (id) => {
     Alert.alert("Delete Product", "Are you sure?", [
@@ -135,7 +187,7 @@ const ProductManager = ({ navigation }) => {
   };
 
   /* -------------------------------------------------- */
-  /* 🧾 Render Product Item                              */
+  /* 🧾 RENDER PRODUCT ITEM                              */
   /* -------------------------------------------------- */
   const renderProduct = ({ item }) => (
     <View style={styles.card}>
@@ -169,14 +221,22 @@ const ProductManager = ({ navigation }) => {
     </View>
   );
 
+  /* -------------------------------------------------- */
+  /* 🧱 UI                                               */
+  /* -------------------------------------------------- */
   return (
     <View style={{ flex: 1 }}>
       <Header title="Manage Products" navigation={navigation} />
 
-      {/* ADD PRODUCT BUTTON */}
-      <Pressable style={styles.addBtn} onPress={() => setAddModalVisible(true)}>
-        <Text style={styles.addBtnText}>+ Add Product</Text>
-      </Pressable>
+      {/* ADD PRODUCT BUTTON (shopOwner + admin) */}
+      {(role === "shopOwner" || role === "admin") && (
+        <Pressable
+          style={styles.addBtn}
+          onPress={() => setAddModalVisible(true)}
+        >
+          <Text style={styles.addBtnText}>+ Add Product</Text>
+        </Pressable>
+      )}
 
       {/* PRODUCT LIST */}
       <FlatList
@@ -184,10 +244,15 @@ const ProductManager = ({ navigation }) => {
         renderItem={renderProduct}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 15 }}
+        ListEmptyComponent={
+          <Text style={{ textAlign: "center", marginTop: 40 }}>
+            No products found
+          </Text>
+        }
       />
 
       {/* -------------------------------------------------- */}
-      {/* ADD PRODUCT MODAL                                   */}
+      {/* ADD PRODUCT MODAL                                  */}
       {/* -------------------------------------------------- */}
       <Modal visible={addModalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
@@ -229,7 +294,10 @@ const ProductManager = ({ navigation }) => {
                 multiline
                 value={productDetails.description}
                 onChangeText={(t) =>
-                  setProductDetails({ ...productDetails, description: t })
+                  setProductDetails({
+                    ...productDetails,
+                    description: t,
+                  })
                 }
               />
 
@@ -249,7 +317,7 @@ const ProductManager = ({ navigation }) => {
       </Modal>
 
       {/* -------------------------------------------------- */}
-      {/* EDIT PRODUCT MODAL                                  */}
+      {/* EDIT PRODUCT MODAL                                 */}
       {/* -------------------------------------------------- */}
       <Modal visible={editModalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
@@ -287,7 +355,10 @@ const ProductManager = ({ navigation }) => {
                 multiline
                 value={editProduct?.description}
                 onChangeText={(t) =>
-                  setEditProduct({ ...editProduct, description: t })
+                  setEditProduct({
+                    ...editProduct,
+                    description: t,
+                  })
                 }
               />
 
@@ -312,70 +383,54 @@ const ProductManager = ({ navigation }) => {
 export default ProductManager;
 
 /* -------------------------------------------------- */
-/* STYLES                                              */
+/* 🎨 STYLES                                           */
 /* -------------------------------------------------- */
 const styles = StyleSheet.create({
   addBtn: {
-    backgroundColor: "#efb71b",
-    padding: 15,
+    backgroundColor: "#2F6BFF",
     margin: 15,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 10,
     alignItems: "center",
   },
   addBtnText: {
-    fontSize: 18,
+    color: "#fff",
     fontWeight: "700",
   },
   card: {
-    backgroundColor: "white",
-    padding: 15,
-    marginBottom: 15,
-    borderRadius: 12,
-    elevation: 3,
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+    elevation: 2,
   },
-  pName: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  pPrice: {
-    fontSize: 16,
-    marginTop: 5,
-  },
-  pDesc: {
-    marginTop: 5,
-    color: "#444",
-  },
+  pName: { fontSize: 16, fontWeight: "700" },
+  pPrice: { marginTop: 4, fontWeight: "600" },
+  pDesc: { marginTop: 6, color: "#666" },
   row: {
     flexDirection: "row",
-    marginTop: 10,
+    justifyContent: "space-between",
+    marginTop: 12,
   },
   editBtn: {
-    flex: 1,
-    backgroundColor: "#007bff",
-    padding: 10,
-    borderRadius: 10,
-    marginRight: 8,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    backgroundColor: "#4CAF50",
+    padding: 8,
+    borderRadius: 6,
   },
   deleteBtn: {
-    flex: 1,
-    backgroundColor: "red",
-    padding: 10,
-    borderRadius: 10,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    backgroundColor: "#E53935",
+    padding: 8,
+    borderRadius: 6,
   },
   btnText: {
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
+    marginLeft: 6,
+    fontWeight: "600",
   },
-
   modalContainer: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -384,35 +439,33 @@ const styles = StyleSheet.create({
   },
   modalBox: {
     backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 15,
-    maxHeight: "85%",
+    borderRadius: 12,
+    padding: 16,
+    maxHeight: "90%",
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 12,
+  },
+  input: {
+    backgroundColor: "#f5f5f5",
+    padding: 12,
+    borderRadius: 8,
     marginBottom: 10,
   },
-
-  input: {
-    backgroundColor: "#f2f2f2",
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 10,
-  },
   saveBtn: {
-    backgroundColor: "green",
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 20,
+    backgroundColor: "#2F6BFF",
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 10,
     alignItems: "center",
   },
   cancelBtn: {
-    backgroundColor: "#777",
+    backgroundColor: "#999",
     padding: 12,
-    borderRadius: 12,
-    marginTop: 10,
+    borderRadius: 8,
+    marginTop: 8,
     alignItems: "center",
   },
 });

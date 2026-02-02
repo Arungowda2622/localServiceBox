@@ -13,7 +13,7 @@ import {
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { auth, db } from "../firebase/firebaseConfig";
 import {
@@ -38,31 +38,37 @@ Notifications.setNotificationHandler({
 });
 
 /********************************************
- ✅ GET DRIVER PUSH TOKEN (APK ONLY)
+ ✅ GET DRIVER PUSH TOKEN (EAS SAFE)
 ********************************************/
 async function generateDriverPushToken() {
   try {
-    let permission = await Notifications.getPermissionsAsync();
+    const projectId =
+      Constants.easConfig?.projectId ??
+      Constants.expoConfig?.extra?.eas?.projectId;
 
+    if (!projectId) {
+      console.warn("❌ Missing EAS projectId");
+      return null;
+    }
+
+    let permission = await Notifications.getPermissionsAsync();
     if (permission.status !== "granted") {
       permission = await Notifications.requestPermissionsAsync();
     }
-
     if (permission.status !== "granted") return null;
 
-    // ❗ MUST include projectId for EAS build
     const tokenObj = await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig.extra.eas.projectId,
+      projectId,
     });
 
     const token = tokenObj.data;
 
-    console.log("Generated Push Token:", token);
+    console.log("✅ Generated Push Token:", token);
+    console.log("✅ Project ID:", projectId);
 
-    // Reject invalid Expo Go tokens
-    if (!token.startsWith("ExponentPushToken")) return null;
+    if (!token || !token.startsWith("ExponentPushToken")) return null;
 
-    return token;
+    return { token, projectId };
   } catch (err) {
     console.log("Token error:", err);
     return null;
@@ -76,35 +82,27 @@ const DriverScreen = () => {
   const [waitingBookings, setWaitingBookings] = useState([]);
   const [waitingBoxBookings, setWaitingBoxBookings] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
   /********************************************
-   🔥 SAVE TOKEN FOR DRIVER
+   🔥 SAVE TOKEN FOR DRIVER (UPDATED)
 ********************************************/
   const saveDriverToken = async () => {
     if (!user) return;
 
-    // Do NOT save if running inside Expo Go
-    // if (Constants.appOwnership === "expo") return;
+    const result = await generateDriverPushToken();
+    if (!result) return;
 
-    const token = await generateDriverPushToken();
-    if (!token) return;
+    const { token, projectId } = result;
 
     try {
-      // Save token under multiple fields to match different consumers
-      // Some parts of the app write `fcmToken` (App.js) while older code
-      // used `expoPushToken`. Storing both keeps compatibility.
       await updateDoc(doc(db, "users", user.uid), {
         expoPushToken: token,
-        fcmToken: token,
-        // store the EAS project id used to generate the token so server
-        // can group tokens by project and avoid mixing different experiences
-        expoProjectId: Constants?.expoConfig?.extra?.eas?.projectId || null,
+        expoProjectId: projectId,
         updatedAt: new Date(),
       });
 
-      console.log("Driver token saved:", token);
+      console.log("✅ Driver token saved");
     } catch (err) {
       console.warn("Failed to save driver token:", err);
     }
@@ -120,37 +118,29 @@ const DriverScreen = () => {
   const handleLogout = async () => {
     try {
       await auth.signOut();
-      try {
-        await AsyncStorage.removeItem('user');
-      } catch (e) {
-        console.warn('Failed to clear stored user on logout:', e);
-      }
+      await AsyncStorage.removeItem("user");
     } catch (err) {
       Alert.alert("Error", "Failed to logout.");
     }
   };
 
   /********************************************
-   🔔 NOTIFICATION LISTENERS (OPEN WAITING TAB)
+   🔔 NOTIFICATION LISTENERS
 ********************************************/
   useEffect(() => {
-    // Foreground receive
-    const receiveSub = Notifications.addNotificationReceivedListener(() => {
-      setActiveTab("waiting");
-    });
+    const receiveSub =
+      Notifications.addNotificationReceivedListener(() => {
+        setActiveTab("waiting");
+      });
 
-    // Tapped notification
-    const tapSub = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
+    const tapSub =
+      Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data;
-
         if (data?.bookingId) {
           setActiveTab("waiting");
-          // open a modal showing only that booking's details for quick action
           setSelectedBookingId(data.bookingId);
         }
-      }
-    );
+      });
 
     return () => {
       receiveSub.remove();
@@ -158,7 +148,6 @@ const DriverScreen = () => {
     };
   }, []);
 
-  // Selected booking from notification (modal)
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
 
@@ -181,12 +170,11 @@ const DriverScreen = () => {
   }, [selectedBookingId]);
 
   /********************************************
-   🔥 FETCH BOOKINGS (Realtime Listener)
+   🔥 FETCH BOOKINGS (UNCHANGED)
 ********************************************/
   useEffect(() => {
     if (!user) return;
 
-    // Ride bookings
     const waitQuery = query(
       collection(db, "bookings"),
       where("status", "==", "waiting")
@@ -209,7 +197,6 @@ const DriverScreen = () => {
       setWaitingBookings(list);
     });
 
-    // Box Delivery Bookings
     const waitBoxQuery = query(
       collection(db, "boxDelivery"),
       where("status", "==", "waiting")
@@ -232,47 +219,30 @@ const DriverScreen = () => {
       setWaitingBoxBookings(list);
     });
 
-    // Driver own bookings
     const myQuery = query(
       collection(db, "bookings"),
       where("driverId", "==", user.uid)
     );
 
     const unsubMy = onSnapshot(myQuery, async (snap) => {
-      try {
-        const list = await Promise.all(
-          snap.docs.map(async (d) => {
-            const b = d.data();
-            // Fetch customer details so driver sees name/phone on their bookings
-            let customerName = null;
-            let customerPhone = null;
-            try {
-              if (b.userId) {
-                const userSnap = await getDoc(doc(db, "users", b.userId));
-                if (userSnap.exists()) {
-                  customerName = userSnap.data()?.fullName || null;
-                  customerPhone = userSnap.data()?.phone || null;
-                }
-              }
-            } catch (err) {
-              console.warn("Failed to fetch customer for my booking:", err);
-            }
+      const list = await Promise.all(
+        snap.docs.map(async (d) => {
+          const b = d.data();
+          let customerName = null;
+          let customerPhone = null;
 
-            return {
-              id: d.id,
-              ...b,
-              customerName,
-              customerPhone,
-            };
-          })
-        );
+          if (b.userId) {
+            const userSnap = await getDoc(doc(db, "users", b.userId));
+            customerName = userSnap.data()?.fullName || null;
+            customerPhone = userSnap.data()?.phone || null;
+          }
 
-        setMyBookings(list);
-      } catch (err) {
-        console.warn("Failed to map my bookings:", err);
-      } finally {
-        setLoading(false);
-      }
+          return { id: d.id, ...b, customerName, customerPhone };
+        })
+      );
+
+      setMyBookings(list);
+      setLoading(false);
     });
 
     return () => {
@@ -281,6 +251,7 @@ const DriverScreen = () => {
       unsubMy();
     };
   }, [user]);
+
 
   /********************************************
    ACCEPT BOOKING

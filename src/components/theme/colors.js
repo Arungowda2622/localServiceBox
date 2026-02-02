@@ -13,6 +13,7 @@ const colors = {
   gradientPurple: ["#8E2DE2", "#4A00E0"],
   gradientPink: ["#12c2e9", "#c471ed"],
   gradientBanner: ["#F7971E", "#FFD200"],
+  gradientInfo: ["#0EA5E9", "#38BDF8"],
 
   /* Backgrounds */
   background: "#F5F7FB",

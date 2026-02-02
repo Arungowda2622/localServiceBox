@@ -38,6 +38,7 @@ import BikeTaxiWaiting from "./src/components/ourServices/BikeTaxiWaiting";
 import Services from "./src/components/ourServices/Services";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
+import Users from "./src/components/adminScreens/Users";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -75,6 +76,7 @@ function MainStack() {
       <Stack.Screen name="DriverScreen" component={DriverScreen} />
       <Stack.Screen name="BikeTaxiWaiting" component={BikeTaxiWaiting} />
       <Stack.Screen name="Services" component={Services} />
+      <Stack.Screen name="Users" component={Users} />
     </Stack.Navigator>
   );
 }

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View, ScrollView } from "react-native";
 import Header from "../header/Header";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import colors from "../theme/colors"
+import colors from "../theme/colors";
 
 const Home = ({ navigation }) => {
   const buttons = [
@@ -49,6 +49,12 @@ const Home = ({ navigation }) => {
       color: colors.gradientPrimary,
       onPress: () => navigation.navigate("AddOwner"),
     },
+    {
+      title: "Users",
+      icon: "people-outline",
+      color: colors.gradientInfo,
+      onPress: () => navigation.navigate("Users"),
+    },
   ];
 
   return (
@@ -64,7 +70,7 @@ const Home = ({ navigation }) => {
 
       {/* Content */}
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        {/* <Text style={styles.sectionTitle}>Quick Actions</Text> */}
         <View style={styles.btnsContainer}>
           {buttons.map((btn) => (
             <Pressable

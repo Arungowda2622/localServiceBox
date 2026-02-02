@@ -7,7 +7,8 @@ import {
   ScrollView,
 } from "react-native";
 import { db } from "../../firebase/firebaseConfig";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import Header from "../../header/Header";
 
 const AddressSelectionScreen = ({ navigation }) => {
@@ -16,14 +17,24 @@ const AddressSelectionScreen = ({ navigation }) => {
 
   const fetchAddresses = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "addresses"));
-      const addressList = [];
-      querySnapshot.forEach((doc) => {
-        addressList.push({ id: doc.id, ...doc.data() });
-      });
-      setAddresses(addressList);
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const q = query(
+        collection(db, "addresses"),
+        where("userId", "==", user.uid)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const list = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setAddresses(list);
     } catch (error) {
-      console.error("Error fetching addresses: ", error);
+      console.error("Error fetching addresses:", error);
     }
   };
 
@@ -46,40 +57,37 @@ const AddressSelectionScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={addressStyles.safeArea}>
+    <View style={styles.safeArea}>
       <Header navigation={navigation} title="Select Delivery Address" />
-      <ScrollView style={addressStyles.mainContainer}>
+      <ScrollView style={styles.mainContainer}>
         {addresses.map((item) => (
           <TouchableOpacity
             key={item.id}
             style={[
-              addressStyles.addressCard,
-              selectedAddress === item.id && addressStyles.selectedCard,
+              styles.addressCard,
+              selectedAddress === item.id && styles.selectedCard,
             ]}
             onPress={() => setSelectedAddress(item.id)}
           >
-            <Text style={addressStyles.name}>{item.fullName}</Text>
-            <Text style={addressStyles.addressText}>
+            <Text style={styles.name}>{item.fullName}</Text>
+            <Text style={styles.addressText}>
               {`${item.address}, ${item.city}, ${item.state}, ${item.pinCode}`}
             </Text>
-            <Text style={addressStyles.phone}>📞 {item.mobileNumber}</Text>
+            <Text style={styles.phone}>📞 {item.mobileNumber}</Text>
           </TouchableOpacity>
         ))}
 
-        <TouchableOpacity
-          style={addressStyles.addButton}
-          onPress={onAddNewAddress}
-        >
-          <Text style={addressStyles.addButtonText}>+ Add New Address</Text>
+        <TouchableOpacity style={styles.addButton} onPress={onAddNewAddress}>
+          <Text style={styles.addButtonText}>+ Add New Address</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <View style={addressStyles.bottomContainer}>
+      <View style={styles.bottomContainer}>
         <TouchableOpacity
-          style={addressStyles.deliverButton}
+          style={styles.deliverButton}
           onPress={onDeliverClick}
         >
-          <Text style={addressStyles.deliverButtonText}>
+          <Text style={styles.deliverButtonText}>
             Deliver to this address
           </Text>
         </TouchableOpacity>
@@ -90,7 +98,8 @@ const AddressSelectionScreen = ({ navigation }) => {
 
 export default AddressSelectionScreen;
 
-const addressStyles = StyleSheet.create({
+
+const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#FFFFFF",

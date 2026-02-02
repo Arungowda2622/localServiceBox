@@ -14,6 +14,7 @@ import { db } from "../../firebase/firebaseConfig";
 import { collection, getDocs, addDoc, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import Header from "../../header/Header";
+import { notifyDrivers } from "../../utils/notifyDrivers";
 
 const PaymentSelectionScreen = ({ navigation, route }) => {
   const { total, selectedAddress: routeSelectedAddress } = route?.params || {};
@@ -28,16 +29,27 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   // 🔹 Fetch user's saved addresses
   const fetchAddresses = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "addresses"));
-      const addressList = [];
-      querySnapshot.forEach((doc) => {
-        addressList.push({ id: doc.id, ...doc.data() });
-      });
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const q = query(
+        collection(db, "addresses"),
+        where("userId", "==", user.uid)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const addressList = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
       setAddresses(addressList);
     } catch (error) {
-      console.error("Error fetching addresses: ", error);
+      console.error("Error fetching addresses:", error);
     }
   };
+
 
   // 🔹 Fetch user's UPI IDs
   const fetchUpis = async () => {
@@ -98,73 +110,6 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
     }
   };
 
-  // 🔥 SEND NOTIFICATION TO ALL DRIVERS
-  const notifyDrivers = async (orderId, orderData) => {
-    try {
-      const driversSnap = await getDocs(collection(db, "users"));
-      let driverTokens = [];
-
-      driversSnap.forEach((d) => {
-        const user = d.data();
-
-        // Only valid standalone app tokens
-        if (user.role === "driver" && user.fcmToken) {
-          if (user.fcmToken.startsWith("ExponentPushToken")) {
-            driverTokens.push(user.fcmToken);
-          }
-        }
-      });
-
-      console.log("DriverTokens:", driverTokens);
-
-      // 🔹 Save in Firestore notifications for all drivers
-      await Promise.all(
-        driversSnap.docs.map((docSnap) => {
-          const user = docSnap.data();
-          if (user.role === "driver") {
-            return addDoc(
-              collection(db, "users", docSnap.id, "notifications"),
-              {
-                type: "new_order",
-                orderId,
-                message: "A new product order has been placed.",
-                createdAt: new Date(),
-                seen: false,
-                ...orderData,
-              }
-            );
-          }
-        })
-      );
-
-      // 🔹 SEND PUSH NOTIFICATION (One-by-one recommended)
-      await Promise.all(
-        driverTokens.map((token) =>
-          fetch("https://exp.host/--/api/v2/push/send", {
-            method: "POST",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              to: token,
-              sound: "default",
-              title: "📦 New Order!",
-              body: "A new customer has placed an order.",
-              data: {
-                orderId,
-                type: "productOrder",
-              },
-            }),
-          })
-        )
-      );
-
-      console.log("Push notifications sent successfully!");
-    } catch (err) {
-      console.log("Push Notification Error:", err);
-    }
-  };
 
   // 🔥 UPDATED Confirm ORDER function
   const handleConfirmOrder = async () => {
@@ -233,7 +178,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       const newOrderRef = await addDoc(collection(db, "orders"), newOrder);
 
       // 📢 SEND DRIVER NOTIFICATION
-      // await notifyDrivers(newOrderRef.id, newOrder);
+      await notifyDrivers(newOrderRef.id, newOrder);
 
       setLoading(false);
 
@@ -268,16 +213,16 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Delivery Address</Text>
           {currentAddress ? (
-            <View>
+            <>
               <Text style={styles.deliveryTitle}>
                 Delivering to {currentAddress.fullName}
               </Text>
               <Text style={styles.deliveryAddress}>
                 {`${currentAddress.address}, ${currentAddress.city}, ${currentAddress.state}, ${currentAddress.pinCode}`}
               </Text>
-            </View>
+            </>
           ) : (
-            <Text>Loading address...</Text>
+            <Text>No address found</Text>
           )}
           <TouchableOpacity
             style={styles.changeButton}

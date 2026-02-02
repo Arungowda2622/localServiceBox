@@ -5,51 +5,46 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Image,
   ScrollView,
   Alert,
   Linking,
 } from "react-native";
-import { launchCamera, launchImageLibrary } from "react-native-image-picker";
+import { Dropdown } from "react-native-element-dropdown";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import AntDesign from "react-native-vector-icons/AntDesign";
 import Header from "../header/Header";
+
+const serviceData = [
+  { label: "Plumber", value: "Plumber" },
+  { label: "Welder", value: "Welder" },
+  { label: "Construction Materials", value: "Construction Materials" },
+  { label: "Construction Works", value: "Construction Works" },
+  { label: "Electrician", value: "Electrician" },
+  { label: "Other Services", value: "Other Services" },
+];
 
 const Services = ({ navigation }) => {
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [serviceType, setServiceType] = useState(null);
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
-  const [photo, setPhoto] = useState(null);
-
-  const openCamera = () => {
-    launchCamera({ mediaType: "photo", quality: 0.7 }, (res) => {
-      if (!res.didCancel && !res.errorCode) {
-        setPhoto(res.assets[0]);
-      }
-    });
-  };
-
-  const openGallery = () => {
-    launchImageLibrary({ mediaType: "photo", quality: 0.7 }, (res) => {
-      if (!res.didCancel && !res.errorCode) {
-        setPhoto(res.assets[0]);
-      }
-    });
-  };
+  const [isFocus, setIsFocus] = useState(false);
 
   const submitForm = () => {
-    if (!name || !phoneNumber || !description || !address) {
+    if (!name || !phoneNumber || !serviceType || !description || !address) {
       Alert.alert("Required", "Please fill all required fields");
       return;
     }
 
-    const whatsappNumber = "916362775151"; // Admin WhatsApp
+    const whatsappNumber = "916362775151";
 
     const message = `
 *🛠 Service Request*
 
 👤 *Name:* ${name}
 📞 *Phone:* ${phoneNumber}
+🧰 *Service Type:* ${serviceType}
 📍 *Address:* ${address}
 📝 *Description:* ${description}
 `;
@@ -65,7 +60,7 @@ const Services = ({ navigation }) => {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f6f8" }}>
-      <Header title="Other Services" navigation={navigation}/>
+      <Header title="Other Services" navigation={navigation} />
 
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
@@ -86,6 +81,44 @@ const Services = ({ navigation }) => {
             onChangeText={setPhoneNumber}
           />
 
+          {/* ✅ Service Dropdown */}
+          <View
+            style={[
+              styles.dropdownContainer,
+              isFocus && { borderColor: "#25D366" },
+            ]}
+          >
+            <Dropdown
+              style={styles.dropdown}
+              placeholderStyle={styles.placeholderStyle}
+              selectedTextStyle={styles.selectedTextStyle}
+              inputSearchStyle={styles.inputSearchStyle}
+              iconStyle={styles.iconStyle}
+              data={serviceData}
+              search
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              placeholder={!isFocus ? "Select Service Type *" : "..."}
+              searchPlaceholder="Search..."
+              value={serviceType}
+              onFocus={() => setIsFocus(true)}
+              onBlur={() => setIsFocus(false)}
+              onChange={(item) => {
+                setServiceType(item.value);
+                setIsFocus(false);
+              }}
+              renderLeftIcon={() => (
+                <AntDesign
+                  style={styles.icon}
+                  color={isFocus ? "#25D366" : "#666"}
+                  name="Safety"
+                  size={20}
+                />
+              )}
+            />
+          </View>
+
           <Input
             icon="map-marker"
             placeholder="Address *"
@@ -104,8 +137,6 @@ const Services = ({ navigation }) => {
             height={100}
           />
 
-          
-          {/* Submit */}
           <TouchableOpacity style={styles.submitBtn} onPress={submitForm}>
             <Icon name="whatsapp" size={22} color="#fff" />
             <Text style={styles.submitText}> Send via WhatsApp</Text>
@@ -118,13 +149,9 @@ const Services = ({ navigation }) => {
 
 export default Services;
 
-/* ----------------- Reusable Components ----------------- */
+/* ---------------- Reusable Input ---------------- */
 
-const Input = ({
-  icon,
-  height = 50,
-  ...props
-}) => (
+const Input = ({ icon, height = 50, ...props }) => (
   <View style={[styles.inputContainer, { height }]}>
     <Icon name={icon} size={20} color="#666" />
     <TextInput
@@ -135,14 +162,7 @@ const Input = ({
   </View>
 );
 
-const PhotoButton = ({ icon, text, onPress }) => (
-  <TouchableOpacity style={styles.photoBtn} onPress={onPress}>
-    <Icon name={icon} size={22} color="#555" />
-    <Text style={styles.photoText}>{text}</Text>
-  </TouchableOpacity>
-);
-
-/* ----------------- Styles ----------------- */
+/* ---------------- Styles ---------------- */
 
 const styles = StyleSheet.create({
   container: {
@@ -175,34 +195,39 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     color: "#000",
   },
-  label: {
-    fontWeight: "600",
-    marginVertical: 10,
-  },
-  photoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  photoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+
+  /* Dropdown styles */
+  dropdownContainer: {
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 10,
-    padding: 12,
-    width: "48%",
+    backgroundColor: "#fafafa",
+    marginBottom: 12,
+    paddingHorizontal: 8,
   },
-  photoText: {
-    marginLeft: 6,
-    fontWeight: "600",
+  dropdown: {
+    height: 50,
   },
-  image: {
-    width: "100%",
-    height: 200,
-    borderRadius: 12,
-    marginTop: 12,
+  placeholderStyle: {
+    fontSize: 16,
+    color: "#999",
   },
+  selectedTextStyle: {
+    fontSize: 16,
+    color: "#000",
+  },
+  inputSearchStyle: {
+    height: 40,
+    fontSize: 16,
+  },
+  iconStyle: {
+    width: 20,
+    height: 20,
+  },
+  icon: {
+    marginRight: 8,
+  },
+
   submitBtn: {
     backgroundColor: "#25D366",
     padding: 15,

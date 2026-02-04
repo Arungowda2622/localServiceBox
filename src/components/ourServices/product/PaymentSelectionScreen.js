@@ -35,7 +35,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
 
       const q = query(
         collection(db, "addresses"),
-        where("userId", "==", user.uid)
+        where("userId", "==", user.uid),
       );
 
       const querySnapshot = await getDocs(q);
@@ -49,7 +49,6 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       console.error("Error fetching addresses:", error);
     }
   };
-
 
   // 🔹 Fetch user's UPI IDs
   const fetchUpis = async () => {
@@ -84,20 +83,20 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
 
         Alert.alert(
           "Payment Initiated ✅",
-          "After completing payment, please enter your UTR number below."
+          "After completing payment, please enter your UTR number below.",
         );
         setPaymentDone(true);
       } else {
         Alert.alert(
           "UPI App Not Found",
-          "No UPI app found on your device. Please install Google Pay, PhonePe, or PayTM to proceed."
+          "No UPI app found on your device. Please install Google Pay, PhonePe, or PayTM to proceed.",
         );
       }
     } catch (error) {
       console.error("UPI payment error:", error);
       Alert.alert(
         "Payment Failed ❌",
-        "Unable to initiate payment. Try again."
+        "Unable to initiate payment. Try again.",
       );
     }
   };
@@ -110,13 +109,12 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
     }
   };
 
-
   // 🔥 UPDATED Confirm ORDER function
   const handleConfirmOrder = async () => {
     if (paymentMethod === "Online Payment" && !utrNumber.trim()) {
       Alert.alert(
         "Missing UTR",
-        "Please enter your UTR number before confirming."
+        "Please enter your UTR number before confirming.",
       );
       return;
     }
@@ -137,7 +135,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
         const utrLower = utrNumber.trim().toLowerCase();
         const q = query(
           collection(db, "orders"),
-          where("utrNumberLower", "==", utrLower)
+          where("utrNumberLower", "==", utrLower),
         );
         const utrSnap = await getDocs(q);
 
@@ -145,7 +143,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
           setLoading(false);
           Alert.alert(
             "Duplicate UTR ❌",
-            "This UTR number has already been used. Enter a valid UTR."
+            "This UTR number has already been used. Enter a valid UTR.",
           );
           return;
         }
@@ -164,8 +162,8 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
         address: routeSelectedAddress
           ? routeSelectedAddress
           : addresses.length > 0
-          ? addresses[0]
-          : null,
+            ? addresses[0]
+            : null,
         upi: selectedUPI?.upi || null,
         status:
           paymentMethod === "Online Payment"
@@ -185,7 +183,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       Alert.alert(
         "Order Placed 🎉",
         `Your order has been placed successfully!\nUTR: ${utrNumber || "N/A"}`,
-        [{ text: "OK", onPress: () => navigation.navigate("OuerServices") }]
+        [{ text: "OK", onPress: () => navigation.navigate("OuerServices") }],
       );
 
       // reset
@@ -202,8 +200,8 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   const currentAddress = routeSelectedAddress
     ? routeSelectedAddress
     : addresses.length > 0
-    ? addresses[0]
-    : null;
+      ? addresses[0]
+      : null;
 
   return (
     <View style={styles.safeArea}>
@@ -226,7 +224,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
           )}
           <TouchableOpacity
             style={styles.changeButton}
-            onPress={() => navigation.navigate("AddressSelection")}
+            onPress={() => navigation.navigate("AddressSelection", { total })}
           >
             <Text style={styles.changeButtonText}>Change delivery address</Text>
           </TouchableOpacity>

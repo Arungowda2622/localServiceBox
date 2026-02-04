@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  Alert,
   FlatList,
   Image,
   Pressable,
@@ -45,6 +44,15 @@ const OuerServicesHome = ({ navigation }) => {
       icon: "🛒",
       colors: ["#11998E", "#38EF7D"],
     },
+    {
+      id: 5,
+      serviceName: "Foods & Beverages",
+      title: "FoodsBeverages",
+      subtitle: "Order now",
+      icon: "🍔",
+      colors: ["#FF9A00", "#FF5F6D"],
+      fullWidth: true,
+    },
   ];
 
   const handleSelectedService = (item) => {
@@ -58,7 +66,11 @@ const OuerServicesHome = ({ navigation }) => {
       <View
         style={[
           styles.serviceItem,
-          isEven ? styles.leftItem : styles.rightItem,
+          item.fullWidth
+            ? styles.fullWidthItem
+            : isEven
+              ? styles.leftItem
+              : styles.rightItem,
         ]}
       >
         <Pressable
@@ -67,22 +79,40 @@ const OuerServicesHome = ({ navigation }) => {
           ]}
           onPress={() => handleSelectedService(item)}
         >
-          {/* /Users/com/Downloads/lsb/localServiceBox/assets/otherServices.jpeg */}
-          <LinearGradient colors={item.colors} style={styles.card}>
-            <View style={styles.iconWrapper}>
-              {item.serviceName === "Services" ? (
+          <LinearGradient
+            colors={item.colors}
+            style={[styles.card, item.fullWidth && styles.fullWidthCard]}
+          >
+            {/* Soft shine */}
+            {item.fullWidth && <View style={styles.shineOverlay} />}
+
+            <View
+              style={[
+                styles.cardContent,
+                item.fullWidth && styles.fullWidthContent,
+              ]}
+            >
+              {item.title === "Services" ? (
                 <Image
                   source={require("../../../assets/otherServices.jpeg")}
-                  style={{ width: 45, height: 45 }}
+                  style={{ width: 80, height: 80, borderRadius: 40 }}
                   resizeMode="stretch"
                 />
               ) : (
-                <Text style={styles.icon}>{item.icon}</Text>
+                <View style={styles.iconWrapper}>
+                  <Text style={styles.icon}>{item.icon}</Text>
+                </View>
               )}
-            </View>
-            <View>
-              <Text style={styles.subtitle}>{item.subtitle}</Text>
-              <Text style={styles.title}>{item.serviceName}</Text>
+
+              <View
+                style={[
+                  styles.textBlock,
+                  item.fullWidth && styles.fullWidthText,
+                ]}
+              >
+                <Text style={styles.subtitle}>{item.subtitle}</Text>
+                <Text style={styles.title}>{item.serviceName}</Text>
+              </View>
             </View>
           </LinearGradient>
         </Pressable>
@@ -92,7 +122,7 @@ const OuerServicesHome = ({ navigation }) => {
 
   return (
     <LinearGradient colors={["#EEF2F3", "#D9E4F5"]} style={styles.safeArea}>
-      {/* Decorative Background Shapes */}
+      {/* Decorative Background */}
       <View style={styles.bgCircleOne} />
       <View style={styles.bgCircleTwo} />
 
@@ -123,7 +153,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  /* Background blobs */
   bgCircleOne: {
     position: "absolute",
     top: -120,
@@ -158,40 +187,62 @@ const styles = StyleSheet.create({
   },
 
   listContent: {
-    paddingBottom: 12,
+    paddingBottom: 16,
   },
 
   serviceItem: {
     width: "50%",
     marginBottom: 18,
   },
+
   leftItem: {
     paddingRight: 8,
   },
+
   rightItem: {
     paddingLeft: 8,
   },
 
+  fullWidthItem: {
+    width: "100%",
+    paddingHorizontal: 8,
+  },
+
   card: {
-    height: 175, // ⬅️ increased from 155
-    borderRadius: 20,
+    height: 175,
+    borderRadius: 22,
     padding: 18,
-    justifyContent: "space-between",
     shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 12,
+    shadowOpacity: 0.22,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
     elevation: 8,
   },
 
+  fullWidthCard: {
+    height: 135,
+    borderRadius: 26,
+    paddingHorizontal: 22,
+    justifyContent: "center",
+  },
+
+  cardContent: {
+    flex: 1,
+    justifyContent: "space-between",
+  },
+
+  fullWidthContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
   iconWrapper: {
-    width: 64, // ⬅️ increased
+    width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#FFFFFF", // ⬅️ solid white
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
-
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 4 },
@@ -203,15 +254,35 @@ const styles = StyleSheet.create({
     fontSize: 32,
   },
 
-  subtitle: {
-    fontSize: 12,
-    color: "#F1F1F1",
-    fontWeight: "600",
+  textBlock: {
+    marginTop: 10,
   },
+
+  fullWidthText: {
+    marginLeft: 18,
+  },
+
+  subtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+
   title: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 22,
+    fontWeight: "900",
     color: "#FFFFFF",
-    marginTop: 4,
+  },
+
+  shineOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "45%",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
   },
 });

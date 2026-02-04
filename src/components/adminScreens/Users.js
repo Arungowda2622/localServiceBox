@@ -14,8 +14,7 @@ import colors from "../theme/colors";
 import { collection, query, getDocs } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
-/* ✅ ALWAYS lowercase roles */
-const ROLES = ["all", "admin", "user", "driver", "shopOwner"];
+const ROLES = ["all", "admin", "user", "driver", "shopowner"];
 
 const Users = ({ navigation }) => {
   const [users, setUsers] = useState([]);
@@ -54,23 +53,28 @@ const Users = ({ navigation }) => {
     if (selectedRole === "all") {
       setFilteredUsers(users);
     } else {
-      const filtered = users.filter(
-        (user) => (user.role || "user").toLowerCase() === selectedRole,
-      );
+      const filtered = users.filter((user) => {
+        const role = (user.role || "user").toLowerCase().trim();
+        return role === selectedRole;
+      });
       setFilteredUsers(filtered);
     }
   };
 
-  const formatRoleLabel = (role) =>
-    role === "all" ? "All" : role.charAt(0).toUpperCase() + role.slice(1);
+  const formatRoleLabel = (role) => {
+    if (role === "shopowner") return "ShopOwner";
+    return role.charAt(0).toUpperCase() + role.slice(1);
+  };
 
   const renderItem = ({ item }) => {
-    const role = (item.role || "user").toLowerCase();
+    const role = (item.role || "user").toLowerCase().trim();
+
     const initials = item.fullName
       ? item.fullName
           .split(" ")
           .map((n) => n[0])
           .join("")
+          .slice(0, 2)
           .toUpperCase()
       : "U";
 
@@ -99,10 +103,9 @@ const Users = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.main}>
+    <View style={styles.container}>
       <Header title="Users" navigation={navigation} />
-
-      {/* 🔥 ROLE FILTER */}
+      {/* 🔥 ROLE FILTER (ALWAYS TOP) */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -126,6 +129,7 @@ const Users = ({ navigation }) => {
         })}
       </ScrollView>
 
+      {/* 🔥 USER LIST */}
       {loading ? (
         <View style={styles.loader}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -135,10 +139,12 @@ const Users = ({ navigation }) => {
           data={filteredUsers}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.container}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No users found</Text>
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No users found</Text>
+            </View>
           }
         />
       )}
@@ -149,63 +155,54 @@ const Users = ({ navigation }) => {
 export default Users;
 
 const styles = StyleSheet.create({
-  main: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-
   container: {
-    padding: 16,
-    paddingBottom: 30,
-  },
-
-  loader: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
   },
-
-  emptyText: {
-    textAlign: "center",
-    marginTop: 40,
-    color: "#9CA3AF",
-    fontSize: 14,
-  },
-
-  /* 🔥 Filter */
   filterContainer: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    alignItems: "center", // ✅ THIS FIXES TEXT CUTTING
+    height: 56,
   },
-
   filterBtn: {
-    minHeight: 36, // ✅ ENSURES PROPER HEIGHT
+    minHeight: 36,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: "#E5E7EB",
     marginRight: 10,
-    justifyContent: "center",
-    alignItems: "center",
   },
-
   filterBtnActive: {
     backgroundColor: "#4F46E5",
   },
-
   filterText: {
     fontSize: 14,
     fontWeight: "700",
-    lineHeight: 18, // ✅ PREVENTS CLIPPING
+    lineHeight: 18,
     color: "#374151",
   },
-
   filterTextActive: {
     color: "#FFFFFF",
   },
-
-  /* Card */
+  loader: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  listContainer: {
+    padding: 16,
+    paddingBottom: 30,
+    // flexGrow: 1,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    marginTop: 40,
+  },
+  emptyText: {
+    textAlign: "center",
+    color: "#9CA3AF",
+    fontSize: 14,
+  },
+    /* 🔥 Card */
   card: {
     backgroundColor: colors.white,
     padding: 14,
@@ -243,6 +240,7 @@ const styles = StyleSheet.create({
 
   info: {
     marginLeft: 12,
+    width: 220,
   },
 
   name: {
@@ -268,14 +266,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  /* ✅ ROLE COLORS (lowercase safe) */
+  /* ✅ ROLE COLORS */
   role_admin: { backgroundColor: "#FEF3C7" },
   role_user: { backgroundColor: "#E0F2FE" },
   role_driver: { backgroundColor: "#ECFDF5" },
-  role_shopOwner: { backgroundColor: "#FCE7F3" },
+  role_shopowner: { backgroundColor: "#FCE7F3" },
 
   roleText_admin: { color: "#92400E" },
   roleText_user: { color: "#0369A1" },
   roleText_driver: { color: "#065F46" },
-  roleText_shopOwner: { color: "#9D174D" },
+  roleText_shopowner: { color: "#9D174D" },
 });

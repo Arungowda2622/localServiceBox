@@ -10,7 +10,7 @@ import {
   FlatList,
   Modal,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { AntDesign, Ionicons } from "@expo/vector-icons";
 import Header from "../header/Header";
 
 import { auth, db } from "../firebase/firebaseConfig";
@@ -25,6 +25,12 @@ import {
   where,
   getDoc,
 } from "firebase/firestore";
+import { Dropdown } from "react-native-element-dropdown";
+
+const productData = [
+  { label: "Food", value: "food" },
+  { label: "Other", value: "other" },
+];
 
 const ProductManager = ({ navigation }) => {
   const [products, setProducts] = useState([]);
@@ -34,17 +40,24 @@ const ProductManager = ({ navigation }) => {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
 
+  // DROPDOWN
+  const [isFocus, setIsFocus] = useState(false);
+  const [productType, setProductType] = useState(null);
+
+  // ADD FORM
   const [productDetails, setProductDetails] = useState({
     name: "",
     price: "",
     imageUrl: "",
     description: "",
+    type: "",
   });
 
+  // EDIT FORM
   const [editProduct, setEditProduct] = useState(null);
 
   /* -------------------------------------------------- */
-  /* 🔐 FETCH LOGGED-IN USER ROLE                         */
+  /* 🔐 FETCH USER ROLE                                  */
   /* -------------------------------------------------- */
   useEffect(() => {
     const fetchRole = async () => {
@@ -61,7 +74,7 @@ const ProductManager = ({ navigation }) => {
   }, []);
 
   /* -------------------------------------------------- */
-  /* 🔥 REAL-TIME FETCH PRODUCTS (ROLE BASED)            */
+  /* 🔥 REAL-TIME PRODUCTS                               */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!role) return;
@@ -70,10 +83,8 @@ const ProductManager = ({ navigation }) => {
     let q;
 
     if (role === "admin") {
-      // 🔥 Admin → all products
       q = collection(db, "products");
     } else {
-      // 🔥 ShopOwner → only own products
       q = query(
         collection(db, "products"),
         where("ownerId", "==", user.uid)
@@ -92,13 +103,16 @@ const ProductManager = ({ navigation }) => {
   }, [role]);
 
   /* -------------------------------------------------- */
-  /* 🟢 ADD PRODUCT                                      */
+  /* ➕ ADD PRODUCT                                      */
   /* -------------------------------------------------- */
   const handleAddProduct = async () => {
-    const { name, price, imageUrl, description } = productDetails;
+    const { name, price, imageUrl, description, type } = productDetails;
 
-    if (!name || !price || !imageUrl) {
-      Alert.alert("Missing Fields", "Product name, price & image URL required!");
+    if (!name || !price || !imageUrl || !type) {
+      Alert.alert(
+        "Missing Fields",
+        "Name, price, image URLs & type are required"
+      );
       return;
     }
 
@@ -108,7 +122,7 @@ const ProductManager = ({ navigation }) => {
       .filter((i) => i.startsWith("https://"));
 
     if (imgArr.length === 0) {
-      Alert.alert("Invalid Images", "Use comma-separated HTTPS URLs");
+      Alert.alert("Invalid Images", "Use HTTPS image URLs");
       return;
     }
 
@@ -120,22 +134,25 @@ const ProductManager = ({ navigation }) => {
         price: Number(price),
         images: imgArr,
         description,
-        ownerId: user.uid,        // ✅ IMPORTANT
-        createdByRole: role,      // optional
+        type,
+        ownerId: user.uid,
+        createdByRole: role,
         createdAt: new Date(),
       });
 
       setAddModalVisible(false);
+      setProductType(null);
       setProductDetails({
         name: "",
         price: "",
         imageUrl: "",
         description: "",
+        type: "",
       });
 
-      Alert.alert("Success", "Product added!");
+      Alert.alert("Success", "Product added successfully!");
     } catch (error) {
-      Alert.alert("Error", "Could not add product");
+      Alert.alert("Error", "Failed to add product");
     }
   };
 
@@ -143,8 +160,8 @@ const ProductManager = ({ navigation }) => {
   /* ✏️ UPDATE PRODUCT                                   */
   /* -------------------------------------------------- */
   const handleUpdateProduct = async () => {
-    if (!editProduct?.name || !editProduct?.price) {
-      Alert.alert("Missing Fields", "Name & price required");
+    if (!editProduct?.name || !editProduct?.price || !editProduct?.type) {
+      Alert.alert("Missing Fields", "Name, price & type required");
       return;
     }
 
@@ -159,11 +176,12 @@ const ProductManager = ({ navigation }) => {
         price: Number(editProduct.price),
         images: imgArr,
         description: editProduct.description,
+        type: editProduct.type,
         updatedAt: new Date(),
       });
 
       setEditModalVisible(false);
-      Alert.alert("Updated", "Product updated!");
+      Alert.alert("Updated", "Product updated successfully!");
     } catch (error) {
       Alert.alert("Error", "Failed updating product");
     }
@@ -187,12 +205,13 @@ const ProductManager = ({ navigation }) => {
   };
 
   /* -------------------------------------------------- */
-  /* 🧾 RENDER PRODUCT ITEM                              */
+  /* 🧾 RENDER PRODUCT                                   */
   /* -------------------------------------------------- */
   const renderProduct = ({ item }) => (
     <View style={styles.card}>
       <Text style={styles.pName}>{item.name}</Text>
       <Text style={styles.pPrice}>₹{item.price}</Text>
+      <Text style={styles.pType}>Type: {item.type}</Text>
       <Text style={styles.pDesc}>{item.description}</Text>
 
       <View style={styles.row}>
@@ -228,7 +247,6 @@ const ProductManager = ({ navigation }) => {
     <View style={{ flex: 1 }}>
       <Header title="Manage Products" navigation={navigation} />
 
-      {/* ADD PRODUCT BUTTON (shopOwner + admin) */}
       {(role === "shopOwner" || role === "admin") && (
         <Pressable
           style={styles.addBtn}
@@ -238,7 +256,6 @@ const ProductManager = ({ navigation }) => {
         </Pressable>
       )}
 
-      {/* PRODUCT LIST */}
       <FlatList
         data={products}
         renderItem={renderProduct}
@@ -251,9 +268,7 @@ const ProductManager = ({ navigation }) => {
         }
       />
 
-      {/* -------------------------------------------------- */}
-      {/* ADD PRODUCT MODAL                                  */}
-      {/* -------------------------------------------------- */}
+      {/* ADD PRODUCT MODAL */}
       <Modal visible={addModalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalBox}>
@@ -267,6 +282,22 @@ const ProductManager = ({ navigation }) => {
                 onChangeText={(t) =>
                   setProductDetails({ ...productDetails, name: t })
                 }
+              />
+
+              <Dropdown
+                style={styles.dropdown}
+                data={productData}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Product Type"
+                value={productType}
+                onChange={(item) => {
+                  setProductType(item.value);
+                  setProductDetails({
+                    ...productDetails,
+                    type: item.value,
+                  });
+                }}
               />
 
               <TextInput
@@ -316,9 +347,7 @@ const ProductManager = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* -------------------------------------------------- */}
-      {/* EDIT PRODUCT MODAL                                 */}
-      {/* -------------------------------------------------- */}
+      {/* EDIT PRODUCT MODAL */}
       <Modal visible={editModalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalBox}>
@@ -330,6 +359,18 @@ const ProductManager = ({ navigation }) => {
                 value={editProduct?.name}
                 onChangeText={(t) =>
                   setEditProduct({ ...editProduct, name: t })
+                }
+              />
+
+              <Dropdown
+                style={styles.dropdown}
+                data={productData}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Product Type"
+                value={editProduct?.type}
+                onChange={(item) =>
+                  setEditProduct({ ...editProduct, type: item.value })
                 }
               />
 
@@ -355,10 +396,7 @@ const ProductManager = ({ navigation }) => {
                 multiline
                 value={editProduct?.description}
                 onChangeText={(t) =>
-                  setEditProduct({
-                    ...editProduct,
-                    description: t,
-                  })
+                  setEditProduct({ ...editProduct, description: t })
                 }
               />
 
@@ -381,6 +419,7 @@ const ProductManager = ({ navigation }) => {
 };
 
 export default ProductManager;
+
 
 /* -------------------------------------------------- */
 /* 🎨 STYLES                                           */
@@ -467,5 +506,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 8,
     alignItems: "center",
+  },
+  /* Dropdown styles */
+  dropdown: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    backgroundColor: "#fafafa",
+    marginBottom: 12,
+    paddingHorizontal: 8,
+    height: 50,
   },
 });

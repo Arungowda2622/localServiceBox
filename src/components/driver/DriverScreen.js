@@ -475,12 +475,12 @@ const DriverScreen = () => {
       );
     };
 
-  if (loading)
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#007bff" />
-      </View>
-    );
+  // if (loading)
+  //   return (
+  //     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+  //       <ActivityIndicator size="large" color="#007bff" />
+  //     </View>
+  //   );
 
   /********************************************
    MAIN UI

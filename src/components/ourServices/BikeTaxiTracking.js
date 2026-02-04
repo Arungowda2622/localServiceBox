@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, Animated } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, Animated, Pressable } from 'react-native';
 import Header from '../header/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { doc, onSnapshot } from "firebase/firestore";
@@ -39,8 +39,6 @@ const BikeTaxiTracking = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} title={"Booking Status"} />
-
       <View style={styles.content}>
         {isWaiting ? (
           <>
@@ -64,6 +62,10 @@ const BikeTaxiTracking = ({ navigation, route }) => {
             <Text style={styles.successText}>
               Your driver is on the way and will reach your location soon.
             </Text>
+
+            <Pressable>
+              <Text>Done</Text>
+            </Pressable>
           </Animated.View>
         )}
       </View>

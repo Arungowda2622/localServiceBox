@@ -11,7 +11,8 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import Header from "../../header/Header";
 
-const AddressSelectionScreen = ({ navigation }) => {
+const AddressSelectionScreen = ({ navigation, route }) => {
+   const { total } = route.params || {};
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
 
@@ -50,7 +51,7 @@ const AddressSelectionScreen = ({ navigation }) => {
   const onDeliverClick = () => {
     const selected = addresses.find((a) => a.id === selectedAddress);
     if (selected) {
-      navigation.navigate("PaymentSelection", { selectedAddress: selected });
+      navigation.navigate("PaymentSelection", { selectedAddress: selected, total });
     } else {
       alert("Please select an address first!");
     }

@@ -40,6 +40,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 import Users from "./src/components/adminScreens/Users";
 import FoodsBeverages from "./src/components/ourServices/FoodsBeverages";
+import { setForceLogoutCallback } from "./src/utils/authUtils";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -85,9 +86,6 @@ function MainStack() {
 }
 
 /* ================= ROOT APP ================= */
-// Exported helper — can be called by other modules to force the app
-// back to an unauthenticated state (use carefully).
-export let forceLogout = () => {};
 
 export default function App() {
   const navigationRef = useRef(null);
@@ -96,16 +94,19 @@ export default function App() {
   const [role, setRole] = useState(null);
 
   // Provide an external hook to force clearing the app's user/role state.
-  forceLogout = () => {
-    try {
-      setUser(null);
-      setRole(null);
-      setInitializing(false);
-      console.log('forceLogout called — cleared app user state');
-    } catch (e) {
-      console.warn('forceLogout failed:', e);
-    }
-  };
+  // Register this callback so other modules can call forceLogout() without circular dependency
+  useEffect(() => {
+    setForceLogoutCallback(() => {
+      try {
+        setUser(null);
+        setRole(null);
+        setInitializing(false);
+        console.log('forceLogout called — cleared app user state');
+      } catch (e) {
+        console.warn('forceLogout failed:', e);
+      }
+    });
+  }, []);
 
   /* 🔐 AUTH STATE LISTENER (SINGLE SOURCE OF TRUTH) */
   useEffect(() => {

@@ -25,6 +25,7 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
+import { forceLogout } from "../../utils/authUtils";
 
 /********************************************
  🔔 NOTIFICATION HANDLER
@@ -55,37 +56,61 @@ async function generateDriverPushToken() {
     if (permission.status !== "granted") {
       permission = await Notifications.requestPermissionsAsync();
     }
-    if (permission.status !== "granted") return null;
 
-    const tokenObj = await Notifications.getExpoPushTokenAsync({
-      projectId,
-    });
+    if (permission.status !== "granted") {
+      console.warn("❌ Notification permission not granted");
+      return null;
+    }
 
+    const tokenObj = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = tokenObj.data;
 
-    console.log("✅ Generated Push Token:", token);
+    console.log("✅ Expo Push Token:", token);
     console.log("✅ Project ID:", projectId);
 
-    if (!token || !token.startsWith("ExponentPushToken")) return null;
+    if (!token?.startsWith("ExponentPushToken")) {
+      console.warn("❌ Invalid Expo Push Token");
+      return null;
+    }
 
     return { token, projectId };
   } catch (err) {
-    console.log("Token error:", err);
+    console.log("❌ Token generation error:", err);
     return null;
   }
 }
 
 const DriverScreen = () => {
-  const user = auth.currentUser;
-  const [activeTab, setActiveTab] = useState("waiting");
+  /********************************************
+   🔐 AUTH STATE (FIXED)
+  ********************************************/
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((firebaseUser) => {
+      console.log("onAuthStateChanged fired, firebaseUser:", firebaseUser?.uid);
+
+      if (firebaseUser) {
+        setUser(firebaseUser);
+      } else {
+        setUser(null);
+      }
+
+      setAuthReady(true);
+    });
+
+    return unsub;
+  }, []);
+
+  const [activeTab, setActiveTab] = useState("waiting");
   const [waitingBookings, setWaitingBookings] = useState([]);
   const [waitingBoxBookings, setWaitingBoxBookings] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
   /********************************************
-   🔥 SAVE TOKEN FOR DRIVER (UPDATED)
+   🔥 SAVE TOKEN FOR DRIVER
 ********************************************/
   const saveDriverToken = async () => {
     if (!user) return;
@@ -109,17 +134,26 @@ const DriverScreen = () => {
   };
 
   useEffect(() => {
-    if (user) saveDriverToken();
-  }, [user]);
+    if (authReady && user) saveDriverToken();
+  }, [authReady, user]);
 
   /********************************************
    LOGOUT HANDLER
 ********************************************/
   const handleLogout = async () => {
     try {
-      await auth.signOut();
+      await AsyncStorage.setItem("loggingOut", "1");
       await AsyncStorage.removeItem("user");
+      await auth.signOut();
+      await AsyncStorage.removeItem("loggingOut");
+
+      if (typeof forceLogout === "function") {
+        forceLogout();
+      }
+
+      console.log("Driver logout completed");
     } catch (err) {
+      console.warn("Logout error:", err);
       Alert.alert("Error", "Failed to logout.");
     }
   };
@@ -127,6 +161,9 @@ const DriverScreen = () => {
   /********************************************
    🔔 NOTIFICATION LISTENERS
 ********************************************/
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
   useEffect(() => {
     const receiveSub =
       Notifications.addNotificationReceivedListener(() => {
@@ -148,9 +185,6 @@ const DriverScreen = () => {
     };
   }, []);
 
-  const [selectedBookingId, setSelectedBookingId] = useState(null);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-
   useEffect(() => {
     let mounted = true;
     const fetchSelected = async () => {
@@ -170,10 +204,10 @@ const DriverScreen = () => {
   }, [selectedBookingId]);
 
   /********************************************
-   🔥 FETCH BOOKINGS (UNCHANGED)
+   🔥 FETCH BOOKINGS (AUTH SAFE)
 ********************************************/
   useEffect(() => {
-    if (!user) return;
+    if (!authReady || !user) return;
 
     const waitQuery = query(
       collection(db, "bookings"),
@@ -250,8 +284,7 @@ const DriverScreen = () => {
       unsubWaitBox();
       unsubMy();
     };
-  }, [user]);
-
+  }, [authReady, user]);
 
   /********************************************
    ACCEPT BOOKING
@@ -264,7 +297,6 @@ const DriverScreen = () => {
       const snap = await getDoc(ref);
       const current = snap.data();
 
-      // Someone accepted already
       if (current.status !== "waiting") {
         return Alert.alert("Already Accepted", "Another driver accepted this.");
       }
@@ -323,7 +355,7 @@ const DriverScreen = () => {
   };
 
   /********************************************
-   BOOKING CARD
+   BOOKING CARD (UNCHANGED UI)
 ********************************************/
   const BookingCard = ({ item }) => {
     const pickupTitle = item.pickupName || "Pickup Location";
@@ -346,11 +378,9 @@ const DriverScreen = () => {
           {item.type === "box" ? "📦 Box Delivery" : "🚕 Ride Booking"}
         </Text>
 
-        {/* CUSTOMER INFO */}
         <Text style={{ marginTop: 5 }}>👤 {item.customerName}</Text>
         <Text>📞 {item.customerPhone}</Text>
 
-        {/* PICKUP */}
         <View style={{ marginTop: 8 }}>
           <Text style={{ fontWeight: "700", color: "#4CAF50" }}>📍 Pickup</Text>
           <Text numberOfLines={2}>{pickupTitle}</Text>
@@ -361,11 +391,8 @@ const DriverScreen = () => {
           ) : null}
         </View>
 
-        {/* DESTINATION */}
         <View style={{ marginTop: 6 }}>
-          <Text style={{ fontWeight: "700", color: "#EA4335" }}>
-            🏁 Destination
-          </Text>
+          <Text style={{ fontWeight: "700", color: "#EA4335" }}>🏁 Destination</Text>
           <Text numberOfLines={2}>{destinationTitle}</Text>
           {destinationAddress ? (
             <Text numberOfLines={2} style={{ fontSize: 12, color: "#666" }}>
@@ -374,7 +401,6 @@ const DriverScreen = () => {
           ) : null}
         </View>
 
-        {/* ACTIONS */}
         {activeTab === "waiting" && (
           <>
             <TouchableOpacity
@@ -386,13 +412,7 @@ const DriverScreen = () => {
                 borderRadius: 8,
               }}
             >
-              <Text
-                style={{
-                  color: "#fff",
-                  textAlign: "center",
-                  fontWeight: "700",
-                }}
-              >
+              <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
                 Accept Booking
               </Text>
             </TouchableOpacity>
@@ -406,13 +426,7 @@ const DriverScreen = () => {
                 borderRadius: 8,
               }}
             >
-              <Text
-                style={{
-                  color: "#fff",
-                  textAlign: "center",
-                  fontWeight: "700",
-                }}
-              >
+              <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
                 Cancel Booking
               </Text>
             </TouchableOpacity>
@@ -422,72 +436,22 @@ const DriverScreen = () => {
     );
   };
 
-    // Modal UI for selected booking (from notification tap)
-    const SelectedBookingModal = () => {
-      if (!selectedBooking) return null;
-
-      return (
-        <Modal visible={!!selectedBookingId} transparent animationType="slide">
-          <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
-            <View style={{ backgroundColor: "#fff", borderRadius: 12, padding: 16 }}>
-              <ScrollView>
-                <Text style={{ fontWeight: "800", fontSize: 18, marginBottom: 8 }}>
-                  {selectedBooking.type === "box" ? "📦 Box Delivery" : "🚕 Ride Booking"}
-                </Text>
-                <Text>Customer: {selectedBooking.customerName}</Text>
-                <Text>Phone: {selectedBooking.customerPhone}</Text>
-                <Text style={{ marginTop: 8, fontWeight: "700" }}>Pickup</Text>
-                <Text>{selectedBooking.pickupName}</Text>
-                <Text style={{ fontSize: 12, color: "#666" }}>{selectedBooking.pickup}</Text>
-                <Text style={{ marginTop: 8, fontWeight: "700" }}>Destination</Text>
-                <Text>{selectedBooking.destinationName}</Text>
-                <Text style={{ fontSize: 12, color: "#666" }}>{selectedBooking.destination}</Text>
-
-                <View style={{ flexDirection: "row", marginTop: 14, justifyContent: "space-between" }}>
-                  <TouchableOpacity
-                    onPress={async () => {
-                      await acceptBooking(selectedBooking);
-                      setSelectedBookingId(null);
-                    }}
-                    style={{ backgroundColor: "#007bff", padding: 12, borderRadius: 8, flex: 1, marginRight: 8 }}
-                  >
-                    <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>Accept</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={async () => {
-                      await cancelBooking(selectedBooking);
-                      setSelectedBookingId(null);
-                    }}
-                    style={{ backgroundColor: "#ff3b30", padding: 12, borderRadius: 8, flex: 1 }}
-                  >
-                    <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity onPress={() => setSelectedBookingId(null)} style={{ marginTop: 12 }}>
-                  <Text style={{ textAlign: "center", color: "#666" }}>Close</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      );
-    };
-
-  // if (loading)
-  //   return (
-  //     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-  //       <ActivityIndicator size="large" color="#007bff" />
-  //     </View>
-  //   );
+  /********************************************
+   AUTH LOADING SCREEN
+********************************************/
+  if (!authReady) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   /********************************************
-   MAIN UI
+   MAIN UI (UNCHANGED)
 ********************************************/
   return (
     <View style={{ flex: 1, paddingTop: 45 }}>
-      {/* HEADER */}
       <View
         style={{
           flexDirection: "row",
@@ -503,7 +467,6 @@ const DriverScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* TABS */}
       <View
         style={{
           flexDirection: "row",
@@ -531,7 +494,6 @@ const DriverScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* BOOKINGS LIST */}
       <FlatList
         data={getList()}
         keyExtractor={(item) => item.id}
@@ -542,7 +504,6 @@ const DriverScreen = () => {
           </Text>
         }
       />
-      <SelectedBookingModal />
     </View>
   );
 };

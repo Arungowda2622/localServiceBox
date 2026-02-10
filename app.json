@@ -28,7 +28,6 @@
       },
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.POST_NOTIFICATIONS",
         "android.permission.INTERNET"
       ],
       "edgeToEdgeEnabled": true,
@@ -39,7 +38,6 @@
         }
       },
       "googleServicesFile": "./google-services.json",
-      "useNextNotificationsApi": true,
       "versionCode": 5
     },
     "web": {

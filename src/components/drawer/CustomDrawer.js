@@ -6,7 +6,7 @@ import { auth, db } from "../firebase/firebaseConfig";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signOut } from "firebase/auth";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { forceLogout } from "../../../App";
+import { forceLogout } from "../../utils/authUtils";
 
 export default function CustomDrawer(props) {
   const { navigation } = props;

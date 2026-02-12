@@ -72,10 +72,6 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
       
 
       // 🔥 Send notification to drivers
-      await notifyDrivers(docRef.id, bookingData);
-
-
-      // 🔥 Send notification to drivers
       // await notifyDrivers(docRef.id, bookingData);
 
       // 🔥 Redirect to waiting screen

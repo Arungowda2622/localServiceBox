@@ -183,7 +183,8 @@ export default function App() {
 
                 if (token?.startsWith("ExponentPushToken")) {
                   await updateDoc(userRef, {
-                    fcmToken: token,
+                    expoPushToken: token,
+                    expoProjectId: Constants.expoConfig?.extra?.eas?.projectId,
                     updatedAt: new Date(),
                   });
                 }

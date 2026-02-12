@@ -173,11 +173,15 @@ const DriverScreen = () => {
     const tapSub =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data;
+
         if (data?.bookingId) {
           setActiveTab("waiting");
           setSelectedBookingId(data.bookingId);
+
+          console.log("🔔 Opened booking from notification:", data.bookingId, data.type);
         }
       });
+
 
     return () => {
       receiveSub.remove();
@@ -190,9 +194,16 @@ const DriverScreen = () => {
     const fetchSelected = async () => {
       if (!selectedBookingId) return setSelectedBooking(null);
       try {
-        const snap = await getDoc(doc(db, "bookings", selectedBookingId));
+        let snap = await getDoc(doc(db, "bookings", selectedBookingId));
+
+        if (!snap.exists()) {
+          snap = await getDoc(doc(db, "boxDelivery", selectedBookingId));
+        }
+
         if (!mounted) return;
+
         setSelectedBooking({ id: snap.id, ...(snap.data() || {}) });
+
       } catch (err) {
         console.warn("Failed to fetch selected booking:", err);
       }

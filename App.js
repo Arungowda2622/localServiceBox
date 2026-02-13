@@ -41,6 +41,7 @@ import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 import Users from "./src/components/adminScreens/Users";
 import FoodsBeverages from "./src/components/ourServices/FoodsBeverages";
 import { setForceLogoutCallback } from "./src/utils/authUtils";
+import ManPower from "./src/components/manPower/ManPower";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -80,7 +81,7 @@ function MainStack() {
       <Stack.Screen name="Services" component={Services} />
       <Stack.Screen name="Users" component={Users} />
       <Stack.Screen name="FoodsBeverages" component={FoodsBeverages} />
-
+      <Stack.Screen name="ManPower" component={ManPower} />
     </Stack.Navigator>
   );
 }

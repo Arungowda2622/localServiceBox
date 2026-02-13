@@ -12,10 +12,18 @@ import Footer from "../footer/Footer";
 
 const OuerServicesHome = ({ navigation }) => {
   const services = [
+    // {
+    //   id: 1,
+    //   serviceName: "Bike Taxi",
+    //   title: "BikeTaxi",
+    //   subtitle: "Book now",
+    //   icon: "🛵",
+    //   colors: ["#36D1DC", "#5B86E5"],
+    // },
     {
       id: 1,
-      serviceName: "Bike Taxi",
-      title: "BikeTaxi",
+      serviceName: "Man Power",
+      title: "ManPower",
       subtitle: "Book now",
       icon: "🛵",
       colors: ["#36D1DC", "#5B86E5"],
@@ -59,66 +67,73 @@ const OuerServicesHome = ({ navigation }) => {
     navigation.navigate(item.title, { data: item });
   };
 
-  const renderOurServices = ({ item, index }) => {
-    const isEven = index % 2 === 0;
+const renderOurServices = ({ item, index }) => {
+  const isEven = index % 2 === 0;
 
-    return (
-      <View
-        style={[
-          styles.serviceItem,
-          item.fullWidth
-            ? styles.fullWidthItem
-            : isEven
-              ? styles.leftItem
-              : styles.rightItem,
+  return (
+    <View
+      style={[
+        styles.serviceItem,
+        item.fullWidth
+          ? styles.fullWidthItem
+          : isEven
+          ? styles.leftItem
+          : styles.rightItem,
+      ]}
+    >
+      <Pressable
+        style={({ pressed }) => [
+          { transform: [{ scale: pressed ? 0.96 : 1 }] },
         ]}
+        onPress={() => handleSelectedService(item)}
       >
-        <Pressable
-          style={({ pressed }) => [
-            { transform: [{ scale: pressed ? 0.96 : 1 }] },
-          ]}
-          onPress={() => handleSelectedService(item)}
+        <LinearGradient
+          colors={item.colors}
+          style={[styles.card, item.fullWidth && styles.fullWidthCard]}
         >
-          <LinearGradient
-            colors={item.colors}
-            style={[styles.card, item.fullWidth && styles.fullWidthCard]}
+          {/* Soft shine */}
+          {item.fullWidth && <View style={styles.shineOverlay} />}
+
+          <View
+            style={[
+              styles.cardContent,
+              item.fullWidth && styles.fullWidthContent,
+            ]}
           >
-            {/* Soft shine */}
-            {item.fullWidth && <View style={styles.shineOverlay} />}
+            {item.title === "Services" ? (
+              <Image
+                source={require("../../../assets/otherServices.jpeg")}
+                style={{ width: 80, height: 80, borderRadius: 40 }}
+                resizeMode="stretch"
+              />
+            ) : item.title === "ManPower" ? (
+              <Image
+                source={require("../../../assets/manPower.jpeg")}
+                style={{ width: 80, height: 80, borderRadius: 40 }}
+                resizeMode="stretch"
+              />
+            ) : (
+              <View style={styles.iconWrapper}>
+                <Text style={styles.icon}>{item.icon}</Text>
+              </View>
+            )}
 
             <View
               style={[
-                styles.cardContent,
-                item.fullWidth && styles.fullWidthContent,
+                styles.textBlock,
+                item.fullWidth && styles.fullWidthText,
               ]}
             >
-              {item.title === "Services" ? (
-                <Image
-                  source={require("../../../assets/otherServices.jpeg")}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                  resizeMode="stretch"
-                />
-              ) : (
-                <View style={styles.iconWrapper}>
-                  <Text style={styles.icon}>{item.icon}</Text>
-                </View>
-              )}
-
-              <View
-                style={[
-                  styles.textBlock,
-                  item.fullWidth && styles.fullWidthText,
-                ]}
-              >
-                <Text style={styles.subtitle}>{item.subtitle}</Text>
-                <Text style={styles.title}>{item.serviceName}</Text>
-              </View>
+              <Text style={styles.subtitle}>{item.subtitle}</Text>
+              <Text style={styles.title}>{item.serviceName}</Text>
             </View>
-          </LinearGradient>
-        </Pressable>
-      </View>
-    );
-  };
+          </View>
+        </LinearGradient>
+      </Pressable>
+    </View>
+  );
+};
+
 
   return (
     <LinearGradient colors={["#EEF2F3", "#D9E4F5"]} style={styles.safeArea}>

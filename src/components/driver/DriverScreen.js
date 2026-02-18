@@ -86,6 +86,7 @@ const DriverScreen = () => {
   ********************************************/
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((firebaseUser) => {
@@ -166,28 +167,53 @@ const DriverScreen = () => {
 
   useEffect(() => {
     const receiveSub =
-      Notifications.addNotificationReceivedListener(() => {
+      Notifications.addNotificationReceivedListener((notification) => {
+        const data = notification.request.content.data;
+
+        console.log("NOTIFICATION DATA:", data);
+
         setActiveTab("waiting");
+
+        Alert.alert(
+          "🚖 New Booking Arrived",
+          "Tap OK to open booking details",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                const id = data?.bookingId || data?.boxId;
+
+                if (!id) {
+                  console.log("❌ No booking id found");
+                  return;
+                }
+
+                setSelectedBookingId(id);
+              },
+            },
+          ]
+        );
       });
 
     const tapSub =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data;
 
-        if (data?.bookingId) {
-          setActiveTab("waiting");
-          setSelectedBookingId(data.bookingId);
+        const id = data?.bookingId || data?.boxId;
 
-          console.log("🔔 Opened booking from notification:", data.bookingId, data.type);
+        if (id) {
+          setActiveTab("waiting");
+          setSelectedBookingId(id);
         }
       });
-
 
     return () => {
       receiveSub.remove();
       tapSub.remove();
     };
   }, []);
+
+
 
   useEffect(() => {
     let mounted = true;
@@ -515,6 +541,73 @@ const DriverScreen = () => {
           </Text>
         }
       />
+
+      <Modal
+        visible={!!selectedBookingId}
+        animationType="slide"
+        transparent={true}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 20,
+              maxHeight: "80%",
+            }}
+          >
+            <ScrollView>
+              <Text style={{ fontSize: 20, fontWeight: "800" }}>
+                Booking Details
+              </Text>
+
+              {selectedBooking && (
+                <>
+                  <Text style={{ marginTop: 10 }}>
+                    👤 {selectedBooking.customerName}
+                  </Text>
+
+                  <Text>📞 {selectedBooking.customerPhone}</Text>
+
+                  <Text style={{ marginTop: 10, fontWeight: "700" }}>
+                    📍 Pickup
+                  </Text>
+                  <Text>{selectedBooking.pickupName}</Text>
+                  <Text>{selectedBooking.pickup}</Text>
+
+                  <Text style={{ marginTop: 10, fontWeight: "700" }}>
+                    🏁 Destination
+                  </Text>
+                  <Text>{selectedBooking.destinationName}</Text>
+                  <Text>{selectedBooking.destination}</Text>
+                </>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={() => setSelectedBooking(null)}
+              style={{
+                marginTop: 15,
+                padding: 12,
+                backgroundColor: "#007bff",
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
+                Close
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 };

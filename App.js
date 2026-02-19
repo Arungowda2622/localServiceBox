@@ -42,6 +42,7 @@ import Users from "./src/components/adminScreens/Users";
 import FoodsBeverages from "./src/components/ourServices/FoodsBeverages";
 import { setForceLogoutCallback } from "./src/utils/authUtils";
 import ManPower from "./src/components/manPower/ManPower";
+import ChangePassword from "./src/components/drawer/ChangePassword";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -242,6 +243,7 @@ export default function App() {
               >
                 <Drawer.Screen name="Home" component={MainStack} />
                 <Drawer.Screen name="Profile" component={Profile} />
+                <Drawer.Screen name="ChangePassword" component={ChangePassword} />
               </Drawer.Navigator>
             )
           ) : (

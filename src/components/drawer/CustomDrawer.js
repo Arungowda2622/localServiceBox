@@ -117,6 +117,14 @@ export default function CustomDrawer(props) {
             {userData?.phone || "+91 XXXXX XXXXX"}
           </Text>
         </View>
+        <View style={{ marginLeft: "auto" }}>
+          <Ionicons
+            name="create-outline"
+            size={18}
+            color="#fff"
+            onPress={() => navigation.navigate("Profile")}
+          />
+        </View>
       </View>
 
       {/* ================= MENU ================= */}
@@ -134,6 +142,13 @@ export default function CustomDrawer(props) {
             onPress={() => navigation.navigate("Home", { screen: "AdminHome" })}
           />
         )}
+
+        <DrawerItem
+          icon="key-outline"
+          label="Change Password"
+          onPress={() => navigation.navigate("ChangePassword")}
+        />
+
       </View>
 
       {/* ================= LOGOUT ================= */}

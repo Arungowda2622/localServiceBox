@@ -1,11 +1,8 @@
-// BoxDelivery.js (Updated to match LocationSelection style)
-
 import React, { useEffect, useState, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +11,6 @@ import {
   FlatList,
   Modal,
 } from "react-native";
-
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,11 +32,9 @@ export default function BoxDelivery({ navigation }) {
   const [pickupLocation, setPickupLocation] = useState(null);
   const [destinationLocation, setDestinationLocation] = useState(null);
   const [region, setRegion] = useState(null);
-
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [routeInfo, setRouteInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-
   const [selecting, setSelecting] = useState("pickup");
 
   // Fare settings (static)
@@ -337,7 +331,6 @@ export default function BoxDelivery({ navigation }) {
   }
 };
 
-
   // -------------------------
   // RESET PICKUP
   // -------------------------
@@ -447,7 +440,7 @@ export default function BoxDelivery({ navigation }) {
         {/* Route info */}
         {routeInfo ? (
           <View style={styles.routeContainer}>
-            <View style={{ flex: 1 }}>
+            <View>
               <Text style={styles.routeDistance}>
                 {formatDistance(routeInfo.distance)}
               </Text>
@@ -587,7 +580,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderRadius: 12,
     flexDirection: "row",
-    elevation: 4,
+    // elevation: 4,
   },
 
   routeDistance: {
@@ -619,8 +612,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 25,
     borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
+    alignSelf: "center",
+    marginLeft: "auto",
   },
 
   confirmText: {

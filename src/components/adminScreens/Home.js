@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import colors from "../theme/colors";
 
 const Home = ({ navigation }) => {
+
   const buttons = [
     {
       title: "Admin",
@@ -22,8 +23,20 @@ const Home = ({ navigation }) => {
     {
       title: "UPI",
       icon: "cash-outline",
-      color: colors.gradientSuccess,
+      color: colors.gradientOcean,
       onPress: () => navigation.navigate("AddUpi"),
+    },
+    {
+      title: "Services",
+      icon: "construct-outline",
+      color: colors.gradientLavender,
+      onPress: () => navigation.navigate("AddServices"),
+    },
+    {
+      title: "ManPower",
+      icon: "hammer-outline",
+      color: colors.gradientMint,
+      onPress: () => navigation.navigate("AddManPower"),
     },
     {
       title: "Orders",
@@ -40,19 +53,19 @@ const Home = ({ navigation }) => {
     {
       title: "Drivers",
       icon: "car-outline",
-      color: colors.gradientPink,
+      color: colors.gradientSunset,
       onPress: () => navigation.navigate("AddDriverScreen"),
     },
     {
       title: "Add Owner",
       icon: "storefront-outline",
-      color: colors.gradientPrimary,
+      color: colors.gradientRoyal,
       onPress: () => navigation.navigate("AddOwner"),
     },
     {
       title: "Users",
       icon: "people-outline",
-      color: colors.gradientInfo,
+      color: colors.gradientSky,
       onPress: () => navigation.navigate("Users"),
     },
   ];

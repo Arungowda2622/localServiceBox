@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "./firebase/firebaseConfig";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { updatePassword } from "firebase/auth"; // ⭐ ADDED
+import { updatePassword, updateEmail } from "firebase/auth"; // ⭐ ADDED
 import Header from "./header/Header";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -36,7 +36,7 @@ const Profile = ({ navigation }) => {
                 const stored = await AsyncStorage.getItem("user");
                 if (stored) {
                     const parsed = JSON.parse(stored);
-                    console.log(parsed.userData,"thisIsUserData")
+                    console.log(parsed.userData, "thisIsUserData")
                     if (parsed?.userData) {
                         setFullName(parsed.userData.fullName || "");
                         setPhone(parsed.userData.phone || "");
@@ -90,21 +90,40 @@ const Profile = ({ navigation }) => {
         setLoading(true);
 
         try {
-            const uid = auth.currentUser.uid;
+            const user = auth.currentUser;
+            const uid = user.uid;
 
+            // ⭐ If email changed → update Firebase Auth
+            if (email !== user.email) {
+                await updateEmail(user, email);
+            }
+
+            // ⭐ Update Firestore
             await updateDoc(doc(db, "users", uid), {
                 fullName,
                 phone,
+                email,
                 updatedAt: new Date().toISOString(),
             });
 
             Alert.alert("Success", "Profile updated successfully ✅");
+
         } catch (error) {
-            Alert.alert("Error", error.message);
+
+            if (error.code === "auth/requires-recent-login") {
+                Alert.alert(
+                    "Security Alert",
+                    "Please login again before changing email."
+                );
+            } else {
+                Alert.alert("Error", error.message);
+            }
+
         } finally {
             setLoading(false);
         }
     };
+
 
     // ⭐ NEW PASSWORD UPDATE FUNCTION
     const handleUpdatePassword = async () => {
@@ -152,64 +171,72 @@ const Profile = ({ navigation }) => {
     }
 
     return (
-  <View style={{ flex: 1, backgroundColor: "#FFF7ED" }}>
-    <Header title="Edit Profile" navigation={navigation} />
+        <View style={{ flex: 1, backgroundColor: "#FFF7ED" }}>
+            <Header title="Edit Profile" navigation={navigation} />
 
-    <View style={styles.headerCard}>
-      <View style={styles.avatar}>
-        <Ionicons name="person" size={40} color="#fff" />
-      </View>
-      <Text style={styles.name}>{fullName || "User"}</Text>
-      <Text style={styles.subText}>{email}</Text>
-    </View>
+            <View style={styles.headerCard}>
+                <View style={styles.avatar}>
+                    <Ionicons name="person" size={40} color="#fff" />
+                </View>
+                <Text style={styles.name}>{fullName || "User"}</Text>
+                <Text style={styles.subText}>{email}</Text>
+            </View>
 
-    <ScrollView
-      contentContainerStyle={styles.main}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Profile Details</Text>
+            <ScrollView
+                contentContainerStyle={styles.main}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Profile Details</Text>
 
-        <View style={styles.inputBox}>
-          <Ionicons name="person-outline" size={20} color="#EA580C" />
-          <TextInput
-            value={fullName}
-            onChangeText={setFullName}
-            placeholder="Full Name"
-            style={styles.input}
-          />
+                    <View style={styles.inputBox}>
+                        <Ionicons name="person-outline" size={20} color="#EA580C" />
+                        <TextInput
+                            value={fullName}
+                            onChangeText={setFullName}
+                            placeholder="Full Name"
+                            style={styles.input}
+                        />
+                    </View>
+
+                    <View style={styles.inputBox}>
+                        <Ionicons name="mail-outline" size={20} color="#EA580C" />
+                        <TextInput
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="Email"
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            style={styles.input}
+                        />
+                    </View>
+
+
+                    <View style={styles.inputBox}>
+                        <Ionicons name="call-outline" size={20} color="#EA580C" />
+                        <TextInput
+                            value={phone}
+                            onChangeText={setPhone}
+                            placeholder="Phone"
+                            keyboardType="number-pad"
+                            style={styles.input}
+                        />
+                    </View>
+
+                    <Pressable
+                        onPress={handleUpdate}
+                        style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.btnText}>Save Profile</Text>
+                        )}
+                    </Pressable>
+                </View>
+            </ScrollView>
         </View>
-
-        <View style={[styles.inputBox, styles.disabledInput]}>
-          <Ionicons name="mail-outline" size={20} color="#9CA3AF" />
-          <TextInput value={email} editable={false} style={styles.input} />
-        </View>
-
-        <View style={styles.inputBox}>
-          <Ionicons name="call-outline" size={20} color="#EA580C" />
-          <TextInput
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="Phone"
-            keyboardType="number-pad"
-            style={styles.input}
-          />
-        </View>
-
-        <Pressable
-          onPress={handleUpdate}
-          style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.btnText}>Save Profile</Text>
-          )}
-        </Pressable>
-      </View>
-    </ScrollView>
-  </View>
-);
+    );
 
 
 };

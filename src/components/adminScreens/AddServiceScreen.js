@@ -1,0 +1,244 @@
+import React, { useEffect, useState } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  FlatList,
+  TextInput,
+  Modal,
+  Alert,
+} from "react-native";
+import Header from "../header/Header";
+import { db } from "../firebase/firebaseConfig";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+
+const AddServices = ({ navigation }) => {
+  const auth = getAuth();
+
+  const [services, setServices] = useState([]);
+  const [serviceName, setServiceName] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editId, setEditId] = useState(null);
+
+  /* ================= FETCH SERVICES ================= */
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "services"), snapshot => {
+      const list = [];
+      snapshot.forEach(d => {
+        list.push({ id: d.id, ...d.data() });
+      });
+      setServices(list);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  /* ================= ADD / UPDATE ================= */
+  const handleSaveService = async () => {
+    if (!serviceName) {
+      Alert.alert("Required", "Enter service name");
+      return;
+    }
+
+    try {
+      const user = auth.currentUser;
+
+      if (editId) {
+        // 🔥 UPDATE
+        await updateDoc(doc(db, "services", editId), {
+          name: serviceName,
+        });
+      } else {
+        // 🔥 ADD
+        await addDoc(collection(db, "services"), {
+          userId: user.uid,
+          name: serviceName,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setServiceName("");
+      setEditId(null);
+      setModalVisible(false);
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  /* ================= DELETE ================= */
+  const handleDelete = id => {
+    Alert.alert("Delete", "Are you sure?", [
+      { text: "Cancel" },
+      {
+        text: "Yes",
+        onPress: async () => {
+          await deleteDoc(doc(db, "services", id));
+        },
+      },
+    ]);
+  };
+
+  /* ================= EDIT ================= */
+  const handleEdit = item => {
+    setServiceName(item.name);
+    setEditId(item.id);
+    setModalVisible(true);
+  };
+
+  /* ================= UI ================= */
+  return (
+    <View style={styles.main}>
+      <Header navigation={navigation} title="Services Manager" />
+
+      {/* 🔥 ADD BUTTON */}
+      <TouchableOpacity
+        style={styles.addBtn}
+        onPress={() => {
+          setServiceName("");
+          setEditId(null);
+          setModalVisible(true);
+        }}
+      >
+        <Icon name="plus" size={22} color="#fff" />
+        <Text style={{ color: "#fff", marginLeft: 8 }}>Add Service</Text>
+      </TouchableOpacity>
+
+      {/* 🔥 LIST */}
+      <FlatList
+        data={services}
+        keyExtractor={item => item.id}
+        contentContainerStyle={{ padding: 16 }}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Text style={styles.serviceText}>{item.name}</Text>
+
+            <View style={{ flexDirection: "row" }}>
+              <TouchableOpacity onPress={() => handleEdit(item)}>
+                <Icon name="pencil" size={22} color="#2E86DE" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleDelete(item.id)}
+                style={{ marginLeft: 15 }}
+              >
+                <Icon name="delete" size={22} color="red" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      />
+
+      {/* 🔥 MODAL */}
+      <Modal visible={modalVisible} transparent animationType="slide">
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {editId ? "Edit Service" : "Add Service"}
+            </Text>
+
+            <TextInput
+              placeholder="Service Name"
+              style={styles.input}
+              value={serviceName}
+              onChangeText={setServiceName}
+            />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveService}>
+              <Text style={{ color: "#fff" }}>Save</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+export default AddServices;
+
+/* ================= STYLES ================= */
+
+const styles = StyleSheet.create({
+  main: { flex: 1, backgroundColor: "#f4f6f8" },
+
+  addBtn: {
+    backgroundColor: "#efb71bff",
+    margin: 16,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+
+  card: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    elevation: 3,
+  },
+
+  serviceText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  modalBg: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    padding: 20,
+  },
+
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 20,
+  },
+
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 15,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    padding: 12,
+  },
+
+  saveBtn: {
+    backgroundColor: "#25D366",
+    padding: 14,
+    borderRadius: 10,
+    marginTop: 15,
+    alignItems: "center",
+  },
+
+  cancelBtn: {
+    padding: 12,
+    alignItems: "center",
+    marginTop: 8,
+  },
+});

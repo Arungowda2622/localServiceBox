@@ -8,13 +8,12 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
+  Linking
 } from "react-native";
-
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import { auth, db } from "../firebase/firebaseConfig";
 import {
   collection,
@@ -24,8 +23,12 @@ import {
   updateDoc,
   doc,
   getDoc,
+  orderBy
 } from "firebase/firestore";
 import { forceLogout } from "../../utils/authUtils";
+import * as Location from "expo-location";
+import { MaterialIcons } from "@expo/vector-icons";
+
 
 /********************************************
  🔔 NOTIFICATION HANDLER
@@ -86,7 +89,7 @@ const DriverScreen = () => {
   ********************************************/
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  
+
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((firebaseUser) => {
@@ -109,6 +112,46 @@ const DriverScreen = () => {
   const [waitingBoxBookings, setWaitingBoxBookings] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const openGoogleMap = async (type) => {
+    try {
+      if (!selectedBooking) return;
+
+      // ⭐ ask location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Location permission required");
+        return;
+      }
+
+      // ⭐ get driver current location
+      const loc = await Location.getCurrentPositionAsync({});
+      const currentLat = loc.coords.latitude;
+      const currentLng = loc.coords.longitude;
+
+      let destinationAddress = "";
+
+      // ⭐ decide destination based on icon clicked
+      if (type === "pickup") {
+        destinationAddress = selectedBooking.pickup;
+      } else {
+        destinationAddress = selectedBooking.destination;
+      }
+
+      if (!destinationAddress) {
+        Alert.alert("Location missing");
+        return;
+      }
+
+      // ⭐ Google Maps Direction URL
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(destinationAddress)}&travelmode=driving`;
+
+      Linking.openURL(url);
+    } catch (err) {
+      console.log("Map error:", err);
+    }
+  };
+
 
   /********************************************
    🔥 SAVE TOKEN FOR DRIVER
@@ -213,12 +256,15 @@ const DriverScreen = () => {
     };
   }, []);
 
-
-
   useEffect(() => {
     let mounted = true;
+
     const fetchSelected = async () => {
-      if (!selectedBookingId) return setSelectedBooking(null);
+      if (!selectedBookingId) {
+        setSelectedBooking(null);
+        return;
+      }
+
       try {
         let snap = await getDoc(doc(db, "bookings", selectedBookingId));
 
@@ -226,19 +272,42 @@ const DriverScreen = () => {
           snap = await getDoc(doc(db, "boxDelivery", selectedBookingId));
         }
 
+        if (!snap.exists()) return;
+
+        const booking = snap.data();
+
+        let customerName = null;
+        let customerPhone = null;
+
+        // ⭐ FETCH USER DETAILS (THIS WAS MISSING)
+        if (booking.userId) {
+          const userSnap = await getDoc(doc(db, "users", booking.userId));
+
+          customerName = userSnap.data()?.fullName || null;
+          customerPhone = userSnap.data()?.phone || null;
+        }
+
         if (!mounted) return;
 
-        setSelectedBooking({ id: snap.id, ...(snap.data() || {}) });
+        setSelectedBooking({
+          id: snap.id,
+          ...booking,
+          customerName,
+          customerPhone,
+        });
 
       } catch (err) {
         console.warn("Failed to fetch selected booking:", err);
       }
     };
+
     fetchSelected();
+
     return () => {
       mounted = false;
     };
   }, [selectedBookingId]);
+
 
   /********************************************
    🔥 FETCH BOOKINGS (AUTH SAFE)
@@ -248,8 +317,10 @@ const DriverScreen = () => {
 
     const waitQuery = query(
       collection(db, "bookings"),
-      where("status", "==", "waiting")
+      where("status", "==", "waiting"),
+      orderBy("updatedAt", "desc") // ⭐ LATEST FIRST
     );
+
 
     const unsubWait = onSnapshot(waitQuery, async (snap) => {
       const list = await Promise.all(
@@ -270,8 +341,10 @@ const DriverScreen = () => {
 
     const waitBoxQuery = query(
       collection(db, "boxDelivery"),
-      where("status", "==", "waiting")
+      where("status", "==", "waiting"),
+      orderBy("updatedAt", "desc")
     );
+
 
     const unsubWaitBox = onSnapshot(waitBoxQuery, async (snap) => {
       const list = await Promise.all(
@@ -292,8 +365,10 @@ const DriverScreen = () => {
 
     const myQuery = query(
       collection(db, "bookings"),
-      where("driverId", "==", user.uid)
+      where("driverId", "==", user.uid),
+      orderBy("updatedAt", "desc")
     );
+
 
     const unsubMy = onSnapshot(myQuery, async (snap) => {
       const list = await Promise.all(
@@ -400,7 +475,6 @@ const DriverScreen = () => {
 
     const destinationTitle = item.destinationName || "Destination";
     const destinationAddress = item.destination || "";
-
     return (
       <View
         style={{
@@ -441,7 +515,10 @@ const DriverScreen = () => {
         {activeTab === "waiting" && (
           <>
             <TouchableOpacity
-              onPress={() => acceptBooking(item)}
+              onPress={() => {
+                acceptBooking(item);
+                setSelectedBookingId(item.id);   // ⭐ OPEN FULL DETAILS MODAL
+              }}
               style={{
                 marginTop: 12,
                 padding: 10,
@@ -543,7 +620,7 @@ const DriverScreen = () => {
       />
 
       <Modal
-        visible={!!selectedBookingId}
+        visible={!!selectedBooking}
         animationType="slide"
         transparent={true}
       >
@@ -576,23 +653,44 @@ const DriverScreen = () => {
 
                   <Text>📞 {selectedBooking.customerPhone}</Text>
 
-                  <Text style={{ marginTop: 10, fontWeight: "700" }}>
-                    📍 Pickup
-                  </Text>
-                  <Text>{selectedBooking.pickupName}</Text>
-                  <Text>{selectedBooking.pickup}</Text>
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={{ fontWeight: "700" }}>📍 Pickup</Text>
 
-                  <Text style={{ marginTop: 10, fontWeight: "700" }}>
-                    🏁 Destination
-                  </Text>
-                  <Text>{selectedBooking.destinationName}</Text>
-                  <Text>{selectedBooking.destination}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View style={{ flex: 1 }}>
+                        <Text>{selectedBooking.pickupName}</Text>
+                        <Text>{selectedBooking.pickup}</Text>
+                      </View>
+
+                      <TouchableOpacity onPress={() => openGoogleMap("pickup")}>
+                        <MaterialIcons name="map" size={28} color="#007bff" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={{ fontWeight: "700" }}>🏁 Destination</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View style={{ flex: 1 }}>
+                        <Text>{selectedBooking.destinationName}</Text>
+                        <Text>{selectedBooking.destination}</Text>
+                      </View>
+
+                      <TouchableOpacity onPress={() => openGoogleMap("destination")}>
+                        <MaterialIcons name="map" size={28} color="#EA4335" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </>
               )}
             </ScrollView>
 
             <TouchableOpacity
-              onPress={() => setSelectedBooking(null)}
+              onPress={() => {
+                setSelectedBooking(null);
+                setSelectedBookingId(null); // ⭐ VERY IMPORTANT
+              }}
               style={{
                 marginTop: 15,
                 padding: 12,

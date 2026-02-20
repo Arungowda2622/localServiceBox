@@ -24,55 +24,6 @@ const DeliveryPayment = ({ route, navigation }) => {
   const { pickupLocation, destinationLocation, routeInfo } = route.params;
   const [isProcessing, setIsProcessing] = useState(false);
 
-  /**********************************************
-   🔔 PUSH NOTIFICATION SENDER (Updated & Correct)
-  **********************************************/
-  const notifyDrivers = async (bookingId, deliveryData) => {
-    try {
-      const snapshot = await getDocs(collection(db, "users"));
-      const driverTokens = [];
-
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-
-        if (data.role === "driver" && data.fcmToken) {
-          // Accept ONLY real standalone push tokens
-          if (data.fcmToken.startsWith("ExponentPushToken")) {
-            driverTokens.push(data.fcmToken);
-          }
-        }
-      });
-
-      console.log("Driver Tokens:", driverTokens);
-
-      // Send notifications to all drivers
-      await Promise.all(
-        driverTokens.map((token) =>
-          fetch("https://exp.host/--/api/v2/push/send", {
-            method: "POST",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              to: token,
-              sound: "default",
-              title: "📦 New Delivery Request",
-              body: "A customer needs a box delivery!",
-              data: {
-                bookingId,
-                type: "boxDelivery",
-              },
-            }),
-          })
-        )
-      );
-
-      console.log("Push notifications sent!");
-    } catch (error) {
-      console.log("Push error:", error);
-    }
-  };
 
   /**********************************************
    🔥 CONFIRM DELIVERY BOOKING
@@ -126,13 +77,8 @@ const DeliveryPayment = ({ route, navigation }) => {
       console.log('====================================');
       console.log(deliveryData,"deliveryData");
       console.log('====================================');
-
-      // 📝 SAVE BOOKING
-      const docRef = await addDoc(collection(db, "boxDelivery"), deliveryData);
-
-      // 🔔 SEND NOTIFICATION TO DRIVERS
-      // await notifyDrivers(docRef.id, deliveryData);
-
+       // ⭐ IMPORTANT — SAVE TO FIRESTORE
+      await addDoc(collection(db, "boxDelivery"), deliveryData);
       setIsProcessing(false);
 
       Alert.alert("Success", "Your delivery has been created!", [

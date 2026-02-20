@@ -43,6 +43,9 @@ import FoodsBeverages from "./src/components/ourServices/FoodsBeverages";
 import { setForceLogoutCallback } from "./src/utils/authUtils";
 import ManPower from "./src/components/manPower/ManPower";
 import ChangePassword from "./src/components/drawer/ChangePassword";
+import ProductDetails from "./src/components/ourServices/ProductDetails";
+import AddServiceScreen from "./src/components/adminScreens/AddServiceScreen";
+import AddManPower from "./src/components/adminScreens/AddManPower";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -83,9 +86,28 @@ function MainStack() {
       <Stack.Screen name="Users" component={Users} />
       <Stack.Screen name="FoodsBeverages" component={FoodsBeverages} />
       <Stack.Screen name="ManPower" component={ManPower} />
+      <Stack.Screen name="ProductDetails" component={ProductDetails} />
+      <Stack.Screen name="AddServices" component={AddServiceScreen} />
+      <Stack.Screen name="AddManPower" component={AddManPower} />
     </Stack.Navigator>
   );
 }
+
+/* ================= DRIVER DRAWER ================= */
+function DriverDrawer() {
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <CustomDrawer {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <Drawer.Screen name="DriverHome" component={DriverScreen} />
+      <Drawer.Screen name="BikeTaxiWaiting" component={BikeTaxiWaiting} />
+      <Drawer.Screen name="Profile" component={Profile} />
+      <Drawer.Screen name="ChangePassword" component={ChangePassword} />
+    </Drawer.Navigator>
+  );
+}
+
 
 /* ================= ROOT APP ================= */
 

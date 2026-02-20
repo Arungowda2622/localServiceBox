@@ -5,16 +5,20 @@ import { db } from "../firebase/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import Header from '../header/Header';
 
-const ProductCard = ({ product, onAddToCart, isInCart }) => {
+const ProductCard = ({ product, onAddToCart, isInCart, onPress }) => {
   const images = product.images || (product.imageUrl ? [product.imageUrl] : []);
   return (
-    <View style={productStyles.card}>
+    <TouchableOpacity
+      style={productStyles.card}
+      activeOpacity={0.9}
+      onPress={() => onPress(product)}
+    >
       <View style={productStyles.detailsContainer}>
-          <Image
-            source={{ uri: images[0] }}
-            style={productStyles.image}
-           
-          />
+        <Image
+          source={{ uri: images[0] }}
+          style={productStyles.image}
+
+        />
         <Text style={productStyles.name} numberOfLines={2}>{product.name}</Text>
         <Text style={productStyles.price}>₹{product.price.toFixed(2)}</Text>
         <TouchableOpacity
@@ -28,7 +32,7 @@ const ProductCard = ({ product, onAddToCart, isInCart }) => {
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -46,7 +50,7 @@ const Product = ({ navigation }) => {
         id: doc.id,
         ...doc.data()
       }));
-      console.log(fetchedProducts,"fetchedProducts");
+      console.log(fetchedProducts, "fetchedProducts");
       setProducts(fetchedProducts);
     } catch (error) {
       console.log("Error fetching products: ", error);
@@ -108,6 +112,12 @@ const Product = ({ navigation }) => {
                   product={item}
                   onAddToCart={handleAddToCart}
                   isInCart={cartItems.some(ci => ci.id === item.id)}
+                  onPress={(product) =>
+                    navigation.navigate("ProductDetails", {
+                      product,
+                      onAddToCart: handleAddToCart,   // ⭐ PASS FUNCTION
+                    })
+                  }
                 />
               )}
               numColumns={2}

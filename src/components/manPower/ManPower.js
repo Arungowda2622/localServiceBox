@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -12,16 +12,8 @@ import {
 import { Dropdown } from "react-native-element-dropdown";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import Header from "../header/Header"
-
-/* ✅ ManPower Types */
-const manPowerData = [
-  { label: "Helper", value: "Helper" },
-  { label: "Mason", value: "Mason" },
-  { label: "Painter", value: "Painter" },
-  { label: "Carpenter", value: "Carpenter" },
-  { label: "Electrician", value: "Electrician" },
-  { label: "General Labour", value: "General Labour" },
-];
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase/firebaseConfig";
 
 const ManPower = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -30,6 +22,27 @@ const ManPower = ({ navigation }) => {
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
   const [isFocus, setIsFocus] = useState(false);
+  const [manPowerData, setManPowerData] = useState([]);
+
+  useEffect(() => {
+  const unsubscribe = onSnapshot(
+    collection(db, "manpower_types"),
+    snapshot => {
+      const list = [];
+
+      snapshot.forEach(doc => {
+        list.push({
+          label: doc.data().name,
+          value: doc.data().name,
+        });
+      });
+
+      setManPowerData(list);
+    }
+  );
+
+  return unsubscribe;
+}, []);
 
   const submitForm = () => {
     if (!name || !phoneNumber || !manPowerType || !description || !address) {

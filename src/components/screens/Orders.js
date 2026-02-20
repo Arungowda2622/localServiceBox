@@ -15,10 +15,11 @@ import Header from "../header/Header";
 
 const Orders = ({ navigation }) => {
   const [orders, setOrders] = useState([]);
-  const [rides, setRides] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("product");
+  const [usersMap, setUsersMap] = useState({});
+
 
   /* ---------------- FETCH DATA ---------------- */
 
@@ -46,9 +47,30 @@ const Orders = ({ navigation }) => {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const snap = await getDocs(collection(db, "users"));
+
+      const map = {};
+
+      snap.forEach((doc) => {
+        const data = doc.data();
+        map[doc.id] = {
+          name: data.fullName || data.name || "Customer",
+          phone: data.phone || data.mobileNumber || "",
+        };
+      });
+
+      setUsersMap(map);
+    } catch (e) {
+      console.log("User fetch error", e);
+    }
+  };
+
+
   useEffect(() => {
+    fetchUsers();
     if (activeTab === "product") fetchData("orders", setOrders);
-    else if (activeTab === "bike") fetchData("bookings", setRides);
     else fetchData("boxDelivery", setDeliveries);
   }, [activeTab]);
 
@@ -84,43 +106,64 @@ const Orders = ({ navigation }) => {
   const renderOrder = ({ item }) => (
     <CardWrapper>
       <Text style={styles.id}>Order #{item.id.slice(0, 8)}</Text>
+
+      {/* ✅ CUSTOMER INFO FROM address OBJECT */}
+      <Text style={styles.sub}>
+        👤 {item.address?.fullName || "Customer"}
+      </Text>
+      <Text style={styles.sub}>
+        📞 {item.address?.mobileNumber || "No Phone"}
+      </Text>
+
       <Text style={styles.amount}>₹ {item.total}</Text>
       <Text style={styles.sub}>Payment: {item.paymentMethod}</Text>
+
       <StatusBadge status={item.status} />
+
       <Text style={styles.sub}>
         {item.address?.address}, {item.address?.city}
       </Text>
+
       <Text style={styles.date}>
         {item.createdAt?.toDate?.().toLocaleString()}
       </Text>
     </CardWrapper>
   );
 
-  const renderRide = ({ item }) => (
-    <CardWrapper>
-      <Text style={styles.id}>Ride #{item.id.slice(0, 8)}</Text>
-      <Text style={styles.amount}>₹ {item.fare}</Text>
-      <StatusBadge status={item.status} />
-      <Text style={styles.sub}>From: {item.pickupName}</Text>
-      <Text style={styles.sub}>To: {item.destinationName}</Text>
-      <Text style={styles.sub}>
-        {item.distance} km • {item.duration}
-      </Text>
-    </CardWrapper>
-  );
 
-  const renderDelivery = ({ item }) => (
-    <CardWrapper>
-      <Text style={styles.id}>Delivery #{item.id.slice(0, 8)}</Text>
-      <Text style={styles.amount}>₹ {item.fare}</Text>
-      <StatusBadge status={item.status} />
-      <Text style={styles.sub}>Pickup: {item.pickup?.address}</Text>
-      <Text style={styles.sub}>Drop: {item.destination?.address}</Text>
-      <Text style={styles.sub}>
-        {item.distance} km • {item.duration}
-      </Text>
-    </CardWrapper>
-  );
+
+  const renderDelivery = ({ item }) => {
+    const customer = usersMap[item.userId];
+
+    return (
+      <CardWrapper>
+        <Text style={styles.id}>Delivery #{item.id.slice(0, 8)}</Text>
+
+        {/* ✅ CUSTOMER INFO FROM USERS COLLECTION */}
+        <Text style={styles.sub}>
+          👤 {customer?.name || "Customer"}
+        </Text>
+
+        <Text style={styles.sub}>
+          📞 {customer?.phone || "No Phone"}
+        </Text>
+
+        <Text style={styles.amount}>₹ {item.fare}</Text>
+
+        <StatusBadge status={item.status} />
+
+        <Text style={styles.sub}>Pickup: {item?.pickup}</Text>
+        <Text style={styles.sub}>Drop: {item?.destination}</Text>
+
+        <Text style={styles.sub}>
+          {item.distance} km • {item.duration}
+        </Text>
+      </CardWrapper>
+    );
+  };
+
+
+
 
   /* ---------------- UI ---------------- */
 
@@ -132,7 +175,6 @@ const Orders = ({ navigation }) => {
         <View style={styles.tabs}>
           {[
             { key: "product", label: "Products", icon: "cart" },
-            { key: "bike", label: "Bike", icon: "motorbike" },
             { key: "box", label: "Box", icon: "cube-outline" },
           ].map((t) => (
             <TouchableOpacity
@@ -174,17 +216,6 @@ const Orders = ({ navigation }) => {
           ) : (
             <EmptyState text="No product orders yet" />
           )
-        ) : activeTab === "bike" ? (
-          rides.length ? (
-            <FlatList
-              data={rides}
-              renderItem={renderRide}
-              keyExtractor={(item) => item.id}
-              ListFooterComponent={<View style={{ height: 150 }} />}
-            />
-          ) : (
-            <EmptyState text="No bike rides yet" />
-          )
         ) : deliveries.length ? (
           <FlatList
             data={deliveries}
@@ -210,7 +241,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f4f6f8",
   },
 
-  /* Tabs */
   tabs: {
     flexDirection: "row",
     backgroundColor: "#e0e0e0",
@@ -232,7 +262,6 @@ const styles = StyleSheet.create({
   tabText: { color: "#666", fontWeight: "600" },
   tabTextActive: { color: "#fff" },
 
-  /* Cards */
   card: {
     flexDirection: "row",
     backgroundColor: "#fff",
@@ -252,7 +281,6 @@ const styles = StyleSheet.create({
   sub: { fontSize: 14, color: "#555", marginTop: 2 },
   date: { fontSize: 12, color: "#999", marginTop: 6 },
 
-  /* Badge */
   badge: {
     alignSelf: "flex-start",
     paddingHorizontal: 10,
@@ -262,7 +290,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: "#fff", fontSize: 12, fontWeight: "600" },
 
-  /* Empty */
   empty: { alignItems: "center", marginTop: 60 },
   noOrders: { fontSize: 16, color: "#777", marginTop: 10 },
 });

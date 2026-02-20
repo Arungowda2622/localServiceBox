@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,15 +13,8 @@ import { Dropdown } from "react-native-element-dropdown";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import AntDesign from "react-native-vector-icons/AntDesign";
 import Header from "../header/Header";
-
-const serviceData = [
-  { label: "Plumber", value: "Plumber" },
-  { label: "Welder", value: "Welder" },
-  { label: "Construction Materials", value: "Construction Materials" },
-  { label: "Construction Works", value: "Construction Works" },
-  { label: "Electrician", value: "Electrician" },
-  { label: "Other Services", value: "Other Services" },
-];
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase/firebaseConfig";
 
 const Services = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -30,6 +23,24 @@ const Services = ({ navigation }) => {
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
   const [isFocus, setIsFocus] = useState(false);
+  const [serviceData, setServiceData] = useState([]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "services"), snapshot => {
+      const list = [];
+
+      snapshot.forEach(doc => {
+        list.push({
+          label: doc.data().name,
+          value: doc.data().name,
+        });
+      });
+
+      setServiceData(list);
+    });
+
+    return unsubscribe;
+  }, []);
 
   const submitForm = () => {
     if (!name || !phoneNumber || !serviceType || !description || !address) {
@@ -108,14 +119,6 @@ const Services = ({ navigation }) => {
                 setServiceType(item.value);
                 setIsFocus(false);
               }}
-              renderLeftIcon={() => (
-                <AntDesign
-                  style={styles.icon}
-                  color={isFocus ? "#25D366" : "#666"}
-                  name="Safety"
-                  size={20}
-                />
-              )}
             />
           </View>
 

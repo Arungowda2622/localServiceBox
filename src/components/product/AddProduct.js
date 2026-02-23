@@ -9,10 +9,11 @@ import {
   ScrollView,
   FlatList,
   Modal,
+  Button,
+  Image,
 } from "react-native";
-import { AntDesign, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Header from "../header/Header";
-
 import { auth, db } from "../firebase/firebaseConfig";
 import {
   collection,
@@ -26,6 +27,10 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { Dropdown } from "react-native-element-dropdown";
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from "expo-file-system/legacy";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
 
 const productData = [
   { label: "Food", value: "food" },
@@ -35,16 +40,14 @@ const productData = [
 const ProductManager = ({ navigation }) => {
   const [products, setProducts] = useState([]);
   const [role, setRole] = useState(null);
-
-  // MODALS
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
-
-  // DROPDOWN
-  const [isFocus, setIsFocus] = useState(false);
   const [productType, setProductType] = useState(null);
+  const [editProduct, setEditProduct] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // ADD FORM
+  const [image, setImage] = useState(null);
+
   const [productDetails, setProductDetails] = useState({
     name: "",
     price: "",
@@ -53,8 +56,63 @@ const ProductManager = ({ navigation }) => {
     type: "",
   });
 
-  // EDIT FORM
-  const [editProduct, setEditProduct] = useState(null);
+
+  const pickImage = async () => {
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permissionResult.granted) {
+      Alert.alert("Permission required", "Media permission required.");
+      return;
+    }
+
+    const mediaTypeConfig = ImagePicker.MediaType
+      ? [ImagePicker.MediaType.IMAGE]
+      : ImagePicker.MediaTypeOptions.Images;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: mediaTypeConfig,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+
+    if (result.canceled) return;
+
+    const localUri = result.assets[0].uri;
+
+    // ⭐ ONLY PREVIEW IMAGE
+    setImage(localUri);
+  };
+
+  const pickEditImage = async () => {
+  const permissionResult =
+    await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+  if (!permissionResult.granted) {
+    Alert.alert("Permission required", "Media permission required.");
+    return;
+  }
+
+  const mediaTypeConfig = ImagePicker.MediaType
+    ? [ImagePicker.MediaType.IMAGE]
+    : ImagePicker.MediaTypeOptions.Images;
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: mediaTypeConfig,
+    allowsEditing: true,
+    quality: 0.7,
+  });
+
+  if (result.canceled) return;
+
+  const localUri = result.assets[0].uri;
+
+  // ⭐ update editProduct preview
+  setEditProduct(prev => ({
+    ...prev,
+    imageUrl: localUri,
+  }));
+};
 
   /* -------------------------------------------------- */
   /* 🔐 FETCH USER ROLE                                  */
@@ -102,57 +160,53 @@ const ProductManager = ({ navigation }) => {
     return () => unsub();
   }, [role]);
 
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   /* -------------------------------------------------- */
   /* ➕ ADD PRODUCT                                      */
   /* -------------------------------------------------- */
   const handleAddProduct = async () => {
-    const { name, price, imageUrl, description, type } = productDetails;
-
-    if (!name || !price || !imageUrl || !type) {
-      Alert.alert(
-        "Missing Fields",
-        "Name, price, image URLs & type are required"
-      );
-      return;
-    }
-
-    const imgArr = imageUrl
-      .split(",")
-      .map((i) => i.trim())
-      .filter((i) => i.startsWith("https://"));
-
-    if (imgArr.length === 0) {
-      Alert.alert("Invalid Images", "Use HTTPS image URLs");
-      return;
-    }
-
     try {
-      const user = auth.currentUser;
+      let imageUrl = "";
+
+      if (image) {
+        const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
+        const filename = `products/${Date.now()}.jpg`;
+        const storageRef = ref(storage, filename);
+
+        // ⭐ EXPO SAFE BLOB
+        const blob = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.onload = () => resolve(xhr.response);
+          xhr.onerror = () => reject(new TypeError("Network request failed"));
+          xhr.responseType = "blob";
+          xhr.open("GET", image, true);
+          xhr.send(null);
+        });
+
+        await uploadBytes(storageRef, blob);
+
+        blob.close && blob.close();
+
+        imageUrl = await getDownloadURL(storageRef);
+      }
 
       await addDoc(collection(db, "products"), {
-        name,
-        price: Number(price),
-        images: imgArr,
-        description,
-        type,
-        ownerId: user.uid,
-        createdByRole: role,
+        ...productDetails,
+        price: Number(productDetails.price), // ⭐ convert to number
+        imageUrl,
+        userId: auth.currentUser.uid,
         createdAt: new Date(),
       });
 
-      setAddModalVisible(false);
-      setProductType(null);
-      setProductDetails({
-        name: "",
-        price: "",
-        imageUrl: "",
-        description: "",
-        type: "",
-      });
+      Alert.alert("Success", "Product added!");
 
-      Alert.alert("Success", "Product added successfully!");
+      setAddModalVisible(false);
+      setImage(null);
     } catch (error) {
-      Alert.alert("Error", "Failed to add product");
+      console.log("Add Product Error:", error);
     }
   };
 
@@ -160,32 +214,55 @@ const ProductManager = ({ navigation }) => {
   /* ✏️ UPDATE PRODUCT                                   */
   /* -------------------------------------------------- */
   const handleUpdateProduct = async () => {
-    if (!editProduct?.name || !editProduct?.price || !editProduct?.type) {
-      Alert.alert("Missing Fields", "Name, price & type required");
-      return;
-    }
+  if (!editProduct?.name || !editProduct?.price || !editProduct?.type) {
+    Alert.alert("Missing Fields", "Name, price & type required");
+    return;
+  }
 
-    const imgArr = editProduct.imageUrl
-      .split(",")
-      .map((i) => i.trim())
-      .filter((i) => i.startsWith("https://"));
+  try {
+    let imageUrl = editProduct.imageUrl;
 
-    try {
-      await updateDoc(doc(db, "products", editProduct.id), {
-        name: editProduct.name,
-        price: Number(editProduct.price),
-        images: imgArr,
-        description: editProduct.description,
-        type: editProduct.type,
-        updatedAt: new Date(),
+    // ⭐ Upload only if new local image selected
+    if (imageUrl && imageUrl.startsWith("file://")) {
+      const storage = getStorage(
+        undefined,
+        "gs://localservicebox.firebasestorage.app"
+      );
+
+      const filename = `products/${Date.now()}.jpg`;
+      const storageRef = ref(storage, filename);
+
+      const blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => resolve(xhr.response);
+        xhr.onerror = () => reject(new TypeError("Network request failed"));
+        xhr.responseType = "blob";
+        xhr.open("GET", imageUrl, true);
+        xhr.send(null);
       });
 
-      setEditModalVisible(false);
-      Alert.alert("Updated", "Product updated successfully!");
-    } catch (error) {
-      Alert.alert("Error", "Failed updating product");
+      await uploadBytes(storageRef, blob);
+      blob.close && blob.close();
+
+      imageUrl = await getDownloadURL(storageRef);
     }
-  };
+
+    await updateDoc(doc(db, "products", editProduct.id), {
+      name: editProduct.name,
+      price: Number(editProduct.price),
+      imageUrl: imageUrl,
+      description: editProduct.description,
+      type: editProduct.type,
+      updatedAt: new Date(),
+    });
+
+    setEditModalVisible(false);
+    Alert.alert("Updated", "Product updated successfully!");
+  } catch (error) {
+    console.log(error);
+    Alert.alert("Error", "Failed updating product");
+  }
+};
 
   /* -------------------------------------------------- */
   /* ❌ DELETE PRODUCT                                   */
@@ -220,7 +297,7 @@ const ProductManager = ({ navigation }) => {
           onPress={() => {
             setEditProduct({
               ...item,
-              imageUrl: item.images?.join(", "),
+              imageUrl: item.imageUrl,
             });
             setEditModalVisible(true);
           }}
@@ -240,12 +317,11 @@ const ProductManager = ({ navigation }) => {
     </View>
   );
 
-  /* -------------------------------------------------- */
-  /* 🧱 UI                                               */
-  /* -------------------------------------------------- */
   return (
     <View style={{ flex: 1 }}>
       <Header title="Manage Products" navigation={navigation} />
+
+     
 
       {(role === "shopOwner" || role === "admin") && (
         <Pressable
@@ -256,8 +332,15 @@ const ProductManager = ({ navigation }) => {
         </Pressable>
       )}
 
+       <TextInput
+        placeholder="Search products by name..."
+        style={styles.searchInput}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
       <FlatList
-        data={products}
+        data={filteredProducts}
         renderItem={renderProduct}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 15 }}
@@ -275,6 +358,15 @@ const ProductManager = ({ navigation }) => {
             <Text style={styles.modalTitle}>Add Product</Text>
 
             <ScrollView>
+              <Button title="Pick Image" onPress={pickImage} />
+
+              {image && (
+                <Image
+                  source={{ uri: image }}
+                  style={{ width: "100%", height: 150, marginTop: 10 }}
+                />
+              )}
+              {image && <Image source={{ uri: image }} style={styles.image} />}
               <TextInput
                 placeholder="Product Name"
                 style={styles.input}
@@ -309,16 +401,6 @@ const ProductManager = ({ navigation }) => {
                   setProductDetails({ ...productDetails, price: t })
                 }
               />
-
-              <TextInput
-                placeholder="Image URLs (comma separated)"
-                style={styles.input}
-                value={productDetails.imageUrl}
-                onChangeText={(t) =>
-                  setProductDetails({ ...productDetails, imageUrl: t })
-                }
-              />
-
               <TextInput
                 placeholder="Description"
                 style={[styles.input, { height: 80 }]}
@@ -354,6 +436,9 @@ const ProductManager = ({ navigation }) => {
             <Text style={styles.modalTitle}>Edit Product</Text>
 
             <ScrollView>
+              <Pressable onPress={pickEditImage}>
+                <Image source={{ uri: editProduct?.imageUrl }} style={styles.image} />
+              </Pressable>
               <TextInput
                 style={styles.input}
                 value={editProduct?.name}
@@ -380,14 +465,6 @@ const ProductManager = ({ navigation }) => {
                 value={editProduct?.price?.toString()}
                 onChangeText={(t) =>
                   setEditProduct({ ...editProduct, price: t })
-                }
-              />
-
-              <TextInput
-                style={styles.input}
-                value={editProduct?.imageUrl}
-                onChangeText={(t) =>
-                  setEditProduct({ ...editProduct, imageUrl: t })
                 }
               />
 
@@ -425,6 +502,15 @@ export default ProductManager;
 /* 🎨 STYLES                                           */
 /* -------------------------------------------------- */
 const styles = StyleSheet.create({
+  searchInput: {
+    backgroundColor: "#FFFF",
+    padding: 12,
+    margin: 15,
+    borderRadius: 10,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
   addBtn: {
     backgroundColor: "#2F6BFF",
     margin: 15,
@@ -516,5 +602,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 8,
     height: 50,
+  },
+  image: {
+    width: 200,
+    height: 200,
   },
 });

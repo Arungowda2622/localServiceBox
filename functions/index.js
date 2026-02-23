@@ -116,3 +116,64 @@ exports.sendBoxDeliveryNotification = onDocumentCreated(
     }
   }
 );
+
+exports.sendOrderNotification = onDocumentCreated(
+  "orders/{orderId}",
+  async (event) => {
+    try {
+      const orderId = event.params.orderId;
+      const orderData = event.data.data();
+
+      console.log("🧾 New Order Created:", orderId);
+
+      const db = admin.firestore();
+
+      // 🔥 GET DRIVERS + ADMIN USERS
+      const usersSnap = await db.collection("users").get();
+
+      const messages = [];
+
+      usersSnap.forEach((doc) => {
+        const user = doc.data();
+
+        // 👉 Send to Drivers OR Admin
+        if (
+          (user.role === "driver" || user.role === "admin") &&
+          user.expoPushToken
+        ) {
+          messages.push({
+            to: user.expoPushToken,
+            sound: "default",
+            title: "🧾 New Order Received",
+            body: `₹${orderData.total} - Tap to view order`,
+            data: {
+              orderId,
+              type: "order",
+            },
+          });
+        }
+      });
+
+      console.log("📤 Sending order push:", messages.length);
+
+      if (!messages.length) return;
+
+      const response = await fetch(
+        "https://exp.host/--/api/v2/push/send",
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(messages),
+        }
+      );
+
+      const result = await response.json();
+      console.log("✅ Expo Push Response:", result);
+    } catch (err) {
+      console.error("❌ Order push error:", err);
+    }
+  }
+);

@@ -196,7 +196,7 @@ export default function App() {
           );
 
           /* 🔥 DRIVER → update push token */
-          if (data.role === "driver" && Constants.appOwnership !== "expo") {
+          if ((data.role === "driver" || data.role === "admin") && Constants.appOwnership !== "expo") {
             setTimeout(async () => {
               try {
                 const tokenObject = await Notifications.getExpoPushTokenAsync({

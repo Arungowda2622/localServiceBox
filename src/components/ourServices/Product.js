@@ -6,9 +6,7 @@ import { collection, getDocs } from "firebase/firestore";
 import Header from '../header/Header';
 
 const ProductCard = ({ product, onAddToCart, isInCart, onPress }) => {
-  console.log(product,"getProducts")
   const images =  product.imageUrl ? product.imageUrl: product.images[0] || [];
-  console.log(images,"imag")
   return (
     <TouchableOpacity
       style={productStyles.card}

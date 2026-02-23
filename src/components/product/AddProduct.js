@@ -363,10 +363,10 @@ const ProductManager = ({ navigation }) => {
               {image && (
                 <Image
                   source={{ uri: image }}
-                  style={{ width: "100%", height: 150, marginTop: 10 }}
+                  style={{ width: "100%", height: 150, marginVertical: 10, resizeMode:"stretch" }}
                 />
               )}
-              {image && <Image source={{ uri: image }} style={styles.image} />}
+              
               <TextInput
                 placeholder="Product Name"
                 style={styles.input}

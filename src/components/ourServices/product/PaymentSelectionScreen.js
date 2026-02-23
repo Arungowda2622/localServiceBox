@@ -17,7 +17,7 @@ import Header from "../../header/Header";
 import { notifyDrivers } from "../../utils/notifyDrivers";
 
 const PaymentSelectionScreen = ({ navigation, route }) => {
-  const { total, selectedAddress: routeSelectedAddress } = route?.params || {};
+  const { total, cartItems, selectedAddress: routeSelectedAddress } = route?.params || {};
   const [addresses, setAddresses] = useState([]);
   const [upis, setUpis] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -109,6 +109,75 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
     }
   };
 
+  // 📲 Send Order Details To WhatsApp
+const sendToWhatsApp = async (orderData) => {
+  try {
+    const adminNumber = "916362775151";
+
+    // 🔧 Helper to align text like invoice
+    const formatLine = (name, qty, total) => {
+      const maxName = 14; // adjust spacing if needed
+      const maxQty = 5;
+
+      const itemName = (name || "").substring(0, maxName);
+      const nameSpace = " ".repeat(Math.max(1, maxName - itemName.length));
+
+      const qtyText = `x${qty}`;
+      const qtySpace = " ".repeat(Math.max(1, maxQty - qtyText.length));
+
+      return `${itemName}${nameSpace}${qtyText}${qtySpace}₹${total}`;
+    };
+
+    let subtotal = 0;
+
+    const itemsText = orderData.items
+      .map((i) => {
+        const qty = Number(i.qty || 1);
+        const price = Number(i.price || i.amount || 0);
+        const itemTotal = qty * price;
+
+        subtotal += itemTotal;
+
+        return formatLine(i.title || i.name, qty, itemTotal);
+      })
+      .join("\n");
+
+    const customerPhone =
+      orderData.address?.phone ||
+      orderData.address?.mobile ||
+      "N/A";
+
+    // ⭐ ALIGNED INVOICE UI
+    const message = `
+🧾 *ORDER INVOICE*
+━━━━━━━━━━━━━━━━━━
+
+👤 ${orderData.address?.fullName || "N/A"}
+📞 ${customerPhone}
+
+📍 ${orderData.address?.address || ""}
+${orderData.address?.city || ""}
+
+━━━━━━━━━━━━━━━━━━
+📦 *ITEMS*
+${itemsText}
+──────────────────
+💰 *SUBTOTAL*          ₹${subtotal}
+💳 ${orderData.paymentMethod}
+🔢 UTR: ${orderData.utrNumber || "N/A"}
+━━━━━━━━━━━━━━━━━━
+🕒 ${new Date().toLocaleString()}
+`;
+
+    const url = `https://wa.me/${adminNumber}?text=${encodeURIComponent(
+      message
+    )}`;
+
+    await Linking.openURL(url);
+  } catch (err) {
+    console.log("WhatsApp Error:", err);
+  }
+};
   // 🔥 UPDATED Confirm ORDER function
   const handleConfirmOrder = async () => {
     if (paymentMethod === "Online Payment" && !utrNumber.trim()) {
@@ -152,6 +221,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       // 📝 Prepare order object
       const newOrder = {
         userId: user.uid,
+        items: cartItems || [],
         total: Number(total),
         paymentMethod,
         utrNumber: paymentMethod === "Online Payment" ? utrNumber.trim() : null,
@@ -173,11 +243,9 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       };
 
       // 💾 Save Order
-      const newOrderRef = await addDoc(collection(db, "orders"), newOrder);
-
-      // 📢 SEND DRIVER NOTIFICATION
-      await notifyDrivers(newOrderRef.id, newOrder);
-
+      await addDoc(collection(db, "orders"), newOrder);
+      sendToWhatsApp(newOrder);
+     
       setLoading(false);
 
       Alert.alert(

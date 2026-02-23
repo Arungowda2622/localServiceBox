@@ -1,6 +1,7 @@
 import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
+import Header from "../header/Header";
 
 const ProductDetails = ({ route, navigation }) => {
     const { product, onAddToCart } = route.params;
@@ -10,14 +11,7 @@ const ProductDetails = ({ route, navigation }) => {
 
     return (
         <View style={{ flex: 1, backgroundColor: "#fff" }}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <Ionicons name="arrow-back" size={26} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Product Details</Text>
-            </View>
-
+            <Header title="Product Details" navigation={navigation} />
             <ScrollView>
                 {/* Product Image */}
                 <Image source={{ uri: images[0] }} style={styles.image} />
@@ -65,7 +59,7 @@ const styles = StyleSheet.create({
     image: {
         width: "100%",
         height: 300,
-        resizeMode: "contain",
+        resizeMode: "stretch",
         backgroundColor: "#F5F5F5",
     },
     name: {

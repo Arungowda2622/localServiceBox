@@ -37,8 +37,16 @@ const CartScreen = ({ route, navigation }) => {
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleCheckout = () => {
-    navigation.navigate("PaymentSelection",{total, cartItems});
-  }
+    const formattedItems = cartItems.map(item => ({
+      ...item,
+      qty: item.quantity,
+    }));
+
+    navigation.navigate("PaymentSelection", {
+      total,
+      cartItems: formattedItems
+    });
+  };
 
   return (
     <View style={styles.container}>

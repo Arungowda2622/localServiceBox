@@ -143,9 +143,7 @@ const sendToWhatsApp = async (orderData) => {
       .join("\n");
 
     const customerPhone =
-      orderData.address?.phone ||
-      orderData.address?.mobile ||
-      "N/A";
+      orderData.address?.phone || orderData.phone || "N/A";
 
     // ⭐ ALIGNED INVOICE UI
     const message = `

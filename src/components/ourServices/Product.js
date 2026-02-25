@@ -2,7 +2,14 @@ import { StyleSheet, Text, TextInput, View, FlatList, Image, TouchableOpacity, A
 import React, { useEffect, useState } from 'react';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { db } from "../firebase/firebaseConfig";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  limit,
+  orderBy,
+  startAfter,
+} from "firebase/firestore";
 import Header from '../header/Header';
 
 const ProductCard = ({ product, onAddToCart, isInCart, onPress }) => {
@@ -45,26 +52,76 @@ const Product = ({ navigation }) => {
   const [cartItems, setCartItems] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const PAGE_SIZE = 8;
 
-  const fetchProducts = async () => {
+  const [lastDoc, setLastDoc] = useState(null);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetching, setIsFetching] = useState(false); // 🔥 prevents multi calls
+
+  const fetchProducts = async (loadMore = false) => {
+    if (isFetching) return; // 🔥 stop multiple calls
+    setIsFetching(true);
+
     try {
-      const snapshot = await getDocs(collection(db, "products"));
-      const fetchedProducts = snapshot.docs.map(doc => ({
+      loadMore ? setLoadingMore(true) : setInitialLoading(true);
+
+      let q;
+
+      if (loadMore && lastDoc) {
+        q = query(
+          collection(db, "products"),
+          orderBy("name"), // or createdAt (recommended)
+          startAfter(lastDoc),
+          limit(PAGE_SIZE)
+        );
+      } else {
+        q = query(
+          collection(db, "products"),
+          orderBy("name"),
+          limit(PAGE_SIZE)
+        );
+      }
+
+      const snapshot = await getDocs(q);
+
+      const newProducts = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      console.log(fetchedProducts, "fetchedProducts");
-      setProducts(fetchedProducts);
+
+      // 🔥 Save last document for next page
+      if (snapshot.docs.length > 0) {
+        setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+      }
+
+      // 🔥 Stop pagination if no more data
+      if (snapshot.docs.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
+
+      setProducts(prev =>
+        loadMore ? [...prev, ...newProducts] : newProducts
+      );
     } catch (error) {
-      console.log("Error fetching products: ", error);
+      console.log("Advanced pagination error:", error);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setLoadingMore(false);
+      setIsFetching(false);
     }
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchProducts(false);
   }, []);
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore && !isFetching) {
+      fetchProducts(true);
+    }
+  };
 
   const handleAddToCart = (product) => {
     setCartItems(prev => {
@@ -96,16 +153,16 @@ const Product = ({ navigation }) => {
             value={searchText}
             style={styles.input}
           />
-          <MaterialIcons name="mic" size={20} color="#555" />
+          {/* <MaterialIcons name="mic" size={20} color="#555" /> */}
         </View>
 
-        {loading ? (
+        {initialLoading  ? (
           <ActivityIndicator size="large" style={{ marginTop: 50 }} />
         ) : (
           <>
-            <Text style={styles.resultCountText}>
+            {/* <Text style={styles.resultCountText}>
               Showing {filteredProducts.length} results
-            </Text>
+            </Text> */}
 
             <FlatList
               data={filteredProducts}
@@ -118,7 +175,7 @@ const Product = ({ navigation }) => {
                   onPress={(product) =>
                     navigation.navigate("ProductDetails", {
                       product,
-                      onAddToCart: handleAddToCart,   // ⭐ PASS FUNCTION
+                      onAddToCart: handleAddToCart,
                     })
                   }
                 />
@@ -126,6 +183,17 @@ const Product = ({ navigation }) => {
               numColumns={2}
               contentContainerStyle={styles.gridContainer}
               showsVerticalScrollIndicator={false}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.2} // 🔥 smoother trigger
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={6}
+              windowSize={7}
+              initialNumToRender={8}
+              ListFooterComponent={
+                loadingMore ? (
+                  <ActivityIndicator size="small" style={{ margin: 20 }} />
+                ) : null
+              }
             />
           </>
         )}

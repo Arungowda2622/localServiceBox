@@ -6,7 +6,10 @@ import { collection, getDocs } from "firebase/firestore";
 import Header from '../header/Header';
 
 const ProductCard = ({ product, onAddToCart, isInCart, onPress }) => {
-  const images =  product.imageUrl ? product.imageUrl: product.images[0] || [];
+  const images =
+    product?.imageUrl ||
+    product?.images?.[0] ||
+    "https://via.placeholder.com/150";
   return (
     <TouchableOpacity
       style={productStyles.card}
@@ -20,7 +23,7 @@ const ProductCard = ({ product, onAddToCart, isInCart, onPress }) => {
 
         />
         <Text style={productStyles.name} numberOfLines={2}>{product.name}</Text>
-        <Text style={productStyles.price}>₹{product.price.toFixed(2)}</Text>
+        <Text style={productStyles.price}>₹{Number(product?.price || 0).toFixed(2)}</Text>
         <TouchableOpacity
           style={[productStyles.cartButton, isInCart && { backgroundColor: '#ccc' }]}
           onPress={() => !isInCart && onAddToCart(product)}
@@ -71,7 +74,7 @@ const Product = ({ navigation }) => {
   };
 
   const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchText.toLowerCase())
+    (p?.name || "").toLowerCase().includes(searchText.toLowerCase())
   );
 
   const goToCart = () => {

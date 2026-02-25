@@ -147,7 +147,7 @@ const SignUp = ({ navigation }) => {
     <View style={styles.main}>
       <View style={{ alignItems: "center" }}>
         <Image
-          source={require("../../../assets/LsbLogo.jpg")}
+          source={require("../../../assets/icon.png")}
           style={styles.iconImage}
         />
         <Text style={styles.topLabel}>Create an acount</Text>

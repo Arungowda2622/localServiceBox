@@ -154,7 +154,7 @@ const Login = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <Image
-          source={require("../../../assets/LsbLogo.jpg")}
+          source={require("../../../assets/icon.png")}
           style={styles.logo}
         />
         <Text style={styles.welcome}>Welcome Back 👋</Text>

@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "localServiceBox",
+    "name": "Servio",
     "slug": "localServiceBox",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/lsbIcon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -17,13 +17,14 @@
     },
     "ios": {
       "supportsTablet": true,
+      "icon": "./assets/icon.png",
       "config": {
         "googleMapsApiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFA500"
       },
       "permissions": [
@@ -38,7 +39,7 @@
         }
       },
       "googleServicesFile": "./google-services.json",
-      "versionCode": 5
+      "versionCode": 6
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -53,7 +54,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/lsbIcon.png",
+          "icon": "./assets/notification.png",
           "color": "#007bff",
           "mode": "production"
         }

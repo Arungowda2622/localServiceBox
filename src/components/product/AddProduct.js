@@ -29,7 +29,7 @@ import {
 import { Dropdown } from "react-native-element-dropdown";
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from "expo-file-system/legacy";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, getDownloadURL } from "firebase/storage";
 
 
 const productData = [
@@ -172,30 +172,18 @@ const ProductManager = ({ navigation }) => {
       let imageUrl = "";
 
       if (image) {
-        const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
-        const filename = `products/${Date.now()}.jpg`;
-        const storageRef = ref(storage, filename);
-
-        // ⭐ EXPO SAFE BLOB
-        const blob = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.onload = () => resolve(xhr.response);
-          xhr.onerror = () => reject(new TypeError("Network request failed"));
-          xhr.responseType = "blob";
-          xhr.open("GET", image, true);
-          xhr.send(null);
+        // ⭐ READ IMAGE AS BASE64 AND SAVE DIRECTLY TO FIRESTORE
+        const base64 = await FileSystem.readAsStringAsync(image, {
+          encoding: FileSystem.EncodingType.Base64,
         });
-
-        await uploadBytes(storageRef, blob);
-
-        blob.close && blob.close();
-
-        imageUrl = await getDownloadURL(storageRef);
+        imageUrl = `data:image/jpeg;base64,${base64}`;
       }
+
+      console.log(imageUrl,"storingImage")
 
       await addDoc(collection(db, "products"), {
         ...productDetails,
-        price: Number(productDetails.price), // ⭐ convert to number
+        price: Number(productDetails.price),
         imageUrl,
         userId: auth.currentUser.uid,
         createdAt: new Date(),
@@ -204,9 +192,17 @@ const ProductManager = ({ navigation }) => {
       Alert.alert("Success", "Product added!");
 
       setAddModalVisible(false);
+      setProductDetails({
+        name: "",
+        price: "",
+        imageUrl: "",
+        description: "",
+        type: "",
+      });
       setImage(null);
     } catch (error) {
       console.log("Add Product Error:", error);
+      Alert.alert("Error", error.message || "Failed to add product");
     }
   };
 
@@ -224,27 +220,11 @@ const ProductManager = ({ navigation }) => {
 
     // ⭐ Upload only if new local image selected
     if (imageUrl && imageUrl.startsWith("file://")) {
-      const storage = getStorage(
-        undefined,
-        "gs://localservicebox.firebasestorage.app"
-      );
-
-      const filename = `products/${Date.now()}.jpg`;
-      const storageRef = ref(storage, filename);
-
-      const blob = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.onload = () => resolve(xhr.response);
-        xhr.onerror = () => reject(new TypeError("Network request failed"));
-        xhr.responseType = "blob";
-        xhr.open("GET", imageUrl, true);
-        xhr.send(null);
+      // ⭐ READ IMAGE AS BASE64 AND SAVE DIRECTLY TO FIRESTORE
+      const base64 = await FileSystem.readAsStringAsync(imageUrl, {
+        encoding: FileSystem.EncodingType.Base64,
       });
-
-      await uploadBytes(storageRef, blob);
-      blob.close && blob.close();
-
-      imageUrl = await getDownloadURL(storageRef);
+      imageUrl = `data:image/jpeg;base64,${base64}`;
     }
 
     await updateDoc(doc(db, "products", editProduct.id), {
@@ -260,7 +240,7 @@ const ProductManager = ({ navigation }) => {
     Alert.alert("Updated", "Product updated successfully!");
   } catch (error) {
     console.log(error);
-    Alert.alert("Error", "Failed updating product");
+    Alert.alert("Error", error.message || "Failed updating product");
   }
 };
 
@@ -320,9 +300,6 @@ const ProductManager = ({ navigation }) => {
   return (
     <View style={{ flex: 1 }}>
       <Header title="Manage Products" navigation={navigation} />
-
-     
-
       {(role === "shopOwner" || role === "admin") && (
         <Pressable
           style={styles.addBtn}
@@ -331,6 +308,8 @@ const ProductManager = ({ navigation }) => {
           <Text style={styles.addBtnText}>+ Add Product</Text>
         </Pressable>
       )}
+
+      <Text style={styles.totalProducts}>Total Products: {products.length}</Text>
 
        <TextInput
         placeholder="Search products by name..."
@@ -521,6 +500,13 @@ const styles = StyleSheet.create({
   addBtnText: {
     color: "#fff",
     fontWeight: "700",
+  },
+  totalProducts: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "right",
+    marginRight: 15,
+    marginBottom: 5,
   },
   card: {
     backgroundColor: "#fff",

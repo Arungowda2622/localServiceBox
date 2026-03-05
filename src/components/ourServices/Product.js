@@ -17,6 +17,7 @@ const ProductCard = ({ product, onAddToCart, isInCart, onPress }) => {
     product?.imageUrl ||
     product?.images?.[0] ||
     "https://via.placeholder.com/150";
+    console.log(product,"productDetails")
   return (
     <TouchableOpacity
       style={productStyles.card}

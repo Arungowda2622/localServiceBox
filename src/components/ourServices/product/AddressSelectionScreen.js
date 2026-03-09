@@ -8,8 +8,8 @@ import {
 } from "react-native";
 import { db } from "../../firebase/firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
 import Header from "../../header/Header";
+import { getUserId } from "../../../utils/authUtils";
 
 const AddressSelectionScreen = ({ navigation, route }) => {
    const { total } = route.params || {};
@@ -18,13 +18,12 @@ const AddressSelectionScreen = ({ navigation, route }) => {
 
   const fetchAddresses = async () => {
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-      if (!user) return;
+      const uid = await getUserId();
+      if (!uid) return;
 
       const q = query(
         collection(db, "addresses"),
-        where("userId", "==", user.uid)
+        where("userId", "==", uid)
       );
 
       const querySnapshot = await getDocs(q);

@@ -3,11 +3,10 @@ import React, { useState } from 'react';
 import Header from '../header/Header';
 import { db } from '../firebase/firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { waitForAuthUser } from '../../utils/authUtils';
 
 const AddUpi = ({ navigation }) => {
   const [upi, setUpi] = useState("");
-  const auth = getAuth();
 
   const handleSaveUPI = async () => {
     if (!upi || !upi.includes('@')) {
@@ -16,9 +15,9 @@ const AddUpi = ({ navigation }) => {
     }
 
     try {
-      const user = auth.currentUser;
+      const user = await waitForAuthUser();
       if (!user) {
-        Alert.alert("Error", "User not logged in!");
+        Alert.alert("Error", "Still loading your session. Please try again in a moment.");
         return;
       }
 

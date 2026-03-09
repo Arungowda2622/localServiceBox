@@ -1,22 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { auth, db } from "../firebase/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { getUserRole } from "../../utils/authUtils";
 
 const Footer = ({ navigation }) => {
   const [role, setRole] = useState(null);
 
   useEffect(() => {
     const fetchRole = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const snap = await getDoc(doc(db, "users", user.uid));
-      if (snap.exists()) {
-        console.log(snap.data().role, 'fetched for footer');
-        setRole(snap.data().role);
-      }
+      const userRole = await getUserRole();
+      setRole(userRole);
     };
 
     fetchRole();

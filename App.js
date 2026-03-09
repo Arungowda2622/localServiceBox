@@ -174,9 +174,39 @@ export default function App() {
 
       try {
         const userRef = doc(db, "users", firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
+        let userSnap;
+        
+        try {
+          userSnap = await getDoc(userRef);
+        } catch (fetchError) {
+          // Network or permission error - Try to restore from AsyncStorage instead
+          console.warn("Error fetching user from Firestore:", fetchError.code || fetchError.message);
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log('App: Using cached user due to Firestore error', parsed.uid);
+            setUser({ restored: true, uid: parsed.uid, email: parsed.email });
+            setRole(parsed.role || 'user');
+            setInitializing(false);
+            return;
+          }
+          // If no cached user, throw the error
+          throw fetchError;
+        }
 
         if (!userSnap.exists()) {
+          // Document doesn't exist - check if user is still in AsyncStorage
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log('App: User doc missing but found in cache, restoring...', parsed.uid);
+            setUser({ restored: true, uid: parsed.uid, email: parsed.email });
+            setRole(parsed.role || 'user');
+            setInitializing(false);
+            return;
+          }
+          
+          console.log('App: User document does not exist, signing out');
           await signOut(auth);
           setUser(null);
           setRole(null);
@@ -219,8 +249,22 @@ export default function App() {
           }
         }
       } catch (error) {
-        console.log("Auth listener error:", error);
-        await signOut(auth);
+        console.error("Auth listener error:", error);
+        // Only sign out if it's a critical error, try to restore from cache first
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log('App: Critical error but restoring from cache:', parsed.uid);
+            setUser({ restored: true, uid: parsed.uid, email: parsed.email });
+            setRole(parsed.role || 'user');
+            setInitializing(false);
+            return;
+          }
+        } catch (cacheErr) {
+          console.warn('Failed to restore from cache:', cacheErr);
+        }
+        
         setUser(null);
         setRole(null);
       } finally {

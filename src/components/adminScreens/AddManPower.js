@@ -19,12 +19,10 @@ import {
   doc,
   updateDoc,
 } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { waitForAuthUser } from "../../utils/authUtils";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 const AddManPower = ({ navigation }) => {
-  const auth = getAuth();
-
   const [manpowerList, setManpowerList] = useState([]);
   const [name, setName] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
@@ -54,7 +52,11 @@ const AddManPower = ({ navigation }) => {
     }
 
     try {
-      const user = auth.currentUser;
+      const user = await waitForAuthUser();
+      if (!user) {
+        Alert.alert("Error", "Still loading your session. Please try again in a moment.");
+        return;
+      }
 
       if (editId) {
         // 🔥 UPDATE

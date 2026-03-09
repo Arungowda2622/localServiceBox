@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { auth } from '../firebase/firebaseConfig';
 import { updatePassword } from "firebase/auth";
 import Header from "../header/Header";
+import { waitForAuthUser } from "../../utils/authUtils";
 
 
 const ChangePassword = ({ navigation }) => {
@@ -38,7 +39,14 @@ const ChangePassword = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const user = auth.currentUser;
+      const user = await waitForAuthUser();
+      if (!user || user._cached) {
+        Alert.alert(
+          "Security Alert",
+          "Please login again before changing password.",
+        );
+        return;
+      }
       await updatePassword(user, newPassword);
 
       Alert.alert("Success", "Password updated successfully 🔐");

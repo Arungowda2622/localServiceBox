@@ -1,7 +1,10 @@
 import { StyleSheet, Text, View, FlatList, Image, TouchableOpacity } from 'react-native';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../header/Header';
+
+const CART_STORAGE_KEY = "@lsb_cart";
 
 const CartScreen = ({ route, navigation }) => {
   const { cartItems: initialItems } = route.params || {};
@@ -9,6 +12,37 @@ const CartScreen = ({ route, navigation }) => {
   const [cartItems, setCartItems] = useState(
     (initialItems || []).map(item => ({ ...item, quantity: item.quantity || 1 }))
   );
+
+  useEffect(() => {
+    const loadCart = async () => {
+      try {
+        const saved = await AsyncStorage.getItem(CART_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCartItems(parsed.map(item => ({ ...item, quantity: item.quantity || 1 })));
+            return;
+          }
+        }
+      } catch (e) {
+        console.log("Failed to load cart from storage", e);
+      }
+    };
+
+    loadCart();
+  }, []);
+
+  useEffect(() => {
+    const saveCart = async () => {
+      try {
+        await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+      } catch (e) {
+        console.log("Failed to save cart to storage", e);
+      }
+    };
+
+    saveCart();
+  }, [cartItems]);
 
   const handleIncrease = (id) => {
     setCartItems(items =>
@@ -36,11 +70,19 @@ const CartScreen = ({ route, navigation }) => {
 
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     const formattedItems = cartItems.map(item => ({
       ...item,
       qty: item.quantity,
     }));
+
+    // Clear cart after checkout so it doesn't persist across restarts
+    setCartItems([]);
+    try {
+      await AsyncStorage.removeItem(CART_STORAGE_KEY);
+    } catch (e) {
+      console.log("Failed to clear cart storage", e);
+    }
 
     navigation.navigate("PaymentSelection", {
       total,

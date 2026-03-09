@@ -10,11 +10,12 @@ import {
     ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { auth, db } from "./firebase/firebaseConfig";
+import { db } from "./firebase/firebaseConfig";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { updatePassword, updateEmail } from "firebase/auth"; // ⭐ ADDED
 import Header from "./header/Header";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { waitForAuthUser } from "../utils/authUtils";
 
 const Profile = ({ navigation }) => {
     const [loading, setLoading] = useState(false);
@@ -44,14 +45,14 @@ const Profile = ({ navigation }) => {
                     }
                 }
 
-                // ⭐ STEP 2 — Prefill email from Firebase Auth
-                const user = auth.currentUser;
-                if (user?.email) {
-                    setEmail(user.email);
+                // ⭐ STEP 2 — Prefill email from Firebase Auth (wait briefly if needed)
+                const liveUser = await waitForAuthUser();
+                if (liveUser?.email) {
+                    setEmail(liveUser.email);
                 }
 
-                // ⭐ STEP 3 — Fetch latest Firestore data silently
-                const uid = user?.uid;
+                // ⭐ STEP 3 — Fetch latest Firestore data silently (requires uid)
+                const uid = liveUser?.uid;
                 if (!uid) return;
 
                 const docRef = doc(db, "users", uid);
@@ -90,7 +91,22 @@ const Profile = ({ navigation }) => {
         setLoading(true);
 
         try {
-            const user = auth.currentUser;
+            const user = await waitForAuthUser();
+            if (!user) {
+                Alert.alert("Error", "Still loading your session. Please try again in a moment.");
+                return;
+            }
+
+            // If we only have a cached user object, we can't update email/password
+            // until Firebase Auth is fully initialized.
+            if (user._cached) {
+                Alert.alert(
+                    "Security Alert",
+                    "Please login again before changing email."
+                );
+                return;
+            }
+
             const uid = user.uid;
 
             // ⭐ If email changed → update Firebase Auth
@@ -143,7 +159,20 @@ const Profile = ({ navigation }) => {
         }
 
         try {
-            const user = auth.currentUser;
+            const user = await waitForAuthUser();
+            if (!user) {
+                Alert.alert("Error", "Still loading your session. Please try again in a moment.");
+                return;
+            }
+
+            if (user._cached) {
+                Alert.alert(
+                    "Security Alert",
+                    "Please login again before changing password."
+                );
+                return;
+            }
+
             await updatePassword(user, newPassword);
 
             Alert.alert("Success", "Password updated successfully 🔐");

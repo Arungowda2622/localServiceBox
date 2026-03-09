@@ -10,8 +10,8 @@ import {
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { db } from "../firebase/firebaseConfig";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
 import Header from "../header/Header";
+import { getUserId } from "../../utils/authUtils";
 
 const Orders = ({ navigation }) => {
   const [orders, setOrders] = useState([]);
@@ -26,8 +26,8 @@ const Orders = ({ navigation }) => {
   const fetchData = async (collectionName, setter) => {
     try {
       setLoading(true);
-      const user = getAuth().currentUser;
-      if (!user) return;
+      const uid = await getUserId();
+      if (!uid) return;
 
       const q = query(
         collection(db, collectionName),
@@ -37,7 +37,7 @@ const Orders = ({ navigation }) => {
 
       const list = snapshot.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((item) => item.userId === user.uid);
+        .filter((item) => item.userId === uid);
 
       setter(list);
     } catch (e) {

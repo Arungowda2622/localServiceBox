@@ -10,7 +10,7 @@ import Feather from "react-native-vector-icons/Feather";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import Header from "../header/Header";
 import { db } from "../firebase/firebaseConfig";
-import { getAuth } from "firebase/auth";
+import { waitForAuthUser } from "../../utils/authUtils";
 import {
   addDoc,
   collection,
@@ -30,11 +30,10 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
     }
 
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
+      const user = await waitForAuthUser();
 
       if (!user) {
-        Alert.alert("Error", "You must be logged in to book a ride.");
+        Alert.alert("Error", "Still loading your session. Please try again in a moment.");
         return;
       }
 

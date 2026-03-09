@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { addDoc, collection, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
-import { getAuth } from 'firebase/auth';
+import { waitForAuthUser } from "../../utils/authUtils";
 
 const PRIMARY_COLOR = '#007BFF';
 const TEXT_COLOR = '#333';
@@ -37,12 +37,10 @@ const DeliveryPayment = ({ route, navigation }) => {
     try {
       setIsProcessing(true);
 
-      const auth = getAuth();
-      const user = auth.currentUser;
-
+      const user = await waitForAuthUser();
       if (!user) {
         setIsProcessing(false);
-        Alert.alert("Error", "You must be logged in to place a delivery.");
+        Alert.alert("Error", "Still loading your session. Please try again in a moment.");
         return;
       }
 

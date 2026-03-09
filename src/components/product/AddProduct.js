@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,11 +10,11 @@ import {
   FlatList,
   Modal,
   Button,
-  Image,
+  Image
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "../header/Header";
-import { auth, db } from "../firebase/firebaseConfig";
+import { db } from "../firebase/firebaseConfig";
 import {
   collection,
   addDoc,
@@ -24,13 +24,14 @@ import {
   onSnapshot,
   query,
   where,
-  getDoc,
 } from "firebase/firestore";
 import { Dropdown } from "react-native-element-dropdown";
+import { waitForAuthUser, getUserId } from "../../utils/authUtils";
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from "expo-file-system/legacy";
-import { getStorage, ref, getDownloadURL } from "firebase/storage";
-
+import { getUserRole } from "../../utils/authUtils";
+import { getStorage, ref, getDownloadURL, uploadBytes } from "firebase/storage";
+import { deleteObject } from "firebase/storage";
+import { Image as ExpoImage } from "expo-image";
 
 const productData = [
   { label: "Food", value: "food" },
@@ -45,9 +46,8 @@ const ProductManager = ({ navigation }) => {
   const [productType, setProductType] = useState(null);
   const [editProduct, setEditProduct] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-
+  const [loading, setLoading] = useState(false);
   const [image, setImage] = useState(null);
-
   const [productDetails, setProductDetails] = useState({
     name: "",
     price: "",
@@ -56,76 +56,77 @@ const ProductManager = ({ navigation }) => {
     type: "",
   });
 
+  useEffect(() => {
+    products.forEach((p) => {
+      if (p.imageUrl) {
+        ExpoImage.prefetch(p.imageUrl);
+      }
+    });
+  }, [products]);
 
-  const pickImage = async () => {
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const uploadImageToFirebase = async (uri) => {
+    try {
+      const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
+      const filename = `products/${Date.now()}.jpg`;
+      const storageRef = ref(storage, filename);
 
-    if (!permissionResult.granted) {
-      Alert.alert("Permission required", "Media permission required.");
+      const blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => resolve(xhr.response);
+        xhr.onerror = () => reject(new TypeError("Network request failed"));
+        xhr.responseType = "blob";
+        xhr.open("GET", uri, true);
+        xhr.send(null);
+      });
+
+      await uploadBytes(storageRef, blob);
+
+      blob.close && blob.close();
+
+      return await getDownloadURL(storageRef);
+
+    } catch (error) {
+      console.log("Upload error:", error);
+      throw error;
+    }
+  };
+
+  const pickImageFromLibrary = async (callback) => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert("Permission required");
       return;
     }
 
-    const mediaTypeConfig = ImagePicker.MediaType
-      ? [ImagePicker.MediaType.IMAGE]
-      : ImagePicker.MediaTypeOptions.Images;
-
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: mediaTypeConfig,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 0.7,
+      quality: 0.4,
     });
 
-    if (result.canceled) return;
-
-    const localUri = result.assets[0].uri;
-
-    // ⭐ ONLY PREVIEW IMAGE
-    setImage(localUri);
+    if (!result.canceled) {
+      callback(result.assets[0].uri);
+    }
   };
 
-  const pickEditImage = async () => {
-  const permissionResult =
-    await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const pickImage = () => {
+    pickImageFromLibrary(setImage);
+  };
 
-  if (!permissionResult.granted) {
-    Alert.alert("Permission required", "Media permission required.");
-    return;
-  }
-
-  const mediaTypeConfig = ImagePicker.MediaType
-    ? [ImagePicker.MediaType.IMAGE]
-    : ImagePicker.MediaTypeOptions.Images;
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: mediaTypeConfig,
-    allowsEditing: true,
-    quality: 0.7,
-  });
-
-  if (result.canceled) return;
-
-  const localUri = result.assets[0].uri;
-
-  // ⭐ update editProduct preview
-  setEditProduct(prev => ({
-    ...prev,
-    imageUrl: localUri,
-  }));
-};
+  const pickEditImage = () => {
+    pickImageFromLibrary((uri) =>
+      setEditProduct((prev) => ({ ...prev, imageUrl: uri }))
+    );
+  };
 
   /* -------------------------------------------------- */
   /* 🔐 FETCH USER ROLE                                  */
   /* -------------------------------------------------- */
   useEffect(() => {
     const fetchRole = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const snap = await getDoc(doc(db, "users", user.uid));
-      if (snap.exists()) {
-        setRole(snap.data().role);
-      }
+      const userRole = await getUserRole();
+      setRole(userRole);
     };
 
     fetchRole();
@@ -137,55 +138,68 @@ const ProductManager = ({ navigation }) => {
   useEffect(() => {
     if (!role) return;
 
-    const user = auth.currentUser;
-    let q;
+    let unsub = () => { };
 
-    if (role === "admin") {
-      q = collection(db, "products");
-    } else {
-      q = query(
-        collection(db, "products"),
-        where("ownerId", "==", user.uid)
-      );
-    }
+    const setup = async () => {
+      const uid = await getUserId();
+      if (!uid) {
+        console.warn("AddProduct: no uid available to fetch products");
+        return;
+      }
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setProducts(list);
-    });
+      const q =
+        role === "admin"
+          ? collection(db, "products")
+          : query(collection(db, "products"), where("ownerId", "==", uid));
 
-    return () => unsub();
+      unsub = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+        setProducts(list);
+      });
+    };
+
+    setup();
+
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
   }, [role]);
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ⭐ FILTER PRODUCTS BASED ON SEARCH
+  const filteredProducts = useMemo(() => {
+    return products.filter(product =>
+      product.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [products, searchQuery]);
 
   /* -------------------------------------------------- */
   /* ➕ ADD PRODUCT                                      */
   /* -------------------------------------------------- */
   const handleAddProduct = async () => {
     try {
+      setLoading(true);
+
       let imageUrl = "";
 
       if (image) {
-        // ⭐ READ IMAGE AS BASE64 AND SAVE DIRECTLY TO FIRESTORE
-        const base64 = await FileSystem.readAsStringAsync(image, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        imageUrl = `data:image/jpeg;base64,${base64}`;
+        imageUrl = await uploadImageToFirebase(image);
       }
 
-      console.log(imageUrl,"storingImage")
+      const user = await waitForAuthUser();
+
+      if (!user) {
+        Alert.alert("Error", "User not authenticated");
+        return;
+      }
 
       await addDoc(collection(db, "products"), {
         ...productDetails,
         price: Number(productDetails.price),
         imageUrl,
-        userId: auth.currentUser.uid,
+        userId: user.uid,
         createdAt: new Date(),
       });
 
@@ -200,9 +214,11 @@ const ProductManager = ({ navigation }) => {
         type: "",
       });
       setImage(null);
+
     } catch (error) {
-      console.log("Add Product Error:", error);
-      Alert.alert("Error", error.message || "Failed to add product");
+      Alert.alert("Error", error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -210,52 +226,62 @@ const ProductManager = ({ navigation }) => {
   /* ✏️ UPDATE PRODUCT                                   */
   /* -------------------------------------------------- */
   const handleUpdateProduct = async () => {
-  if (!editProduct?.name || !editProduct?.price || !editProduct?.type) {
-    Alert.alert("Missing Fields", "Name, price & type required");
-    return;
-  }
-
-  try {
-    let imageUrl = editProduct.imageUrl;
-
-    // ⭐ Upload only if new local image selected
-    if (imageUrl && imageUrl.startsWith("file://")) {
-      // ⭐ READ IMAGE AS BASE64 AND SAVE DIRECTLY TO FIRESTORE
-      const base64 = await FileSystem.readAsStringAsync(imageUrl, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      imageUrl = `data:image/jpeg;base64,${base64}`;
+    if (!editProduct?.name || !editProduct?.price || !editProduct?.type) {
+      Alert.alert("Missing Fields", "Name, price & type required");
+      return;
     }
 
-    await updateDoc(doc(db, "products", editProduct.id), {
-      name: editProduct.name,
-      price: Number(editProduct.price),
-      imageUrl: imageUrl,
-      description: editProduct.description,
-      type: editProduct.type,
-      updatedAt: new Date(),
-    });
+    try {
 
-    setEditModalVisible(false);
-    Alert.alert("Updated", "Product updated successfully!");
-  } catch (error) {
-    console.log(error);
-    Alert.alert("Error", error.message || "Failed updating product");
-  }
-};
+      let imageUrl = editProduct.imageUrl;
+
+      if (imageUrl && imageUrl.startsWith("file://")) {
+        imageUrl = await uploadImageToFirebase(imageUrl);
+      }
+
+      await updateDoc(doc(db, "products", editProduct.id), {
+        name: editProduct.name,
+        price: Number(editProduct.price),
+        imageUrl,
+        description: editProduct.description,
+        type: editProduct.type,
+        updatedAt: new Date(),
+      });
+
+      setEditModalVisible(false);
+      Alert.alert("Updated", "Product updated successfully!");
+
+    } catch (error) {
+      Alert.alert("Error", error.message);
+    }
+  };
 
   /* -------------------------------------------------- */
   /* ❌ DELETE PRODUCT                                   */
   /* -------------------------------------------------- */
-  const handleDeleteProduct = (id) => {
+  const handleDeleteProduct = (product) => {
     Alert.alert("Delete Product", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          await deleteDoc(doc(db, "products", id));
-          Alert.alert("Deleted", "Product removed");
+          try {
+
+            // delete image from storage
+            if (product.imageUrl) {
+              const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
+              const imageRef = ref(storage, product.imageUrl);
+              await deleteObject(imageRef).catch(() => { });
+            }
+
+            await deleteDoc(doc(db, "products", product.id));
+
+            Alert.alert("Deleted", "Product removed");
+
+          } catch (error) {
+            console.log(error);
+          }
         },
       },
     ]);
@@ -266,6 +292,16 @@ const ProductManager = ({ navigation }) => {
   /* -------------------------------------------------- */
   const renderProduct = ({ item }) => (
     <View style={styles.card}>
+      {item.imageUrl && (
+        <ExpoImage
+          source={{ uri: item.imageUrl }}
+          style={styles.productImage}
+          contentFit="contain"
+          cachePolicy="memory-disk"
+          placeholder={require("../../../assets/placeholder.jpg")}
+          transition={300}
+        />
+      )}
       <Text style={styles.pName}>{item.name}</Text>
       <Text style={styles.pPrice}>₹{item.price}</Text>
       <Text style={styles.pType}>Type: {item.type}</Text>
@@ -288,7 +324,7 @@ const ProductManager = ({ navigation }) => {
 
         <Pressable
           style={styles.deleteBtn}
-          onPress={() => handleDeleteProduct(item.id)}
+          onPress={() => handleDeleteProduct(item)}
         >
           <Ionicons name="trash-outline" size={20} color="#fff" />
           <Text style={styles.btnText}>Delete</Text>
@@ -311,7 +347,7 @@ const ProductManager = ({ navigation }) => {
 
       <Text style={styles.totalProducts}>Total Products: {products.length}</Text>
 
-       <TextInput
+      <TextInput
         placeholder="Search products by name..."
         style={styles.searchInput}
         value={searchQuery}
@@ -323,11 +359,10 @@ const ProductManager = ({ navigation }) => {
         renderItem={renderProduct}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 15 }}
-        ListEmptyComponent={
-          <Text style={{ textAlign: "center", marginTop: 40 }}>
-            No products found
-          </Text>
-        }
+        initialNumToRender={8}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
       />
 
       {/* ADD PRODUCT MODAL */}
@@ -337,15 +372,17 @@ const ProductManager = ({ navigation }) => {
             <Text style={styles.modalTitle}>Add Product</Text>
 
             <ScrollView>
-              <Button title="Pick Image" onPress={pickImage} />
+              <View style={{ marginVertical: 20 }}>
+                <Button title="Pick Image" onPress={pickImage} />
+              </View>
 
               {image && (
                 <Image
                   source={{ uri: image }}
-                  style={{ width: "100%", height: 150, marginVertical: 10, resizeMode:"stretch" }}
+                  style={{ width: "100%", height: 150, marginVertical: 10, resizeMode: "stretch" }}
                 />
               )}
-              
+
               <TextInput
                 placeholder="Product Name"
                 style={styles.input}
@@ -394,7 +431,9 @@ const ProductManager = ({ navigation }) => {
               />
 
               <Pressable style={styles.saveBtn} onPress={handleAddProduct}>
-                <Text style={styles.btnText}>Save</Text>
+                <Text style={styles.btnText}>
+                  {loading ? "Uploading..." : "Save"}
+                </Text>
               </Pressable>
 
               <Pressable
@@ -416,7 +455,9 @@ const ProductManager = ({ navigation }) => {
 
             <ScrollView>
               <Pressable onPress={pickEditImage}>
-                <Image source={{ uri: editProduct?.imageUrl }} style={styles.image} />
+                {editProduct?.imageUrl && (
+                  <Image source={{ uri: editProduct.imageUrl }} style={styles.image} />
+                )}
               </Pressable>
               <TextInput
                 style={styles.input}
@@ -592,5 +633,12 @@ const styles = StyleSheet.create({
   image: {
     width: 200,
     height: 200,
+    marginVertical: 20
+  },
+  productImage: {
+    width: "100%",
+    height: 150,
+    borderRadius: 10,
+    marginBottom: 8,
   },
 });

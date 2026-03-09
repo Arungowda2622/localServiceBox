@@ -12,9 +12,9 @@ import {
 } from "react-native";
 import { db } from "../../firebase/firebaseConfig";
 import { collection, getDocs, addDoc, query, where } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
 import Header from "../../header/Header";
 import { notifyDrivers } from "../../utils/notifyDrivers";
+import { getUserId } from "../../../utils/authUtils";
 
 const PaymentSelectionScreen = ({ navigation, route }) => {
   const { total, cartItems, selectedAddress: routeSelectedAddress } = route?.params || {};
@@ -29,13 +29,12 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   // 🔹 Fetch user's saved addresses
   const fetchAddresses = async () => {
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-      if (!user) return;
+      const uid = await getUserId();
+      if (!uid) return;
 
       const q = query(
         collection(db, "addresses"),
-        where("userId", "==", user.uid),
+        where("userId", "==", uid),
       );
 
       const querySnapshot = await getDocs(q);
@@ -53,13 +52,12 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   // 🔹 Fetch user's UPI IDs
   const fetchUpis = async () => {
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-      if (!user) return;
+      const uid = await getUserId();
+      if (!uid) return;
       const q = await getDocs(collection(db, "upi_ids"));
       const list = q.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((doc) => doc.userId === user.uid);
+        .filter((doc) => doc.userId === uid);
       setUpis(list);
     } catch (err) {
       console.log("fetchUpis err", err);
@@ -188,11 +186,13 @@ ${itemsText}
 
     try {
       setLoading(true);
-      const auth = getAuth();
-      const user = auth.currentUser;
+      const uid = await getUserId();
 
-      if (!user) {
-        Alert.alert("Error", "User not logged in.");
+      if (!uid) {
+        Alert.alert(
+          "Error",
+          "Still restoring your session. Please wait a moment and try again.",
+        );
         setLoading(false);
         return;
       }
@@ -218,7 +218,7 @@ ${itemsText}
 
       // 📝 Prepare order object
       const newOrder = {
-        userId: user.uid,
+        userId: uid,
         items: cartItems || [],
         total: Number(total),
         paymentMethod,

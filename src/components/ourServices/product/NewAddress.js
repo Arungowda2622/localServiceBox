@@ -11,7 +11,7 @@ import React, { useState } from "react";
 import Header from "../../header/Header";
 import { db } from "../../firebase/firebaseConfig";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { waitForAuthUser } from "../../../utils/authUtils";
 
 const NewAddress = ({ navigation }) => {
   const [fullName, setFullName] = useState("");
@@ -35,11 +35,9 @@ const NewAddress = ({ navigation }) => {
     }
 
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-
+      const user = await waitForAuthUser();
       if (!user) {
-        Alert.alert("Error", "User not logged in");
+        Alert.alert("Error", "Still loading your session. Please try again in a moment.");
         return;
       }
 

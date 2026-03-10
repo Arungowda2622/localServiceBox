@@ -6,49 +6,55 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "experiments": {
-      "expoGoDGEnabled": false
-    },
+
     "ios": {
       "supportsTablet": true,
       "icon": "./assets/icon.png",
       "config": {
-        "googleMapsApiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
+        "googleMapsApiKey": "YOUR_RESTRICTED_KEY"
       }
     },
+
     "android": {
+      "package": "com.arun03.localServiceBox",
+      "versionCode": 6,
+      "edgeToEdgeEnabled": true,
+
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
+
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFA500"
       },
-      "permissions": [
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.INTERNET"
-      ],
-      "edgeToEdgeEnabled": true,
-      "package": "com.arun03.localServiceBox",
+
+      "googleServicesFile": "./google-services.json",
+
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
+          "apiKey": "YOUR_RESTRICTED_KEY"
         }
-      },
-      "googleServicesFile": "./google-services.json",
-      "versionCode": 6
+      }
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
     },
+
     "plugins": [
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos to let you share them with your friends."
+          "photosPermission": "The app accesses your photos to let you share them."
         }
       ],
       [
@@ -62,17 +68,21 @@
       "expo-web-browser",
       "expo-font"
     ],
+
+    "updates": {
+      "url": "https://u.expo.dev/d302719d-343d-4324-9ceb-b12bb76807bc",
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
+
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+
     "extra": {
       "eas": {
         "projectId": "d302719d-343d-4324-9ceb-b12bb76807bc"
       }
-    },
-    "updates": {
-      "url": "https://u.expo.dev/d302719d-343d-4324-9ceb-b12bb76807bc",
-      "fallbackToCacheTimeout": 0
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
     }
   }
 }

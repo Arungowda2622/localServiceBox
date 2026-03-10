@@ -7,6 +7,7 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Pressable,
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,12 +16,19 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import Header from "../header/Header";
 
 /* ---------- Product Card ---------- */
-const ProductCard = ({ product, onAddToCart, isInCart }) => {
-  const image =
-    product.images?.[0] || product.imageUrl || "";
+const ProductCard = ({ product, onAddToCart, isInCart, navigation }) => {
+  const image = product.images?.[0] || product.imageUrl || "";
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      style={styles.card}
+      onPress={() =>
+        navigation.navigate("ProductDetails", {
+          product,
+          onAddToCart,
+        })
+      }
+    >
       <Image source={{ uri: image }} style={styles.image} />
 
       <View style={styles.details}>
@@ -44,7 +52,7 @@ const ProductCard = ({ product, onAddToCart, isInCart }) => {
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </Pressable>
   );
 };
 
@@ -120,11 +128,17 @@ const FoodsBeverages = ({ navigation }) => {
           <FlatList
             data={filteredProducts}
             keyExtractor={(item) => item.id}
+            numColumns={2}
+            columnWrapperStyle={{
+              justifyContent: "space-between",
+              marginBottom: 4,
+            }}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            contentContainerStyle={{ paddingBottom: 40 }}
             renderItem={({ item }) => (
               <ProductCard
                 product={item}
+                navigation={navigation}
                 onAddToCart={addToCart}
                 isInCart={cartItems.some((c) => c.id === item.id)}
               />
@@ -142,7 +156,7 @@ export default FoodsBeverages;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F3F3",
+    backgroundColor: "#F6F7FB",
   },
 
   content: {
@@ -153,15 +167,16 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
-    height: 45,
     backgroundColor: "#FFF",
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
     marginVertical: 15,
-    borderWidth: 1,
-    borderColor: "#DDD",
-  },
 
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   searchInput: {
     flex: 1,
     marginLeft: 8,
@@ -178,34 +193,49 @@ const styles = StyleSheet.create({
 
   image: {
     width: "100%",
-    height: 220,
+    height: 140,
     resizeMode: "stretch",
-    backgroundColor: "#EEE",
+    backgroundColor: "#F5F5F5",
   },
 
   details: {
-    padding: 12,
+    padding: 10,
   },
 
   name: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#232F3E",
+    color: "#222",
+    minHeight: 40,
+  },
+  card: {
+    width: "48%",
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    marginBottom: 14,
+    overflow: "hidden",
+
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 4,
   },
 
   price: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginVertical: 6,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#2F6BFF",
+    marginTop: 4,
   },
 
   cartButton: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFD814",
-    paddingVertical: 10,
-    borderRadius: 25,
+    backgroundColor: "#2F6BFF",
+    paddingVertical: 8,
+    borderRadius: 20,
     marginTop: 8,
   },
 
@@ -216,5 +246,7 @@ const styles = StyleSheet.create({
   cartText: {
     marginLeft: 6,
     fontWeight: "600",
+    color: "#FFF",
+    fontSize: 13,
   },
 });

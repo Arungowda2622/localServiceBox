@@ -50,14 +50,25 @@ async function generateDriverPushToken() {
       Constants.easConfig?.projectId ??
       Constants.expoConfig?.extra?.eas?.projectId;
 
+    console.log("🔎 generateDriverPushToken context:", {
+      appOwnership: Constants.appOwnership,
+      easProjectId: projectId,
+      expoConfig: !!Constants.expoConfig,
+      platform: Constants.platform,
+      isDevice: Constants.isDevice,
+    });
+
     if (!projectId) {
       console.warn("❌ Missing EAS projectId");
       return null;
     }
 
     let permission = await Notifications.getPermissionsAsync();
+    console.log("🔎 current notification permission:", permission);
+
     if (permission.status !== "granted") {
       permission = await Notifications.requestPermissionsAsync();
+      console.log("🔎 requested notification permission:", permission);
     }
 
     if (permission.status !== "granted") {
@@ -160,7 +171,10 @@ const DriverScreen = () => {
     if (!user) return;
 
     const result = await generateDriverPushToken();
-    if (!result) return;
+    if (!result) {
+      console.warn("⚠️ Skipping token save: no token generated");
+      return;
+    }
 
     const { token, projectId } = result;
 
@@ -171,7 +185,7 @@ const DriverScreen = () => {
         updatedAt: new Date(),
       });
 
-      console.log("✅ Driver token saved");
+      console.log("✅ Driver token saved", { token, projectId });
     } catch (err) {
       console.warn("Failed to save driver token:", err);
     }

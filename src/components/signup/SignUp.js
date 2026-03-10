@@ -9,6 +9,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import React, { useState } from "react";
 import Checkbox from "expo-checkbox";
@@ -16,8 +18,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebaseConfig";
+import colors from "../theme/colors";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width, height } = Dimensions.get("window");
+
 
 const SignUp = ({ navigation }) => {
   const [isChecked, setChecked] = useState(false);
@@ -39,6 +44,7 @@ const SignUp = ({ navigation }) => {
     setShowPass(!showPass);
   };
 
+  /* 🔹 LOGIN */
   const handleShowConfirmPass = () => {
     setShowConfirmPass(!showConfirmPass);
   };
@@ -143,206 +149,292 @@ const SignUp = ({ navigation }) => {
     }
   };
 
-  return (
-    <View style={styles.main}>
-      <View style={{ alignItems: "center" }}>
-        <Image
-          source={require("../../../assets/icon.png")}
-          style={styles.iconImage}
-        />
-        <Text style={styles.topLabel}>Create an acount</Text>
-        <Text style={styles.profileLabel}>Set Up Your Profile</Text>
-      </View>
-      <ScrollView contentContainerStyle={{ marginTop: 20, paddingBottom: 200 }}>
-        <Text style={styles.signInLabel}>Sign in</Text>
-        <Text style={styles.infoLoginLabel}>
-          Please fill in your details for sign in
-        </Text>
-        <View style={[styles.container, { marginTop: 10 }]}>
-          <Ionicons name="person-outline" size={24} />
-          <TextInput
-            placeholder="Enter full name"
-            onChangeText={setFullName}
-            value={fullName}
-            style={{ flex: 1, marginLeft: 10 }}
-          />
-        </View>
-        <View style={styles.container}>
-          <Ionicons name="mail-outline" size={24} />
-          <TextInput
-            placeholder="Enter your email"
-            onChangeText={setEmail}
-            value={email}
-            style={{ flex: 1, marginLeft: 10 }}
-          />
-        </View>
-        <View style={styles.container}>
-          <Ionicons name="call-outline" size={24} />
-          <TextInput
-            placeholder="Phone number"
-            onChangeText={setPhone}
-            value={phone}
-            style={{ flex: 1, marginLeft: 10 }}
-          />
-        </View>
-        <View style={[styles.container, { justifyContent: "space-between" }]}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Ionicons name="lock-closed-outline" size={24} />
-            <TextInput
-              placeholder="Enter your password"
-              onChangeText={setPassword}
-              value={password}
-              secureTextEntry={showPass ? false : true}
-              style={{ width: "75%", marginLeft: 10 }}
-            />
-          </View>
-          <Pressable onPress={handleShowPass}>
-            <Ionicons name={iconSource} size={24} />
-          </Pressable>
-        </View>
-        <View style={[styles.container, { justifyContent: "space-between" }]}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Ionicons name="lock-closed-outline" size={24} />
-            <TextInput
-              placeholder="Re-Enter your  password"
-              onChangeText={setConfirmPassword}
-              value={confirmPassword}
-              secureTextEntry={showConfirmPass ? false : true}
-              style={{ width: "75%", marginLeft: 10 }}
-            />
-          </View>
-          <Pressable onPress={handleShowConfirmPass}>
-            <Ionicons name={iconConfirm} size={24} />
-          </Pressable>
-        </View>
-        <View style={styles.mainBox}>
-          <View style={styles.checkBox}>
-            <Checkbox
-              value={isChecked}
-              onValueChange={setChecked}
-              color={isChecked ? "#4630EB" : undefined}
-            />
-            <Text style={styles.paragraph}>
-              I Agree to <Text style={{ color: "#4630EB" }}>Terms</Text> and{" "}
-              <Text style={{ color: "#4630EB" }}>Conditions</Text>
-            </Text>
-          </View>
-        </View>
-        <Pressable
-          onPress={handleCreateAccount}
-          style={[styles.loginBtn, loading && { opacity: 0.7 }]}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.loginLabel}>Create account</Text>
-          )}
-        </Pressable>
 
-        <View style={styles.doHaveBox}>
-          <Text style={styles.singUpLabel}>Already have an account?</Text>
-          <Pressable onPress={handleSignUp}>
-            <Text
-              style={[styles.singUpLabel, { color: "#4630EB", marginLeft: 10 }]}
+  return (
+    <SafeAreaView style={styles.main}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContainer}
+        >
+
+          {/* Header */}
+          <View style={styles.header}>
+            <Image
+              source={require("../../../assets/icon.png")}
+              style={styles.logo}
+            />
+            <Text style={styles.welcome}>Create an account 👋</Text>
+            <Text style={styles.subtitle}>Set Up Your Profile</Text>
+          </View>
+
+          {/* Card */}
+          <View style={styles.card}>
+
+            {/* Full Name */}
+            <View style={styles.inputBox}>
+              <Ionicons
+                name="person-outline"
+                size={20}
+                color={colors.textSecondary}
+              />
+              <TextInput
+                placeholder="Enter full name"
+                onChangeText={setFullName}
+                value={fullName}
+                placeholderTextColor={colors.placeholder}
+                style={styles.input}
+              />
+            </View>
+
+            {/* Email */}
+            <View style={styles.inputBox}>
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color={colors.textSecondary}
+              />
+              <TextInput
+                placeholder="Enter your email"
+                onChangeText={setEmail}
+                value={email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor={colors.placeholder}
+                style={styles.input}
+              />
+            </View>
+
+            {/* Phone */}
+            <View style={styles.inputBox}>
+              <Ionicons
+                name="call-outline"
+                size={20}
+                color={colors.textSecondary}
+              />
+              <TextInput
+                placeholder="Phone number"
+                onChangeText={setPhone}
+                value={phone}
+                placeholderTextColor={colors.placeholder}
+                style={styles.input}
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+            </View>
+
+            {/* Password */}
+            <View style={[styles.inputBox, { justifyContent: "space-between" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+                <TextInput
+                  placeholder="Enter your password"
+                  onChangeText={setPassword}
+                  value={password}
+                  secureTextEntry={!showPass}
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { flex: 1 }]}
+                />
+              </View>
+
+              <Pressable onPress={handleShowPass}>
+                <Ionicons
+                  name={iconSource}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+            </View>
+
+            {/* Confirm Password */}
+            <View style={[styles.inputBox, { justifyContent: "space-between" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+                <TextInput
+                  placeholder="Re-enter your password"
+                  onChangeText={setConfirmPassword}
+                  value={confirmPassword}
+                  secureTextEntry={!showConfirmPass}
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { flex: 1 }]}
+                />
+              </View>
+
+              <Pressable onPress={handleShowConfirmPass}>
+                <Ionicons
+                  name={iconConfirm}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+            </View>
+
+            {/* Terms */}
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 15 }}>
+              <Checkbox
+                value={isChecked}
+                onValueChange={setChecked}
+                color={isChecked ? colors.primary : undefined}
+              />
+
+              <Text style={{ marginLeft: 10, color: colors.textSecondary }}>
+                I Agree to <Text style={{ color: colors.primary }}>Terms</Text> and{" "}
+                <Text style={{ color: colors.primary }}>Conditions</Text>
+              </Text>
+            </View>
+
+            {/* Button */}
+            <Pressable
+              onPress={handleCreateAccount}
+              style={styles.loginBtn}
+              disabled={loading}
             >
-              Sign in
-            </Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </View>
+              {loading ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.loginText}>Create Account</Text>
+              )}
+            </Pressable>
+
+            {/* Login */}
+            <View style={styles.signupRow}>
+              <Text style={styles.signupText}>Already have an account?</Text>
+              <Pressable onPress={handleSignUp}>
+                <Text style={styles.signupLink}> Sign In</Text>
+              </Pressable>
+            </View>
+
+          </View>
+
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 export default SignUp;
 
+/* 🎨 STYLES */
 const styles = StyleSheet.create({
   main: {
     flex: 1,
-    padding: 24,
+    backgroundColor: colors.background,
   },
-  iconImage: {
-    marginTop: 50,
-    height: height * 0.08,
-    width: width * 0.2,
-    resizeMode: "stretch",
-  },
-  topLabel: {
-    fontWeight: "500",
-    fontSize: 25,
-    color: "#000000",
-    marginVertical: 5,
-  },
-  profileLabel: {
-    fontWeight: "500",
-    fontSize: 16,
-  },
-  signInLabel: {
-    fontWeight: "400",
-    fontSize: 35,
-    marginVertical: 10,
-  },
-  infoLoginLabel: {
-    fontWeight: "600",
-    fontSize: 13,
-    color: "#0516D3",
-    marginTop: 7,
-  },
-  container: {
-    padding: 10,
-    backgroundColor: "white",
-    borderRadius: 13,
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 10,
-  },
-  lockIcon: {
-    height: height * 0.035,
-    width: width * 0.1,
-    resizeMode: "stretch",
-  },
-  checkBox: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  mainBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginVertical: 10,
-  },
-  paragraph: {
-    fontWeight: "400",
-    fontSize: 13,
-    marginLeft: 15,
-  },
-  forgotPassLabel: {
-    fontWeight: "500",
-    fontSize: 13,
-    color: "#0516D3",
-  },
-  loginBtn: {
-    padding: 15,
-    alignItems: "center",
-    backgroundColor: "#0516D3",
-    marginVertical: 10,
-    marginTop: 20,
-    borderRadius: 13,
-  },
-  loginLabel: {
-    fontWeight: "600",
-    fontSize: 17,
-    color: "#FFFFFF",
-  },
-  doHaveBox: {
+  header: {
+    height: height * 0.35,
+    backgroundColor: colors.orange,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
-    marginVertical: 10,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  singUpLabel: {
-    fontWeight: "500",
+  scrollContainer: {
+    paddingBottom: 40,
+  },
+  logo: {
+    height: 60,
+    width: 60,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  welcome: {
+    color: colors.textPrimary,
+    fontSize: 26,
+    fontWeight: "700",
+  },
+  subtitle: {
+    color: colors.textSecondary,
+    marginTop: 6,
+  },
+  card: {
+    backgroundColor: colors.card,
+    marginHorizontal: 20,
+    marginTop: -50,
+    padding: 20,
+    borderRadius: 20,
+    elevation: 10,
+  },
+  inputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.inputBackground,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    marginTop: 15,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    marginLeft: 10,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  forgot: {
+    color: colors.primary,
+    fontSize: 13,
+    marginTop: 12,
+    alignSelf: "flex-end",
+  },
+  loginBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 15,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 25,
+  },
+  loginText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  signupRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  signupText: {
     fontSize: 14,
+    color: colors.textPrimary,
+  },
+  signupLink: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  modalSubtitle: {
+    marginTop: 6,
+    color: colors.textSecondary,
+  },
+  cancel: {
+    marginTop: 15,
+    textAlign: "center",
+    color: colors.placeholder,
   },
 });

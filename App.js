@@ -46,6 +46,7 @@ import ChangePassword from "./src/components/drawer/ChangePassword";
 import ProductDetails from "./src/components/ourServices/ProductDetails";
 import AddServiceScreen from "./src/components/adminScreens/AddServiceScreen";
 import AddManPower from "./src/components/adminScreens/AddManPower";
+import useOTAUpdate from "./src/utils/useOTAUpdate";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -116,6 +117,9 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
+
+  // 🔥 OTA UPDATE CHECK
+  useOTAUpdate();
 
   // Provide an external hook to force clearing the app's user/role state.
   // Register this callback so other modules can call forceLogout() without circular dependency

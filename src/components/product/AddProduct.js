@@ -292,19 +292,24 @@ const ProductManager = ({ navigation }) => {
   /* -------------------------------------------------- */
   const renderProduct = ({ item }) => (
     <View style={styles.card}>
-      {item.imageUrl && (
-        <ExpoImage
-          source={{ uri: item.imageUrl }}
-          style={styles.productImage}
-          contentFit="contain"
-          cachePolicy="memory-disk"
-          placeholder={require("../../../assets/placeholder.jpg")}
-          transition={300}
-        />
-      )}
+      <View style={{ position: "relative" }}>
+        {item.imageUrl && (
+          <ExpoImage
+            source={{ uri: item.imageUrl }}
+            style={styles.productImage}
+            contentFit="fill"
+            cachePolicy="memory-disk"
+            placeholder={require("../../../assets/placeholder.jpg")}
+            transition={300}
+          />
+        )}
+
+        <View style={styles.typeBadge}>
+          <Text style={styles.typeText}>{item.type}</Text>
+        </View>
+      </View>
       <Text style={styles.pName}>{item.name}</Text>
       <Text style={styles.pPrice}>₹{item.price}</Text>
-      <Text style={styles.pType}>Type: {item.type}</Text>
       <Text style={styles.pDesc}>{item.description}</Text>
 
       <View style={styles.row}>
@@ -337,22 +342,24 @@ const ProductManager = ({ navigation }) => {
     <View style={{ flex: 1 }}>
       <Header title="Manage Products" navigation={navigation} />
       {(role === "shopOwner" || role === "admin") && (
-        <Pressable
-          style={styles.addBtn}
-          onPress={() => setAddModalVisible(true)}
-        >
-          <Text style={styles.addBtnText}>+ Add Product</Text>
+        <Pressable style={styles.addBtn} onPress={() => setAddModalVisible(true)}>
+          <Ionicons name="add" size={32} color="#fff" />
         </Pressable>
       )}
 
+      <View style={styles.searchBox}>
+        <Ionicons name="search-outline" size={20} color="#777" />
+        <TextInput
+          placeholder="Search products..."
+          style={styles.searchInput}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
       <Text style={styles.totalProducts}>Total Products: {products.length}</Text>
 
-      <TextInput
-        placeholder="Search products by name..."
-        style={styles.searchInput}
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
+
 
       <FlatList
         data={filteredProducts}
@@ -532,51 +539,82 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
   },
   addBtn: {
+    position: "absolute",
+    bottom: 25,
+    right: 20,
     backgroundColor: "#2F6BFF",
-    margin: 15,
-    padding: 14,
-    borderRadius: 10,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
     alignItems: "center",
+    elevation: 6,
+    zIndex: 100,
   },
   addBtnText: {
+    fontSize: 30,
     color: "#fff",
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   totalProducts: {
     fontSize: 16,
     fontWeight: "600",
     textAlign: "right",
     marginRight: 15,
-    marginBottom: 5,
+    marginVertical: 5,
+    marginTop:10
   },
   card: {
     backgroundColor: "#fff",
     padding: 14,
-    borderRadius: 10,
-    marginBottom: 12,
-    elevation: 2,
+    borderRadius: 14,
+    marginBottom: 15,
+    elevation: 4,
+
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
-  pName: { fontSize: 16, fontWeight: "700" },
-  pPrice: { marginTop: 4, fontWeight: "600" },
-  pDesc: { marginTop: 6, color: "#666" },
+  pName: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+
+  pPrice: {
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2F6BFF",
+  },
+
+  pDesc: {
+    marginTop: 6,
+    color: "#666",
+    lineHeight: 18,
+  },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 12,
+    marginTop: 15,
   },
+
   editBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#4CAF50",
-    padding: 8,
-    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
+
   deleteBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#E53935",
-    padding: 8,
-    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
   btnText: {
     color: "#fff",
@@ -591,9 +629,10 @@ const styles = StyleSheet.create({
   },
   modalBox: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 18,
+    padding: 20,
     maxHeight: "90%",
+    elevation: 6,
   },
   modalTitle: {
     fontSize: 18,
@@ -601,24 +640,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   input: {
-    backgroundColor: "#f5f5f5",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
+    backgroundColor: "#F7F8FA",
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
   },
   saveBtn: {
     backgroundColor: "#2F6BFF",
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 10,
+    padding: 14,
+    borderRadius: 10,
     alignItems: "center",
+    marginTop: 10,
   },
   cancelBtn: {
-    backgroundColor: "#999",
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
+    backgroundColor: "#E53935",
+    padding: 14,
+    borderRadius: 10,
     alignItems: "center",
+    marginTop: 10,
   },
   /* Dropdown styles */
   dropdown: {
@@ -640,5 +681,36 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 10,
     marginBottom: 8,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 15,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    elevation: 2,
+  },
+
+  searchInput: {
+    flex: 1,
+    padding: 12,
+    fontSize: 16,
+  },
+  typeBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: "#2F6BFF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+
+  typeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

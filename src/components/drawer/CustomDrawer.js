@@ -149,6 +149,12 @@ export default function CustomDrawer(props) {
           onPress={() => navigation.navigate("ChangePassword")}
         />
 
+        <DrawerItem
+          icon="help-circle-outline"
+          label="Customer Support"
+          onPress={() => navigation.navigate("CustomerCare")}
+        />
+
       </View>
 
       {/* ================= LOGOUT ================= */}

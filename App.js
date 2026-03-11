@@ -47,6 +47,7 @@ import ProductDetails from "./src/components/ourServices/ProductDetails";
 import AddServiceScreen from "./src/components/adminScreens/AddServiceScreen";
 import AddManPower from "./src/components/adminScreens/AddManPower";
 import useOTAUpdate from "./src/utils/useOTAUpdate";
+import CustomerCare from "./src/components/CustomerCare/CustomerCare";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -314,6 +315,7 @@ export default function App() {
                 <Drawer.Screen name="Home" component={MainStack} />
                 <Drawer.Screen name="Profile" component={Profile} />
                 <Drawer.Screen name="ChangePassword" component={ChangePassword} />
+                <Drawer.Screen name="CustomerCare" component={CustomerCare} />
               </Drawer.Navigator>
             )
           ) : (

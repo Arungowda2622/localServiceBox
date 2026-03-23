@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { DrawerContentScrollView } from "@react-navigation/drawer";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebaseConfig";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { signOut } from "firebase/auth";
+import { signOut, deleteUser } from "firebase/auth";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { forceLogout } from "../../utils/authUtils";
 
@@ -97,6 +97,52 @@ export default function CustomDrawer(props) {
     }
   };
 
+  const handleDeleteAccount = async () => {
+  Alert.alert(
+    "Delete Account",
+    "Are you sure you want to permanently delete your account? This action cannot be undone.",
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const user = auth.currentUser;
+
+            if (!user) {
+              alert("User not found");
+              return;
+            }
+
+            const uid = user.uid;
+
+            // 🔥 1. Delete Firestore user data
+            await deleteDoc(doc(db, "users", uid));
+
+            // 🔥 2. Delete Firebase Auth user
+            await deleteUser(user);
+
+            // 🔥 3. Clear local storage
+            await AsyncStorage.removeItem("user");
+
+            console.log("Account deleted successfully");
+
+          } catch (error) {
+            console.log("Delete error:", error);
+
+            if (error.code === "auth/requires-recent-login") {
+              alert("Please login again and try deleting your account.");
+            } else {
+              alert("Failed to delete account");
+            }
+          }
+        },
+      },
+    ]
+  );
+};
+
   return (
     <DrawerContentScrollView
       {...props}
@@ -153,6 +199,12 @@ export default function CustomDrawer(props) {
           icon="help-circle-outline"
           label="Customer Support"
           onPress={() => navigation.navigate("CustomerCare")}
+        />
+
+        <DrawerItem
+          icon="trash-outline"
+          label="Delete Account"
+          onPress={() => handleDeleteAccount()}
         />
 
       </View>

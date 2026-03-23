@@ -38,14 +38,14 @@ const CustomerCare = ({ navigation }) => {
                         style={styles.callButton}
                         onPress={() => callNumber('6362775151')}
                     >
-                        <Text style={styles.callText}>📞 Call 6362775151</Text>
+                        <Text style={styles.callText}>📞  6362775151</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.callButton}
                         onPress={() => callNumber('7411550116')}
                     >
-                        <Text style={styles.callText}>📞 Call 7411550116</Text>
+                        <Text style={styles.callText}>📞  7411550116</Text>
                     </TouchableOpacity>
 
                 </View>

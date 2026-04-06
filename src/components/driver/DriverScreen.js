@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
-  Linking
+  Linking,
+  Platform,
 } from "react-native";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
@@ -101,6 +102,17 @@ const DriverScreen = () => {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
 
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      Notifications.setNotificationChannelAsync("default", {
+        name: "Default",
+        importance: Notifications.AndroidImportance.MAX,
+        sound: "default",
+      }).catch((err) => {
+        console.log("Android notification channel error:", err);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((firebaseUser) => {

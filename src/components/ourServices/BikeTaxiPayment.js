@@ -33,7 +33,10 @@ const BikeTaxiPayment = ({ route, navigation = { goBack: () => {} } }) => {
       const user = await waitForAuthUser();
 
       if (!user) {
-        Alert.alert("Error", "Still loading your session. Please try again in a moment.");
+        Alert.alert("Login Required", "Please log in to confirm a ride.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Login", onPress: () => navigation.navigate("Login") },
+        ]);
         return;
       }
 

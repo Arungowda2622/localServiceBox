@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View, FlatList, Image, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Image, TouchableOpacity, Alert } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../header/Header';
+import { getUserId } from '../../utils/authUtils';
 
 const CART_STORAGE_KEY = "@lsb_cart";
 
@@ -71,6 +72,15 @@ const CartScreen = ({ route, navigation }) => {
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleCheckout = async () => {
+    const uid = await getUserId();
+    if (!uid) {
+      Alert.alert("Login Required", "Please log in to proceed to checkout.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Login", onPress: () => navigation.navigate("Login") },
+      ]);
+      return;
+    }
+
     const formattedItems = cartItems.map(item => ({
       ...item,
       qty: item.quantity,

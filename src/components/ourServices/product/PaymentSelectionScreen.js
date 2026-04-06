@@ -189,10 +189,10 @@ ${itemsText}
       const uid = await getUserId();
 
       if (!uid) {
-        Alert.alert(
-          "Error",
-          "Still restoring your session. Please wait a moment and try again.",
-        );
+        Alert.alert("Login Required", "Please log in to place an order.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Login", onPress: () => navigation.navigate("Login") },
+        ]);
         setLoading(false);
         return;
       }

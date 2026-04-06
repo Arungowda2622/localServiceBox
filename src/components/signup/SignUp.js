@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking
 } from "react-native";
 import React, { useState } from "react";
 import Checkbox from "expo-checkbox";
@@ -149,6 +150,10 @@ const SignUp = ({ navigation }) => {
     }
   };
 
+  const openPrivacyPolicy = () => {
+    Linking.openURL("https://arungowda2622.github.io/privacy-policy/");
+  };
+
 
   return (
     <SafeAreaView style={styles.main}>
@@ -210,6 +215,9 @@ const SignUp = ({ navigation }) => {
             </View>
 
             {/* Phone */}
+            <Text style={{ color: colors.placeholder, fontSize: 12, marginTop: 10 }}>
+              We use your phone number only to allow delivery partners to contact you for order delivery and updates. This is required for the app to function.
+            </Text>
             <View style={styles.inputBox}>
               <Ionicons
                 name="call-outline"
@@ -217,7 +225,7 @@ const SignUp = ({ navigation }) => {
                 color={colors.textSecondary}
               />
               <TextInput
-                placeholder="Phone number"
+                placeholder="Phone No(used for delivery)"
                 onChangeText={setPhone}
                 value={phone}
                 placeholderTextColor={colors.placeholder}
@@ -226,6 +234,7 @@ const SignUp = ({ navigation }) => {
                 maxLength={10}
               />
             </View>
+
 
             {/* Password */}
             <View style={[styles.inputBox, { justifyContent: "space-between" }]}>
@@ -290,8 +299,20 @@ const SignUp = ({ navigation }) => {
               />
 
               <Text style={{ marginLeft: 10, color: colors.textSecondary }}>
-                I Agree to <Text style={{ color: colors.primary }}>Terms</Text> and{" "}
-                <Text style={{ color: colors.primary }}>Conditions</Text>
+                I Agree to{" "}
+
+                <Text style={{ color: colors.primary }} onPress={openPrivacyPolicy}>
+                  Terms & Conditions
+                </Text>
+
+                {" "}and{" "}
+
+                <Text
+                  style={{ color: colors.primary }}
+                  onPress={openPrivacyPolicy}
+                >
+                  Privacy Policy
+                </Text>
               </Text>
             </View>
 

@@ -10,6 +10,7 @@ import {
   View,
   FlatList,
   Modal,
+  Linking,
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
@@ -53,48 +54,13 @@ export default function BoxDelivery({ navigation }) {
   // -------------------------
   // INIT LOCATION ON LOAD
   // -------------------------
-  useEffect(() => {
-    getCurrentLocation();
-  }, []);
+
 
   useEffect(() => {
     if (pickupLocation && destinationLocation) {
       calculateRoute();
     }
   }, [pickupLocation, destinationLocation]);
-
-  // -------------------------
-  // GET DEVICE LOCATION
-  // -------------------------
-  const getCurrentLocation = async () => {
-    try {
-      setIsLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Required", "Location permission is required.");
-        return;
-      }
-
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest,
-      });
-
-      const coords = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      };
-
-      setRegion({ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 });
-
-      await reverseGeocodeGoogle(coords, true);
-
-      setSelecting("destination");
-    } catch (err) {
-      console.warn(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // -------------------------
   // GOOGLE REVERSE GEOCODE
@@ -227,7 +193,7 @@ export default function BoxDelivery({ navigation }) {
       setRouteInfo({
         distance: distanceKm,
         duration: durationMin,
-        formattedDuration: formatDuration(durationMin), 
+        formattedDuration: formatDuration(durationMin),
         fare,
       });
 
@@ -286,50 +252,50 @@ export default function BoxDelivery({ navigation }) {
   // SELECT SEARCH RESULT
   // ------------------------------------
   const handleSelectSearchResult = async (item) => {
-  try {
-    const detailUrl =
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${item.place_id}` +
-      `&fields=formatted_address,name,address_components,geometry` +
-      `&key=${GOOGLE_API_KEY}`;
+    try {
+      const detailUrl =
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${item.place_id}` +
+        `&fields=formatted_address,name,address_components,geometry` +
+        `&key=${GOOGLE_API_KEY}`;
 
-    const res = await fetch(detailUrl);
-    const data = await res.json();
+      const res = await fetch(detailUrl);
+      const data = await res.json();
 
-    if (!data.result?.geometry) {
-      Alert.alert("Error", "Location not available");
-      return;
+      if (!data.result?.geometry) {
+        Alert.alert("Error", "Location not available");
+        return;
+      }
+
+      const loc = data.result.geometry.location;
+
+      const selectedLocation = {
+        latitude: loc.lat,
+        longitude: loc.lng,
+        name: data.result.name || item.description?.split(",")[0] || "Selected Location",
+        address: data.result.formatted_address || item.description,
+      };
+
+      if (selecting === "pickup") {
+        setPickupLocation(selectedLocation);
+        setSelecting("destination");
+      } else {
+        setDestinationLocation(selectedLocation);
+      }
+
+      mapRef.current?.animateToRegion({
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+
+      setShowSearchModal(false);
+      setSearchQuery("");
+      setSearchResults([]);
+    } catch (err) {
+      console.error(err);
     }
-
-    const loc = data.result.geometry.location;
-
-    const selectedLocation = {
-      latitude: loc.lat,
-      longitude: loc.lng,
-      name: data.result.name || item.description?.split(",")[0] || "Selected Location",
-      address: data.result.formatted_address || item.description,
-    };
-
-    if (selecting === "pickup") {
-      setPickupLocation(selectedLocation);
-      setSelecting("destination");
-    } else {
-      setDestinationLocation(selectedLocation);
-    }
-
-    mapRef.current?.animateToRegion({
-      latitude: selectedLocation.latitude,
-      longitude: selectedLocation.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    });
-
-    setShowSearchModal(false);
-    setSearchQuery("");
-    setSearchResults([]);
-  } catch (err) {
-    console.error(err);
-  }
-};
+  };
 
   // -------------------------
   // RESET PICKUP
@@ -396,9 +362,76 @@ export default function BoxDelivery({ navigation }) {
     );
   };
 
+ const handleUseCurrentLocation = async () => {
+  Alert.alert(
+    "Location Access",
+    "We use your location to automatically detect pickup and delivery addresses for faster booking. You can also enter address manually.",
+    [
+      {
+        text: "Continue",
+        onPress: async () => {
+          try {
+            setIsLoading(true);
+
+            const { status, canAskAgain } =
+              await Location.requestForegroundPermissionsAsync();
+
+            if (status !== "granted") {
+              setIsLoading(false);
+
+              if (!canAskAgain) {
+                Alert.alert(
+                  "Location Disabled",
+                  "Enable location from settings to auto-detect address.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Open Settings",
+                      onPress: () => Linking.openSettings(),
+                    },
+                  ]
+                );
+              }
+
+              return;
+            }
+
+            const loc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            });
+
+            const coords = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            };
+
+            setRegion({
+              ...coords,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            });
+
+            await reverseGeocodeGoogle(coords, true);
+            setSelecting("destination");
+
+            setIsLoading(false);
+          } catch (e) {
+            console.log(e);
+            setIsLoading(false);
+          }
+        },
+      },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+    ]
+  );
+};
+
   return (
     <View style={styles.container}>
-     <Header title="Box Delivery" navigation={navigation} /> 
+      <Header title="Box Delivery" navigation={navigation} />
       {/* MAP */}
       <MapView
         ref={mapRef}
@@ -436,6 +469,19 @@ export default function BoxDelivery({ navigation }) {
 
           {renderLocationInput(destinationLocation, "destination")}
         </View>
+
+        <TouchableOpacity
+          style={{
+            marginTop: 10,
+            backgroundColor: "#eee",
+            padding: 10,
+            borderRadius: 8,
+            alignItems: "center",
+          }}
+          onPress={handleUseCurrentLocation}
+        >
+          <Text>Use Current Location</Text>
+        </TouchableOpacity>
 
         {/* Route info */}
         {routeInfo ? (

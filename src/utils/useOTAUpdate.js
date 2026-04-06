@@ -4,6 +4,10 @@ import { Alert } from "react-native";
 
 export default function useOTAUpdate() {
   useEffect(() => {
+
+    // ✅ ADD HERE (top of useEffect)
+    if (__DEV__) return;
+
     async function checkUpdate() {
       try {
         console.log("Checking OTA update...");
@@ -13,18 +17,25 @@ export default function useOTAUpdate() {
         if (update.isAvailable) {
           console.log("Update available");
 
-          await Updates.fetchUpdateAsync();
-
           Alert.alert(
             "Update Available",
             "A new version of the app is available.",
             [
               {
+                text: "Later",
+                style: "cancel",
+              },
+              {
                 text: "Update Now",
                 onPress: async () => {
-                  await Updates.reloadAsync();
-                }
-              }
+                  try {
+                    await Updates.fetchUpdateAsync();
+                    await Updates.reloadAsync();
+                  } catch (e) {
+                    console.log("Update failed:", e);
+                  }
+                },
+              },
             ]
           );
         } else {
@@ -36,5 +47,6 @@ export default function useOTAUpdate() {
     }
 
     setTimeout(checkUpdate, 3000);
+
   }, []);
 }

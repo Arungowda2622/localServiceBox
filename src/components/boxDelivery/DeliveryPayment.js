@@ -40,7 +40,10 @@ const DeliveryPayment = ({ route, navigation }) => {
       const user = await waitForAuthUser();
       if (!user) {
         setIsProcessing(false);
-        Alert.alert("Error", "Still loading your session. Please try again in a moment.");
+        Alert.alert("Login Required", "Please log in to confirm a delivery.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Login", onPress: () => navigation.navigate("Login") },
+        ]);
         return;
       }
 

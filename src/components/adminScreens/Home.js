@@ -68,6 +68,18 @@ const Home = ({ navigation }) => {
       color: colors.gradientSky,
       onPress: () => navigation.navigate("Users"),
     },
+    {
+      title: "Chicken & Fish",
+      icon: "restaurant-outline",
+      color: colors.gradientChicken,
+      onPress: () => navigation.navigate("AddChickenFish"),
+    },
+    {
+      title: "Construction",
+      icon: "business-outline",
+      color: colors.gradientConstruction,
+      onPress: () => navigation.navigate("AddConstruction"),
+    },
   ];
 
   return (

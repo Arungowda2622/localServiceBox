@@ -43,7 +43,17 @@ const Footer = ({ navigation }) => {
       </Pressable>
 
       {/* RIGHT */}
-      <Pressable style={styles.navItem} onPress={() => navigation.openDrawer()}>
+      <Pressable
+        style={styles.navItem}
+        onPress={() => {
+          if (navigation && typeof navigation.openDrawer === "function") {
+            navigation.openDrawer();
+          } else {
+            // Not in drawer navigator (guest browse mode)
+            navigation.navigate("Login");
+          }
+        }}
+      >
         <Ionicons name="person-outline" size={22} color="#666" />
         <Text style={styles.text}>Profile</Text>
       </Pressable>

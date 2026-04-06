@@ -48,6 +48,11 @@ import AddServiceScreen from "./src/components/adminScreens/AddServiceScreen";
 import AddManPower from "./src/components/adminScreens/AddManPower";
 import useOTAUpdate from "./src/utils/useOTAUpdate";
 import CustomerCare from "./src/components/CustomerCare/CustomerCare";
+import Construction from "./src/components/Construction/Construction";
+import ChickenFish from "./src/components/ChickenFish/ChickenFish";
+import AddChickenFish from "./src/components/adminScreens/AddChickenFish";
+import AddConstruction from "./src/components/adminScreens/AddConstruction";
+import ChickenCart from "./src/components/ChickenFish/ChickenCart";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -60,16 +65,12 @@ function MainStack() {
       <Stack.Screen name="BikeTaxi" component={BikeTaxi} />
       <Stack.Screen name="Product" component={Product} />
       <Stack.Screen name="Cart" component={CartScreen} />
-      <Stack.Screen
-        name="PaymentSelection"
-        component={PaymentSelectionScreen}
-      />
-      <Stack.Screen
-        name="AddressSelection"
-        component={AddressSelectionScreen}
-      />
+      <Stack.Screen name="PaymentSelection" component={PaymentSelectionScreen}/>
+      <Stack.Screen name="AddressSelection" component={AddressSelectionScreen}/>
       <Stack.Screen name="BikeTaxiPayment" component={BikeTaxiPayment} />
       <Stack.Screen name="BikeTaxiTracking" component={BikeTaxiTracking} />
+      <Stack.Screen name="Login" component={Login} />
+      <Stack.Screen name="SignUp" component={SignUp} />
       <Stack.Screen name="AdminHome" component={Home} />
       <Stack.Screen name="AddAdmin" component={AddAdmin} />
       <Stack.Screen name="AddOwner" component={AddOwner} />
@@ -91,6 +92,11 @@ function MainStack() {
       <Stack.Screen name="ProductDetails" component={ProductDetails} />
       <Stack.Screen name="AddServices" component={AddServiceScreen} />
       <Stack.Screen name="AddManPower" component={AddManPower} />
+      <Stack.Screen name="Construction" component={Construction} />
+      <Stack.Screen name="ChickenFish" component={ChickenFish} />
+      <Stack.Screen name="AddChickenFish" component={AddChickenFish} />
+      <Stack.Screen name="AddConstruction" component={AddConstruction} />
+      <Stack.Screen name="ChickenCart" component={ChickenCart} />
     </Stack.Navigator>
   );
 }
@@ -319,10 +325,7 @@ export default function App() {
               </Drawer.Navigator>
             )
           ) : (
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="Login" component={Login} />
-              <Stack.Screen name="SignUp" component={SignUp} />
-            </Stack.Navigator>
+            <MainStack />
           )}
         </NavigationContainer>
       </SafeAreaView>

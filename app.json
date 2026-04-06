@@ -2,7 +2,7 @@
   "expo": {
     "name": "Servioo",
     "slug": "localServiceBox",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,19 +14,20 @@
     },
     "ios": {
       "bundleIdentifier": "com.arun03.localServiceBox",
-      "supportsTablet": true,
+      "buildNumber": "8",
+      "supportsTablet": false,
       "icon": "./assets/icon.png",
       "config": {
         "googleMapsApiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "We use your location to select pickup and delivery locations."
+        "NSLocationWhenInUseUsageDescription": "Your location is used to automatically detect your pickup and delivery addresses, show them on the map, and calculate accurate routes, distance, and delivery charges. You can also enter addresses manually without sharing your location."
       }
     },
     "android": {
       "package": "com.arun03.localServiceBox",
-      "versionCode": 7,
+      "versionCode": 8,
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
@@ -68,7 +69,7 @@
     "updates": {
       "url": "https://u.expo.dev/d302719d-343d-4324-9ceb-b12bb76807bc",
       "fallbackToCacheTimeout": 0,
-      "checkAutomatically": "ON_LOAD"
+      "checkAutomatically": "ON_ERROR_RECOVERY"
     },
     "runtimeVersion": {
       "policy": "appVersion"

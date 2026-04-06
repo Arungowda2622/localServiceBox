@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -54,6 +55,22 @@ const OuerServicesHome = ({ navigation }) => {
     },
     {
       id: 5,
+      serviceName: "Chicken & Fish",
+      title: "ChickenFish",
+      subtitle: "Order now",
+      icon: "🍗",
+      colors: ["#FF9A00", "#FF5F6D"],
+    },
+    {
+      id: 6,
+      serviceName: "Construction Materials",
+      title: "Construction",
+      subtitle: "Get services",
+      icon: "🏗️",
+      colors: ["#36D1DC", "#5B86E5"],
+    },
+    {
+      id: 7,
       serviceName: "Foods & Beverages",
       title: "FoodsBeverages",
       subtitle: "Order now",
@@ -63,76 +80,97 @@ const OuerServicesHome = ({ navigation }) => {
     },
   ];
 
-  const handleSelectedService = (item) => {
-    navigation.navigate(item.title, { data: item });
-  };
+ const handleSelectedService = (item) => {
+  if (item.title === "Construction") {
+    Alert.alert(
+      "Coming Soon 🚧",
+      "This feature will be available soon!"
+    );
+    return;
+  }
 
-const renderOurServices = ({ item, index }) => {
-  const isEven = index % 2 === 0;
+  // 👉 Normal navigation
+  navigation.navigate(item.title, { data: item });
+};
 
-  return (
-    <View
-      style={[
-        styles.serviceItem,
-        item.fullWidth
-          ? styles.fullWidthItem
-          : isEven
-          ? styles.leftItem
-          : styles.rightItem,
-      ]}
-    >
-      <Pressable
-        style={({ pressed }) => [
-          { transform: [{ scale: pressed ? 0.96 : 1 }] },
+  const renderOurServices = ({ item, index }) => {
+    const isEven = index % 2 === 0;
+
+    return (
+      <View
+        style={[
+          styles.serviceItem,
+          item.fullWidth
+            ? styles.fullWidthItem
+            : isEven
+              ? styles.leftItem
+              : styles.rightItem,
         ]}
-        onPress={() => handleSelectedService(item)}
       >
-        <LinearGradient
-          colors={item.colors}
-          style={[styles.card, item.fullWidth && styles.fullWidthCard]}
+        <Pressable
+          style={({ pressed }) => [
+            { transform: [{ scale: pressed ? 0.96 : 1 }] },
+          ]}
+          onPress={() => handleSelectedService(item)}
         >
-          {/* Soft shine */}
-          {item.fullWidth && <View style={styles.shineOverlay} />}
-
-          <View
-            style={[
-              styles.cardContent,
-              item.fullWidth && styles.fullWidthContent,
-            ]}
+          <LinearGradient
+            colors={item.colors}
+            style={[styles.card, item.fullWidth && styles.fullWidthCard]}
           >
-            {item.title === "Services" ? (
-              <Image
-                source={require("../../../assets/otherServices.jpeg")}
-                style={{ width: 80, height: 80, borderRadius: 40 }}
-                resizeMode="stretch"
-              />
-            ) : item.title === "ManPower" ? (
-              <Image
-                source={require("../../../assets/manPower.jpeg")}
-                style={{ width: 80, height: 80, borderRadius: 40 }}
-                resizeMode="stretch"
-              />
-            ) : (
-              <View style={styles.iconWrapper}>
-                <Text style={styles.icon}>{item.icon}</Text>
-              </View>
-            )}
+            {/* Soft shine */}
+            {item.fullWidth && <View style={styles.shineOverlay} />}
 
             <View
               style={[
-                styles.textBlock,
-                item.fullWidth && styles.fullWidthText,
+                styles.cardContent,
+                item.fullWidth && styles.fullWidthContent,
               ]}
             >
-              <Text style={styles.subtitle}>{item.subtitle}</Text>
-              <Text style={styles.title}>{item.serviceName}</Text>
+              {item.title === "Services" ? (
+                <Image
+                  source={require("../../../assets/otherServices.jpeg")}
+                  style={{ width: 80, height: 80, borderRadius: 40 }}
+                  resizeMode="stretch"
+                />
+              ) : item.title === "ManPower" ? (
+                <Image
+                  source={require("../../../assets/manPower.jpeg")}
+                  style={{ width: 80, height: 80, borderRadius: 40 }}
+                  resizeMode="stretch"
+                />
+              ) : item.title === "ChickenFish" ? (
+                <Image
+                  source={require("../../../assets/chickenFish.jpeg")}
+                  style={{ width: 80, height: 80, borderRadius: 40 }}
+                  resizeMode="stretch"
+                />
+              ) : item.title === "Construction" ? (
+                <Image
+                  source={require("../../../assets/constructionImage.jpeg")}
+                  style={{ width: 80, height: 80, borderRadius: 40 }}
+                  resizeMode="stretch"
+                />
+              ) : (
+                <View style={styles.iconWrapper}>
+                  <Text style={styles.icon}>{item.icon}</Text>
+                </View>
+              )}
+
+              <View
+                style={[
+                  styles.textBlock,
+                  item.fullWidth && styles.fullWidthText,
+                ]}
+              >
+                <Text style={styles.subtitle}>{item.subtitle}</Text>
+                <Text style={styles.title} numberOfLines={2}>{item.serviceName}</Text>
+              </View>
             </View>
-          </View>
-        </LinearGradient>
-      </Pressable>
-    </View>
-  );
-};
+          </LinearGradient>
+        </Pressable>
+      </View>
+    );
+  };
 
 
   return (
@@ -150,7 +188,7 @@ const renderOurServices = ({ item, index }) => {
           keyExtractor={(item) => item.id.toString()}
           numColumns={2}
           contentContainerStyle={styles.listContent}
-          scrollEnabled={false}
+          ListFooterComponent={<View style={{ height: 100 }} />}
         />
       </View>
 
@@ -202,7 +240,7 @@ const styles = StyleSheet.create({
   },
 
   listContent: {
-    paddingBottom: 16,
+    paddingBottom: 120,
   },
 
   serviceItem: {
@@ -271,6 +309,7 @@ const styles = StyleSheet.create({
 
   textBlock: {
     marginTop: 10,
+    flexShrink: 1,
   },
 
   fullWidthText: {
@@ -285,10 +324,11 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#FFFFFF",
-  },
+  fontSize: 18,
+  fontWeight: "900",
+  color: "#FFFFFF",
+  flexWrap: "wrap",
+},
 
   shineOverlay: {
     position: "absolute",

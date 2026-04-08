@@ -9,8 +9,7 @@ import {
   TouchableOpacity,
   View,
   FlatList,
-  Modal,
-  Linking,
+  Modal
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
@@ -19,7 +18,7 @@ import { GOOGLE_API_KEY } from "../googleApi/GoogleApi";
 import Header from "../header/Header";
 const { height } = Dimensions.get("window");
 
-// Colors
+
 const PRIMARY_COLOR = "#007BFF";
 const SUCCESS_COLOR = "#4CAF50";
 const ERROR_COLOR = "#EA4335";
@@ -37,6 +36,8 @@ export default function BoxDelivery({ navigation }) {
   const [routeInfo, setRouteInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selecting, setSelecting] = useState("pickup");
+  const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   // Fare settings (static)
   const fareSettings = {
@@ -362,71 +363,42 @@ export default function BoxDelivery({ navigation }) {
     );
   };
 
- const handleUseCurrentLocation = async () => {
-  Alert.alert(
-    "Location Access",
-    "We use your location to automatically detect pickup and delivery addresses for faster booking. You can also enter address manually.",
-    [
-      {
-        text: "Continue",
-        onPress: async () => {
-          try {
-            setIsLoading(true);
+  const requestLocationPermission = async () => {
+  try {
+    setIsLoading(true);
 
-            const { status, canAskAgain } =
-              await Location.requestForegroundPermissionsAsync();
+    const { status } =
+      await Location.requestForegroundPermissionsAsync();
 
-            if (status !== "granted") {
-              setIsLoading(false);
+    if (status !== "granted") {
+      setIsLoading(false);
+      return;
+    }
 
-              if (!canAskAgain) {
-                Alert.alert(
-                  "Location Disabled",
-                  "Enable location from settings to auto-detect address.",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Open Settings",
-                      onPress: () => Linking.openSettings(),
-                    },
-                  ]
-                );
-              }
+    setHasLocationPermission(true); // ✅ ADD THIS
 
-              return;
-            }
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.High,
+    });
 
-            const loc = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.High,
-            });
+    const coords = {
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+    };
 
-            const coords = {
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-            };
+    setRegion({
+      ...coords,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
 
-            setRegion({
-              ...coords,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            });
+    await reverseGeocodeGoogle(coords, true);
+    setSelecting("destination");
 
-            await reverseGeocodeGoogle(coords, true);
-            setSelecting("destination");
-
-            setIsLoading(false);
-          } catch (e) {
-            console.log(e);
-            setIsLoading(false);
-          }
-        },
-      },
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-    ]
-  );
+    setIsLoading(false);
+  } catch (e) {
+    setIsLoading(false);
+  }
 };
 
   return (
@@ -437,7 +409,7 @@ export default function BoxDelivery({ navigation }) {
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        showsUserLocation
+        showsUserLocation={hasLocationPermission}
         onPress={handleMapPress}
         initialRegion={{
           latitude: 20.5937,
@@ -471,6 +443,7 @@ export default function BoxDelivery({ navigation }) {
         </View>
 
         <TouchableOpacity
+          disabled={isLoading}
           style={{
             marginTop: 10,
             backgroundColor: "#eee",
@@ -478,7 +451,7 @@ export default function BoxDelivery({ navigation }) {
             borderRadius: 8,
             alignItems: "center",
           }}
-          onPress={handleUseCurrentLocation}
+          onPress={() => setShowLocationModal(true)}
         >
           <Text>Use Current Location</Text>
         </TouchableOpacity>
@@ -565,6 +538,39 @@ export default function BoxDelivery({ navigation }) {
           <Text style={styles.loadingText}>Processing...</Text>
         </View>
       )}
+
+      <Modal visible={showLocationModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.locationModal}>
+            <Ionicons name="location" size={40} color={PRIMARY_COLOR} />
+
+            <Text style={styles.modalTitle}>Use Your Location (Optional)</Text>
+
+            <Text style={styles.modalText}>
+              You can use your current location to auto-fill your pickup address, or enter it manually.
+            </Text>
+
+            <TouchableOpacity
+              disabled={isLoading}
+              style={styles.modalButton}
+              onPress={async () => {
+                setShowLocationModal(false);
+                await requestLocationPermission(); // 👇 next step
+              }}
+            >
+              <Text style={styles.modalButtonText}>Use Current Location</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowLocationModal(false)}
+              style={{ marginTop: 10 }}
+            >
+              <Text style={{ color: "#777" }}>Not Now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -733,5 +739,49 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: PRIMARY_COLOR,
     marginTop: 10,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  locationModal: {
+    width: "85%",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+  },
+
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 10,
+    color: TEXT_COLOR,
+  },
+
+  modalText: {
+    fontSize: 14,
+    textAlign: "center",
+    color: SUB_TEXT_COLOR,
+    marginVertical: 15,
+  },
+
+  modalButton: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    width: "100%",
+    alignItems: "center",
+  },
+
+  modalButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
   },
 });

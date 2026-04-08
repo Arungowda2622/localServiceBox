@@ -53,6 +53,11 @@ import ChickenFish from "./src/components/ChickenFish/ChickenFish";
 import AddChickenFish from "./src/components/adminScreens/AddChickenFish";
 import AddConstruction from "./src/components/adminScreens/AddConstruction";
 import ChickenCart from "./src/components/ChickenFish/ChickenCart";
+import OrderDetails from "./src/components/screens/OrderDetails";
+import AdminOrderDetails from "./src/components/adminScreens/AdminOrderDetails";
+import MeatDetails from "./src/components/ChickenFish/MeatDetails";
+import ConstrctionDetails from "./src/components/Construction/ConstrctionDetails";
+import ConstructionCart from "./src/components/Construction/ConstructionCart";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -97,6 +102,11 @@ function MainStack() {
       <Stack.Screen name="AddChickenFish" component={AddChickenFish} />
       <Stack.Screen name="AddConstruction" component={AddConstruction} />
       <Stack.Screen name="ChickenCart" component={ChickenCart} />
+      <Stack.Screen name="OrderDetails" component={OrderDetails} />
+      <Stack.Screen name="AdminOrderDetails" component={AdminOrderDetails} />
+      <Stack.Screen name="MeatDetails" component={MeatDetails} />
+      <Stack.Screen name="ConstructionDetails" component={ConstrctionDetails} />
+      <Stack.Screen name="ConstructionCart" component={ConstructionCart} />
     </Stack.Navigator>
   );
 }

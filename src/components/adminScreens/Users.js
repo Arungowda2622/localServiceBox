@@ -71,11 +71,11 @@ const Users = ({ navigation }) => {
 
     const initials = item.fullName
       ? item.fullName
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase()
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
       : "U";
 
     return (
@@ -128,6 +128,10 @@ const Users = ({ navigation }) => {
           );
         })}
       </ScrollView>
+
+      <Text style={styles.countText}>
+        {filteredUsers.length} Users Found
+      </Text>
 
       {/* 🔥 USER LIST */}
       {loading ? (
@@ -188,10 +192,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  countText: {
+  paddingHorizontal: 16,
+  fontSize: 14,
+  fontWeight: "600",
+  color: "#374151",
+  marginBottom: 6,
+  textAlign: "right",
+},
   listContainer: {
     padding: 16,
     paddingBottom: 30,
-    // flexGrow: 1,
   },
   emptyContainer: {
     alignItems: "center",
@@ -202,7 +213,7 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontSize: 14,
   },
-    /* 🔥 Card */
+  /* 🔥 Card */
   card: {
     backgroundColor: colors.white,
     padding: 14,
@@ -240,7 +251,6 @@ const styles = StyleSheet.create({
 
   info: {
     marginLeft: 12,
-    width: 220,
   },
 
   name: {
@@ -262,8 +272,8 @@ const styles = StyleSheet.create({
   },
 
   roleText: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "600",
   },
 
   /* ✅ ROLE COLORS */

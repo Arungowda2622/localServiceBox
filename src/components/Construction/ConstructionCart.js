@@ -12,11 +12,11 @@ import { Ionicons } from "@expo/vector-icons";
 import Header from "../header/Header";
 import { Image as ExpoImage } from "expo-image";
 
-const CART_STORAGE_KEY = "@cf_cart"; // 🔥 IMPORTANT
+const CART_STORAGE_KEY = "@cs_cart"; // 🔥 IMPORTANT
 
-const ChickenCart = ({ navigation, route }) => {
+const ConstructionCart = ({ navigation, route }) => {
+
     const {orderType} = route.params || {};
-
     const [cartItems, setCartItems] = useState([]);
 
     /* ---------------- LOAD CART ---------------- */
@@ -93,7 +93,7 @@ const ChickenCart = ({ navigation, route }) => {
 
     return (
         <View style={styles.container}>
-            <Header title="Chicken & Fish Cart" navigation={navigation} />
+            <Header title="Construction Cart" navigation={navigation} />
 
             {cartItems.length === 0 ? (
                 <View style={styles.empty}>
@@ -172,7 +172,7 @@ const ChickenCart = ({ navigation, route }) => {
     );
 };
 
-export default ChickenCart;
+export default ConstructionCart;
 
 const styles = StyleSheet.create({
     container: { 

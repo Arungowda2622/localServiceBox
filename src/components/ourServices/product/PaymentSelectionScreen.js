@@ -17,7 +17,7 @@ import { notifyDrivers } from "../../utils/notifyDrivers";
 import { getUserId } from "../../../utils/authUtils";
 
 const PaymentSelectionScreen = ({ navigation, route }) => {
-  const { total, cartItems, selectedAddress: routeSelectedAddress } = route?.params || {};
+  const { total, cartItems, selectedAddress: routeSelectedAddress, orderType  } = route?.params || {};
   const [addresses, setAddresses] = useState([]);
   const [upis, setUpis] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -241,7 +241,8 @@ ${itemsText}
       };
 
       // 💾 Save Order
-      await addDoc(collection(db, "orders"), newOrder);
+      const collectionName = orderType || "orders";
+      await addDoc(collection(db, collectionName), newOrder);
       sendToWhatsApp(newOrder);
      
       setLoading(false);

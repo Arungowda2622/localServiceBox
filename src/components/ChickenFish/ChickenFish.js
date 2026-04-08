@@ -133,7 +133,7 @@ const ChickenFish = ({ navigation }) => {
 
   /* ---------------- UI CARD ---------------- */
   const renderItem = ({ item }) => (
-    <TouchableOpacity style={styles.card}>
+    <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("MeatDetails", { product: item, handleAddToCart })}>
       <ExpoImage
         source={{ uri: item.imageUrl }}
         style={styles.image}
@@ -165,7 +165,7 @@ const ChickenFish = ({ navigation }) => {
         title="Chicken & Fish"
         navigation={navigation}
         cartCount={cartItems.length}
-        onCartPress={() => navigation.navigate("ChickenCart")}
+        onCartPress={() => navigation.navigate("ChickenCart",{orderType: "chickenFishOrders", cartItems})}
       />
 
       {/* SEARCH */}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -6,12 +6,41 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Footer from "../footer/Footer";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const OuerServicesHome = ({ navigation }) => {
+  const [searchText, setSearchText] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+          const fetchUser = async () => {
+              try {
+                  const stored = await AsyncStorage.getItem("user");
+                  if (stored) {
+                      const parsed = JSON.parse(stored);
+                      console.log(parsed.userData, "thisIsUserData")
+                      if (parsed?.userData) {
+                          setFullName(parsed.userData.fullName || "");
+                      }
+                  }
+                 
+              } catch (e) {
+                  console.log("Profile fetch error:", e);
+              } finally {
+                  setFetching(false);
+              }
+          };
+  
+          fetchUser();
+      }, []);
+
+
   const services = [
     // {
     //   id: 1,
@@ -80,18 +109,9 @@ const OuerServicesHome = ({ navigation }) => {
     },
   ];
 
- const handleSelectedService = (item) => {
-  if (item.title === "Construction") {
-    Alert.alert(
-      "Coming Soon 🚧",
-      "This feature will be available soon!"
-    );
-    return;
-  }
-
-  // 👉 Normal navigation
-  navigation.navigate(item.title, { data: item });
-};
+  const handleSelectedService = (item) => {
+    navigation.navigate(item.title, { data: item });
+  };
 
   const renderOurServices = ({ item, index }) => {
     const isEven = index % 2 === 0;
@@ -113,64 +133,51 @@ const OuerServicesHome = ({ navigation }) => {
           ]}
           onPress={() => handleSelectedService(item)}
         >
-          <LinearGradient
-            colors={item.colors}
-            style={[styles.card, item.fullWidth && styles.fullWidthCard]}
-          >
-            {/* Soft shine */}
-            {item.fullWidth && <View style={styles.shineOverlay} />}
-
-            <View
-              style={[
-                styles.cardContent,
-                item.fullWidth && styles.fullWidthContent,
-              ]}
-            >
-              {item.title === "Services" ? (
-                <Image
-                  source={require("../../../assets/otherServices.jpeg")}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                  resizeMode="stretch"
-                />
-              ) : item.title === "ManPower" ? (
-                <Image
-                  source={require("../../../assets/manPower.jpeg")}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                  resizeMode="stretch"
-                />
-              ) : item.title === "ChickenFish" ? (
-                <Image
-                  source={require("../../../assets/chickenFish.jpeg")}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                  resizeMode="stretch"
-                />
-              ) : item.title === "Construction" ? (
-                <Image
-                  source={require("../../../assets/constructionImage.jpeg")}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                  resizeMode="stretch"
-                />
-              ) : (
-                <View style={styles.iconWrapper}>
-                  <Text style={styles.icon}>{item.icon}</Text>
-                </View>
-              )}
-
-              <View
-                style={[
-                  styles.textBlock,
-                  item.fullWidth && styles.fullWidthText,
-                ]}
-              >
-                <Text style={styles.subtitle}>{item.subtitle}</Text>
-                <Text style={styles.title} numberOfLines={2}>{item.serviceName}</Text>
+          <View style={styles.card}>
+            {item.title === "Services" ? (
+              <Image
+                source={require("../../../assets/otherServices.jpeg")}
+                style={styles.image}
+                resizeMode="stretch"
+              />
+            ) : item.title === "ManPower" ? (
+              <Image
+                source={require("../../../assets/manPower.jpeg")}
+                style={styles.image}
+                resizeMode="stretch"
+              />
+            ) : item.title === "ChickenFish" ? (
+              <Image
+                source={require("../../../assets/chickenFish.jpeg")}
+                style={styles.image}
+                resizeMode="stretch"
+              />
+            ) : item.title === "Construction" ? (
+              <Image
+                source={require("../../../assets/constructionImage.jpeg")}
+                style={styles.image}
+                resizeMode="stretch"
+              />
+            ) : (
+              <View style={styles.iconWrapper}>
+                <Text style={styles.icon}>{item.icon}</Text>
               </View>
-            </View>
-          </LinearGradient>
+            )}
+
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {item.serviceName}
+            </Text>
+
+            <Text style={styles.cardSub}>{item.subtitle}</Text>
+          </View>
         </Pressable>
       </View>
     );
   };
+
+  const filteredServices = services.filter((item) =>
+    item.serviceName.toLowerCase().includes(searchText.toLowerCase())
+  );
 
 
   return (
@@ -180,15 +187,33 @@ const OuerServicesHome = ({ navigation }) => {
       <View style={styles.bgCircleTwo} />
 
       <View style={styles.container}>
-        <Text style={styles.sectionLabel}>Our Services</Text>
+        {/* <Text style={styles.sectionLabel}>Our Services</Text> */}
+
+        <View style={styles.header}>
+          <Text style={styles.greeting}>👋 Hello {fullName || "there"}!</Text>
+          <Text style={styles.subText}>What do you need today?</Text>
+
+          <View style={styles.searchBox}>
+            <TextInput
+              placeholder="🔍 Search services..."
+              value={searchText}
+              onChangeText={setSearchText}
+            />
+          </View>
+        </View>
 
         <FlatList
-          data={services}
+          data={filteredServices}
           renderItem={renderOurServices}
           keyExtractor={(item) => item.id.toString()}
           numColumns={2}
           contentContainerStyle={styles.listContent}
           ListFooterComponent={<View style={{ height: 100 }} />}
+          ListEmptyComponent={
+            <Text style={{ textAlign: "center", marginTop: 20 }}>
+              No services found 😔
+            </Text>
+          }
         />
       </View>
 
@@ -245,7 +270,8 @@ const styles = StyleSheet.create({
 
   serviceItem: {
     width: "50%",
-    marginBottom: 18,
+    paddingHorizontal: 6,
+    marginBottom: 12,
   },
 
   leftItem: {
@@ -261,16 +287,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
 
-  card: {
-    height: 175,
-    borderRadius: 22,
-    padding: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.22,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 8,
-  },
+
 
   fullWidthCard: {
     height: 135,
@@ -324,11 +341,11 @@ const styles = StyleSheet.create({
   },
 
   title: {
-  fontSize: 18,
-  fontWeight: "900",
-  color: "#FFFFFF",
-  flexWrap: "wrap",
-},
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    flexWrap: "wrap",
+  },
 
   shineOverlay: {
     position: "absolute",
@@ -339,5 +356,63 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
+  },
+  header: {
+    marginBottom: 20,
+  },
+
+  greeting: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#111",
+  },
+
+  subText: {
+    color: "#777",
+    marginTop: 4,
+  },
+
+  searchBox: {
+    marginTop: 15,
+    backgroundColor: "#f1f3f6",
+    paddingHorizontal: 12,
+    paddingVertical:5,
+    borderRadius: 15,
+  },
+
+  card: {
+    width: "100%",   // 🔥 important
+    height: 180,     // 🔥 fixed height (same for all)
+    backgroundColor: "#fff",
+    marginVertical: 8,
+    borderRadius: 16,
+    padding: 12,
+    alignItems: "center",
+    justifyContent: "center",
+
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  image: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    marginBottom: 10,
+  },
+
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  cardSub: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 4,
   },
 });

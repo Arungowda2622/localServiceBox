@@ -12,18 +12,31 @@ import { db } from "../firebase/firebaseConfig";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import Header from "../header/Header";
 import { getUserId } from "../../utils/authUtils";
+import { Dropdown } from "react-native-element-dropdown";
+
+const orderTypeData = [
+  { label: "Products", value: "orders" },
+  { label: "Box Delivery", value: "boxDelivery" },
+  { label: "Chicken/Fish", value: "chickenFishOrders" },
+  { label: "Construction", value: "constructionOrders" },
+];
 
 const Orders = ({ navigation }) => {
-  const [orders, setOrders] = useState([]);
+
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("product");
   const [usersMap, setUsersMap] = useState({});
 
+  const [orderType, setOrderType] = useState("orders"); // default = products
+  const [orders, setOrders] = useState([]);
+
 
   /* ---------------- FETCH DATA ---------------- */
 
   const fetchData = async (collectionName, setter) => {
+    console.log("Fetching", collectionName);
+    console.log(setter)
     try {
       setLoading(true);
       const uid = await getUserId();
@@ -70,9 +83,8 @@ const Orders = ({ navigation }) => {
 
   useEffect(() => {
     fetchUsers();
-    if (activeTab === "product") fetchData("orders", setOrders);
-    else fetchData("boxDelivery", setDeliveries);
-  }, [activeTab]);
+    fetchData(orderType, setOrders);
+  }, [orderType]);
 
   /* ---------------- HELPERS ---------------- */
 
@@ -104,30 +116,34 @@ const Orders = ({ navigation }) => {
   );
 
   const renderOrder = ({ item }) => (
-    <CardWrapper>
-      <Text style={styles.id}>Order #{item.id.slice(0, 8)}</Text>
+    <TouchableOpacity
+      onPress={() => navigation.navigate("OrderDetails", { order: item })}
+    >
+      <CardWrapper>
+        <Text style={styles.id}>Order #{item.id.slice(0, 8)}</Text>
 
-      {/* ✅ CUSTOMER INFO FROM address OBJECT */}
-      <Text style={styles.sub}>
-        👤 {item.address?.fullName || "Customer"}
-      </Text>
-      <Text style={styles.sub}>
-        📞 {item.address?.mobileNumber || "No Phone"}
-      </Text>
+        {/* ✅ CUSTOMER INFO FROM address OBJECT */}
+        <Text style={styles.sub}>
+          👤 {item.address?.fullName || "Customer"}
+        </Text>
+        <Text style={styles.sub}>
+          📞 {item.address?.mobileNumber || "No Phone"}
+        </Text>
 
-      <Text style={styles.amount}>₹ {item.total}</Text>
-      <Text style={styles.sub}>Payment: {item.paymentMethod}</Text>
+        <Text style={styles.amount}>₹ {item.total}</Text>
+        <Text style={styles.sub}>Payment: {item.paymentMethod}</Text>
 
-      <StatusBadge status={item.status} />
+        <StatusBadge status={item.status} />
 
-      <Text style={styles.sub}>
-        {item.address?.address}, {item.address?.city}
-      </Text>
+        <Text style={styles.sub}>
+          {item.address?.address}, {item.address?.city}
+        </Text>
 
-      <Text style={styles.date}>
-        {item.createdAt?.toDate?.().toLocaleString()}
-      </Text>
-    </CardWrapper>
+        <Text style={styles.date}>
+          {item.createdAt?.toDate?.().toLocaleString()}
+        </Text>
+      </CardWrapper>
+    </TouchableOpacity>
   );
 
 
@@ -172,59 +188,38 @@ const Orders = ({ navigation }) => {
       <Header title="My Orders" navigation={navigation} />
       <View style={{ flex: 1, padding: 16 }}>
         {/* Segmented Tabs */}
-        <View style={styles.tabs}>
-          {[
-            { key: "product", label: "Products", icon: "cart" },
-            { key: "box", label: "Box", icon: "cube-outline" },
-          ].map((t) => (
-            <TouchableOpacity
-              key={t.key}
-              style={[styles.tab, activeTab === t.key && styles.tabActive]}
-              onPress={() => setActiveTab(t.key)}
-            >
-              <Icon
-                name={t.icon}
-                size={20}
-                color={activeTab === t.key ? "#fff" : "#666"}
-              />
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === t.key && styles.tabTextActive,
-                ]}
-              >
-                {t.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={{ marginBottom: 15 }}>
+          <Dropdown
+            style={{
+              height: 50,
+              borderWidth: 1,
+              borderColor: "#ccc",
+              borderRadius: 10,
+              paddingHorizontal: 10,
+              backgroundColor: "#fff",
+            }}
+            data={orderTypeData}
+            labelField="label"
+            valueField="value"
+            value={orderType}
+            placeholder="Select Order Type"
+            onChange={(item) => {
+              setOrderType(item.value);
+            }}
+          />
         </View>
 
         {loading ? (
-          <ActivityIndicator
-            size="large"
-            color="#007AFF"
-            style={{ marginTop: 40 }}
-          />
-        ) : activeTab === "product" ? (
-          orders.length ? (
-            <FlatList
-              data={orders}
-              renderItem={renderOrder}
-              keyExtractor={(item) => item.id}
-              ListFooterComponent={<View style={{ height: 150 }} />}
-            />
-          ) : (
-            <EmptyState text="No product orders yet" />
-          )
-        ) : deliveries.length ? (
+          <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
+        ) : orders.length ? (
           <FlatList
-            data={deliveries}
-            renderItem={renderDelivery}
+            data={orders}
+            renderItem={renderOrder}
             keyExtractor={(item) => item.id}
             ListFooterComponent={<View style={{ height: 150 }} />}
           />
         ) : (
-          <EmptyState text="No box deliveries yet" />
+          <EmptyState text={`No ${orderType} orders yet`} />
         )}
       </View>
     </View>

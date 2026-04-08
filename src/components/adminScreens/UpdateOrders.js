@@ -53,8 +53,9 @@ const statusData = [
 
 const orderTypeData = [
   { label: "Product Orders", value: "orders" },
-  { label: "Bike Rides", value: "rides" },
   { label: "Box Delivery", value: "boxDelivery" },
+  { label: "Chicken/Fish Orders", value: "chickenFishOrders" },
+  { label: "Construction Orders", value: "constructionOrders" },
 ];
 
 const UpdateOrders = ({ navigation }) => {
@@ -153,10 +154,12 @@ const UpdateOrders = ({ navigation }) => {
     switch (orderType) {
       case "orders":
         return "basket-outline";
-      case "rides":
-        return "bicycle-outline"; // Changed to bicycle for better fit
       case "boxDelivery":
         return "cube-outline";
+      case "chickenFishOrders":
+        return "food-drumstick"; // ✅
+      case "constructionOrders":
+        return "hammer"; // ✅
       default:
         return "document-text-outline";
     }
@@ -188,106 +191,120 @@ const UpdateOrders = ({ navigation }) => {
       null;
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() =>
+          navigation.navigate("AdminOrderDetails", {
+            order: item,
+            orderType: orderType,
+          })
+        }
+      >
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={styles.avatar}>
+                <Ionicons name={getOrderIcon()} size={18} color="#fff" />
+              </View>
 
-        {/* ===== HEADER ===== */}
-        <View style={styles.cardHeader}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <View style={styles.avatar}>
-              <Ionicons name={getOrderIcon()} size={18} color="#fff" />
+              <View>
+                <Text style={styles.orderId}>
+                  #{item.id.substring(0, 8).toUpperCase()}
+                </Text>
+                <Text style={styles.orderSub}>
+                  {orderType === "orders"
+                    ? "Product Order"
+                    : orderType === "boxDelivery"
+                      ? "Box Delivery"
+                      : orderType === "chickenFishOrders"
+                        ? "Chicken/Fish Order"
+                        : orderType === "constructionOrders"
+                          ? "Construction Order"
+                          : "Order"}
+                </Text>
+              </View>
             </View>
 
-            <View>
-              <Text style={styles.orderId}>
-                #{item.id.substring(0, 8).toUpperCase()}
-              </Text>
-              <Text style={styles.orderSub}>
-                {orderType === "orders"
-                  ? "Product Order"
-                  : orderType === "rides"
-                    ? "Ride Booking"
-                    : "Box Delivery"}
-              </Text>
-            </View>
+
           </View>
 
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
             <Text style={styles.statusText}>{item.status}</Text>
           </View>
-        </View>
 
-        {/* ===== USER CARD ===== */}
-        <View style={styles.userCard}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>{userName}</Text>
-            <Text style={styles.userPhone}>{userPhone || "No phone"}</Text>
+          {/* ===== USER CARD ===== */}
+          <View style={styles.userCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userPhone}>{userPhone || "No phone"}</Text>
+            </View>
+
+            {userPhone && (
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={() => callUser(userPhone)}
+                >
+                  <Ionicons name="call" size={18} color="#fff" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.iconBtn, { backgroundColor: "#25D366" }]}
+                  onPress={() => whatsappUser(userPhone)}
+                >
+                  <Ionicons name="logo-whatsapp" size={18} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
-          {userPhone && (
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => callUser(userPhone)}
-              >
-                <Ionicons name="call" size={18} color="#fff" />
-              </TouchableOpacity>
+          {/* ===== PRICE SECTION ===== */}
+          <View style={styles.priceRow}>
+            <Text style={styles.totalLabel}>Total Value</Text>
+            <Text style={styles.totalValue}>
+              ₹{item.total || item.fare || "N/A"}
+            </Text>
+          </View>
 
-              <TouchableOpacity
-                style={[styles.iconBtn, { backgroundColor: "#25D366" }]}
-                onPress={() => whatsappUser(userPhone)}
-              >
-                <Ionicons name="logo-whatsapp" size={18} color="#fff" />
-              </TouchableOpacity>
+          {/* ===== LOCATION ===== */}
+          {orderType === "boxDelivery" && (
+            <View style={styles.routeBox}>
+              <Text style={styles.routeText}>
+                ⬆ {item.pickupName || "Pickup"}
+              </Text>
+              <Text style={styles.routeText}>
+                ⬇ {item.destinationName || "Destination"}
+              </Text>
             </View>
           )}
-        </View>
 
-        {/* ===== PRICE SECTION ===== */}
-        <View style={styles.priceRow}>
-          <Text style={styles.totalLabel}>Total Value</Text>
-          <Text style={styles.totalValue}>
-            ₹{item.total || item.fare || "N/A"}
-          </Text>
-        </View>
+          {/* ===== ACTION FOOTER ===== */}
+          <View style={styles.cardFooter}>
+            <View style={styles.dropdownContainerStatus}>
+              <Dropdown
+                style={styles.dropdown}
+                data={statusData}
+                labelField="label"
+                valueField="value"
+                value={item.status}
+                placeholder="Change Status"
+                onChange={(selected) =>
+                  handleStatusChange(item.id, selected.value)
+                }
+              />
+            </View>
 
-        {/* ===== LOCATION ===== */}
-        {orderType !== "orders" && (
-          <View style={styles.routeBox}>
-            <Text style={styles.routeText}>
-              ⬆ {item.pickupName || "Pickup"}
-            </Text>
-            <Text style={styles.routeText}>
-              ⬇ {item.destinationName || "Destination"}
-            </Text>
+            <TouchableOpacity onPress={() => handleDelete(item.id)}>
+              <LinearGradient
+                colors={["#FF5252", "#D91E1E"]}
+                style={styles.deleteButton}
+              >
+                <Ionicons name="trash-outline" size={18} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* ===== ACTION FOOTER ===== */}
-        <View style={styles.cardFooter}>
-          <View style={styles.dropdownContainerStatus}>
-            <Dropdown
-              style={styles.dropdown}
-              data={statusData}
-              labelField="label"
-              valueField="value"
-              value={item.status}
-              placeholder="Change Status"
-              onChange={(selected) =>
-                handleStatusChange(item.id, selected.value)
-              }
-            />
-          </View>
-
-          <TouchableOpacity onPress={() => handleDelete(item.id)}>
-            <LinearGradient
-              colors={["#FF5252", "#D91E1E"]}
-              style={styles.deleteButton}
-            >
-              <Ionicons name="trash-outline" size={18} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -295,7 +312,18 @@ const UpdateOrders = ({ navigation }) => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.BACKGROUND_COLOR} />
       {/* Assuming Header handles back button/title and is already styled */}
-      <Header navigation={navigation} title={`Manage ${orderType === 'orders' ? 'Orders' : orderType === 'rides' ? 'Rides' : 'Deliveries'}`} />
+      <Header navigation={navigation}
+        title={`Manage ${orderType === "orders"
+            ? "Orders"
+            : orderType === "boxDelivery"
+              ? "Deliveries"
+              : orderType === "chickenOrders"
+                ? "Chicken/Fish Orders"
+                : orderType === "constructionOrders"
+                  ? "Construction Orders"
+                  : "Orders"
+          }`}
+      />
 
       {/* CONTROLS AREA (Using a separate elevated view) */}
       <View style={styles.controlsAreaWrapper}>
@@ -357,8 +385,6 @@ const UpdateOrders = ({ navigation }) => {
 
 export default UpdateOrders;
 
-// --- NEW STYLES ---
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.BACKGROUND_COLOR },
   controlsAreaWrapper: {
@@ -377,11 +403,11 @@ const styles = StyleSheet.create({
     elevation: 8,
     marginBottom: 10,
   },
-  dropdownContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginBottom: 10, 
-    paddingVertical: 5 
+  dropdownContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingVertical: 5
   },
   dropdownLabel: {
     fontSize: 15,
@@ -405,17 +431,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
   },
-  searchInput: { 
-    flex: 1, 
-    fontSize: 16, 
-    marginLeft: 10, 
-    color: colors.TEXT_COLOR_DARK, 
-    paddingVertical: 0 
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    marginLeft: 10,
+    color: colors.TEXT_COLOR_DARK,
+    paddingVertical: 0
   },
-  flatListContent: { 
-    paddingHorizontal: 15, 
-    paddingTop: 5, 
-    paddingBottom: 100 
+  flatListContent: {
+    paddingHorizontal: 15,
+    paddingTop: 5,
+    paddingBottom: 100
   },
   card: {
     borderRadius: 20,
@@ -442,11 +468,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  orderId: { 
-    fontSize: 16, 
-    fontWeight: "700", 
-    color: colors.TEXT_COLOR_DARK, 
-    marginLeft: 8 
+  orderId: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.TEXT_COLOR_DARK,
+    marginLeft: 8
   },
   statusPill: {
     paddingHorizontal: 12,
@@ -459,8 +485,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     overflow: 'hidden',
   },
-  contentSection: { 
-    marginBottom: 18 
+  contentSection: {
+    marginBottom: 18
   },
   totalFareBox: {
     backgroundColor: colors.BACKGROUND_COLOR,
@@ -567,10 +593,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
-  deleteButtonText: { 
-    color: "#fff", 
-    fontWeight: "700", 
-    fontSize: 14 
+  deleteButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14
   },
   noOrdersContainer: {
     flex: 1,
@@ -628,6 +654,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
+    marginVertical: 10
   },
   statusText: {
     color: "#fff",
@@ -671,4 +698,3 @@ const styles = StyleSheet.create({
     color: colors.TEXT_COLOR_DARK,
   },
 });
-

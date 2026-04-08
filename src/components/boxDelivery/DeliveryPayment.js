@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { addDoc, collection, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
 import { waitForAuthUser } from "../../utils/authUtils";
+import Header from '../header/Header';
 
 const PRIMARY_COLOR = '#007BFF';
 const TEXT_COLOR = '#333';
@@ -94,6 +95,7 @@ const DeliveryPayment = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
+      <Header title="Confirm Delivery" navigation={navigation}/>
       <ScrollView contentContainerStyle={styles.content}>
         {/* TITLE */}
         <Text style={styles.title}>Delivery Summary</Text>

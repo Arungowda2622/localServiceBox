@@ -21,8 +21,7 @@
         "googleMapsApiKey": "AIzaSyDwOFrgNmM51uT1F1zg_L0Em5ujW9obcHk"
       },
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "Your location is used to automatically detect your pickup and delivery addresses, show them on the map, and calculate accurate routes, distance, and delivery charges. You can also enter addresses manually without sharing your location."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

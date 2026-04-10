@@ -146,40 +146,44 @@ const Orders = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-
-
   const renderDelivery = ({ item }) => {
     const customer = usersMap[item.userId];
 
     return (
-      <CardWrapper>
-        <Text style={styles.id}>Delivery #{item.id.slice(0, 8)}</Text>
+      <TouchableOpacity
+        // onPress={() => navigation.navigate("OrderDetails", { order: item })}
+      >
+        <CardWrapper>
+          <Text style={styles.id}>Delivery #{item.id.slice(0, 8)}</Text>
 
-        {/* ✅ CUSTOMER INFO FROM USERS COLLECTION */}
-        <Text style={styles.sub}>
-          👤 {customer?.name || "Customer"}
-        </Text>
+          <Text style={styles.sub}>
+            👤 {customer?.name || "Customer"}
+          </Text>
 
-        <Text style={styles.sub}>
-          📞 {customer?.phone || "No Phone"}
-        </Text>
+          <Text style={styles.sub}>
+            📞 {customer?.phone || "No Phone"}
+          </Text>
 
-        <Text style={styles.amount}>₹ {item.fare}</Text>
+          <Text style={styles.amount}>₹ {item.fare}</Text>
 
-        <StatusBadge status={item.status} />
+          <Text style={styles.sub}>Payment: {item.paymentMethod}</Text>
 
-        <Text style={styles.sub}>Pickup: {item?.pickup}</Text>
-        <Text style={styles.sub}>Drop: {item?.destination}</Text>
+          <StatusBadge status={item.status} />
 
-        <Text style={styles.sub}>
-          {item.distance} km • {item.duration}
-        </Text>
-      </CardWrapper>
+          <Text style={styles.sub}>📍 Pickup: {item.pickupName}</Text>
+          <Text style={styles.sub}>🏁 Drop: {item.destinationName}</Text>
+
+          <Text style={styles.sub}>
+            {item.distance} km • {item.duration}
+          </Text>
+
+          <Text style={styles.date}>
+            {item.createdAt?.toDate?.().toLocaleString()}
+          </Text>
+        </CardWrapper>
+      </TouchableOpacity>
     );
   };
-
-
-
 
   /* ---------------- UI ---------------- */
 
@@ -214,7 +218,11 @@ const Orders = ({ navigation }) => {
         ) : orders.length ? (
           <FlatList
             data={orders}
-            renderItem={renderOrder}
+            renderItem={({ item }) =>
+              orderType === "boxDelivery"
+                ? renderDelivery({ item })
+                : renderOrder({ item })
+            }
             keyExtractor={(item) => item.id}
             ListFooterComponent={<View style={{ height: 150 }} />}
           />

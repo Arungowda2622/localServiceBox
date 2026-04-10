@@ -9,10 +9,10 @@ import {
   TouchableOpacity,
   View,
   FlatList,
-  Modal
+  Modal,
+  Platform
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
-import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { GOOGLE_API_KEY } from "../googleApi/GoogleApi";
 import Header from "../header/Header";
@@ -364,42 +364,44 @@ export default function BoxDelivery({ navigation }) {
   };
 
   const requestLocationPermission = async () => {
-  try {
-    setIsLoading(true);
+    if (Platform.OS === "ios") return;
+    const Location = require("expo-location");
+    try {
+      setIsLoading(true);
 
-    const { status } =
-      await Location.requestForegroundPermissionsAsync();
+      const { status } =
+        await Location.requestForegroundPermissionsAsync();
 
-    if (status !== "granted") {
+      if (status !== "granted") {
+        setIsLoading(false);
+        return;
+      }
+
+      setHasLocationPermission(true); // ✅ ADD THIS
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const coords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+
+      setRegion({
+        ...coords,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+
+      await reverseGeocodeGoogle(coords, true);
+      setSelecting("destination");
+
       setIsLoading(false);
-      return;
+    } catch (e) {
+      setIsLoading(false);
     }
-
-    setHasLocationPermission(true); // ✅ ADD THIS
-
-    const loc = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
-    });
-
-    const coords = {
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-    };
-
-    setRegion({
-      ...coords,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    });
-
-    await reverseGeocodeGoogle(coords, true);
-    setSelecting("destination");
-
-    setIsLoading(false);
-  } catch (e) {
-    setIsLoading(false);
-  }
-};
+  };
 
   return (
     <View style={styles.container}>
@@ -442,19 +444,21 @@ export default function BoxDelivery({ navigation }) {
           {renderLocationInput(destinationLocation, "destination")}
         </View>
 
-        <TouchableOpacity
-          disabled={isLoading}
-          style={{
-            marginTop: 10,
-            backgroundColor: "#eee",
-            padding: 10,
-            borderRadius: 8,
-            alignItems: "center",
-          }}
-          onPress={() => setShowLocationModal(true)}
-        >
-          <Text>Use Current Location</Text>
-        </TouchableOpacity>
+        {Platform.OS !== "ios" && (
+          <TouchableOpacity
+            disabled={isLoading}
+            style={{
+              marginTop: 10,
+              backgroundColor: "#eee",
+              padding: 10,
+              borderRadius: 8,
+              alignItems: "center",
+            }}
+            onPress={() => setShowLocationModal(true)}
+          >
+            <Text>Use Current Location</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Route info */}
         {routeInfo ? (

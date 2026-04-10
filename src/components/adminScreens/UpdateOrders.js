@@ -175,6 +175,26 @@ const UpdateOrders = ({ navigation }) => {
     Linking.openURL(`whatsapp://send?phone=91${phone}`);
   };
 
+  const goToPickup = (pickup) => {
+    if (!pickup) return;
+
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+      pickup
+    )}`;
+
+    Linking.openURL(url);
+  };
+
+  const goToDrop = (pickup, destination) => {
+    if (!pickup || !destination) return;
+
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+      pickup
+    )}&destination=${encodeURIComponent(destination)}`;
+
+    Linking.openURL(url);
+  };
+
   // 🔹 Render order card (Updated for new styles)
   const renderOrder = ({ item }) => {
 
@@ -193,12 +213,14 @@ const UpdateOrders = ({ navigation }) => {
     return (
       <TouchableOpacity
         activeOpacity={0.9}
-        onPress={() =>
-          navigation.navigate("AdminOrderDetails", {
-            order: item,
-            orderType: orderType,
-          })
-        }
+        onPress={() => {
+          if (orderType !== "boxDelivery") {
+            navigation.navigate("AdminOrderDetails", {
+              order: item,
+              orderType: orderType,
+            });
+          }
+        }}
       >
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -266,17 +288,45 @@ const UpdateOrders = ({ navigation }) => {
             </Text>
           </View>
 
+
           {/* ===== LOCATION ===== */}
           {orderType === "boxDelivery" && (
             <View style={styles.routeBox}>
-              <Text style={styles.routeText}>
-                ⬆ {item.pickupName || "Pickup"}
+
+              <Text style={[styles.routeText, { fontWeight: "700" }]}>
+                📍 Pickup Location
               </Text>
-              <Text style={styles.routeText}>
-                ⬇ {item.destinationName || "Destination"}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={[styles.routeSubText, { flex: 1 }]} numberOfLines={2}>
+                  {item.pickup || "No pickup location"}
+                </Text>
+
+                <TouchableOpacity onPress={() => goToPickup(item.pickup)}>
+                  <Ionicons name="navigate" size={22} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.routeText, { marginTop: 8, fontWeight: "700" }]}>
+                🏁 Drop Location
               </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={[styles.routeSubText, { flex: 1 }]} numberOfLines={2}>
+                  {item.destination || "No destination"}
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => goToDrop(item.pickup, item.destination)}
+                >
+                  <Ionicons name="navigate-circle" size={22} color="green" />
+                </TouchableOpacity>
+              </View>
+
             </View>
           )}
+
+          <Text style={styles.dateText}>
+            🕒 {item.createdAt?.toDate?.().toLocaleString() || "No date"}
+          </Text>
 
           {/* ===== ACTION FOOTER ===== */}
           <View style={styles.cardFooter}>
@@ -314,14 +364,14 @@ const UpdateOrders = ({ navigation }) => {
       {/* Assuming Header handles back button/title and is already styled */}
       <Header navigation={navigation}
         title={`Manage ${orderType === "orders"
-            ? "Orders"
-            : orderType === "boxDelivery"
-              ? "Deliveries"
-              : orderType === "chickenOrders"
-                ? "Chicken/Fish Orders"
-                : orderType === "constructionOrders"
-                  ? "Construction Orders"
-                  : "Orders"
+          ? "Orders"
+          : orderType === "boxDelivery"
+            ? "Deliveries"
+            : orderType === "chickenOrders"
+              ? "Chicken/Fish Orders"
+              : orderType === "constructionOrders"
+                ? "Construction Orders"
+                : "Orders"
           }`}
       />
 
@@ -696,5 +746,16 @@ const styles = StyleSheet.create({
   routeText: {
     fontSize: 13,
     color: colors.TEXT_COLOR_DARK,
+  },
+  routeSubText: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+
+  dateText: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 8,
   },
 });

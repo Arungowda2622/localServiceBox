@@ -58,6 +58,11 @@ import AdminOrderDetails from "./src/components/adminScreens/AdminOrderDetails";
 import MeatDetails from "./src/components/ChickenFish/MeatDetails";
 import ConstrctionDetails from "./src/components/Construction/ConstrctionDetails";
 import ConstructionCart from "./src/components/Construction/ConstructionCart";
+import AddHotel from "./src/components/adminScreens/AddHotel";
+import AddHotelOwner from "./src/components/adminScreens/AddHotelOwner";
+import FoodItems from "./src/components/adminScreens/FoodItems";
+import HotelList from "./src/components/ourServices/HotelList";
+import HotelItems from "./src/components/ourServices/HotelItems";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -70,8 +75,8 @@ function MainStack() {
       <Stack.Screen name="BikeTaxi" component={BikeTaxi} />
       <Stack.Screen name="Product" component={Product} />
       <Stack.Screen name="Cart" component={CartScreen} />
-      <Stack.Screen name="PaymentSelection" component={PaymentSelectionScreen}/>
-      <Stack.Screen name="AddressSelection" component={AddressSelectionScreen}/>
+      <Stack.Screen name="PaymentSelection" component={PaymentSelectionScreen} />
+      <Stack.Screen name="AddressSelection" component={AddressSelectionScreen} />
       <Stack.Screen name="BikeTaxiPayment" component={BikeTaxiPayment} />
       <Stack.Screen name="BikeTaxiTracking" component={BikeTaxiTracking} />
       <Stack.Screen name="Login" component={Login} />
@@ -107,6 +112,11 @@ function MainStack() {
       <Stack.Screen name="MeatDetails" component={MeatDetails} />
       <Stack.Screen name="ConstructionDetails" component={ConstrctionDetails} />
       <Stack.Screen name="ConstructionCart" component={ConstructionCart} />
+      <Stack.Screen name="AddHotel" component={AddHotel} />
+      <Stack.Screen name="FoodItems" component={FoodItems} />
+      <Stack.Screen name="AddHotelOwner" component={AddHotelOwner} />
+      <Stack.Screen name="HotelList" component={HotelList} />
+      <Stack.Screen name="HotelItems" component={HotelItems} />
     </Stack.Navigator>
   );
 }
@@ -196,7 +206,7 @@ export default function App() {
       try {
         const userRef = doc(db, "users", firebaseUser.uid);
         let userSnap;
-        
+
         try {
           userSnap = await getDoc(userRef);
         } catch (fetchError) {
@@ -226,7 +236,7 @@ export default function App() {
             setInitializing(false);
             return;
           }
-          
+
           console.log('App: User document does not exist, signing out');
           await signOut(auth);
           setUser(null);
@@ -285,7 +295,7 @@ export default function App() {
         } catch (cacheErr) {
           console.warn('Failed to restore from cache:', cacheErr);
         }
-        
+
         setUser(null);
         setRole(null);
       } finally {

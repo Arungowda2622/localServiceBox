@@ -110,6 +110,9 @@ const OuerServicesHome = ({ navigation }) => {
   ];
 
   const handleSelectedService = (item) => {
+    if(item.title === "FoodsBeverages"){
+      return navigation.navigate("HotelList");
+    }
     navigation.navigate(item.title, { data: item });
   };
 

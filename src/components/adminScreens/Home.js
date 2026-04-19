@@ -80,7 +80,19 @@ const Home = ({ navigation }) => {
       color: colors.gradientConstruction,
       onPress: () => navigation.navigate("AddConstruction"),
     },
-  ];
+    {
+      title: "Add Hotel",
+      icon: "restaurant-outline", // 🔥 better icon for hotel/food
+      color: colors.gradientChicken, // 🍗 already defined
+      onPress: () => navigation.navigate("AddHotel"),
+    },
+    {
+      title: "Add Hotel Owner",
+      icon: "person-circle-outline", // 👤 owner representation
+      color: colors.gradientRoyal, // 👑 premium/admin feel
+      onPress: () => navigation.navigate("AddHotelOwner"),
+    },
+    ];
 
   return (
     <View style={styles.main}>

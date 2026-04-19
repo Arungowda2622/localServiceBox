@@ -17,7 +17,7 @@ import { notifyDrivers } from "../../utils/notifyDrivers";
 import { getUserId } from "../../../utils/authUtils";
 
 const PaymentSelectionScreen = ({ navigation, route }) => {
-  const { total, cartItems, selectedAddress: routeSelectedAddress, orderType  } = route?.params || {};
+  const { total, cartItems, selectedAddress: routeSelectedAddress, orderType } = route?.params || {};
   const [addresses, setAddresses] = useState([]);
   const [upis, setUpis] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -25,6 +25,9 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   const [utrNumber, setUtrNumber] = useState("");
   const [paymentDone, setPaymentDone] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [deliveryCharge, setDeliveryCharge] = useState(0);
+  const [showDetails, setShowDetails] = useState(false);
+  const [priceConfig, setPriceConfig] = useState(null);
 
   // 🔹 Fetch user's saved addresses
   const fetchAddresses = async () => {
@@ -64,9 +67,40 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
     }
   };
 
+  const fetchDeliveryPrice = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "taxiPrices"));
+
+      if (!snapshot.empty) {
+        const data = snapshot.docs[0].data();
+        setPriceConfig(data);
+
+        // 🔥 Example distance (replace with real distance later)
+        const distance = 5;
+
+        const base = data.baseFare;
+        const baseKm = data.baseDistance;
+        const extra = data.extraPerKm;
+
+        let charge = 0;
+
+        if (distance <= baseKm) {
+          charge = base;
+        } else {
+          charge = base + (distance - baseKm) * extra;
+        }
+
+        setDeliveryCharge(charge);
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
   useEffect(() => {
     fetchAddresses();
     fetchUpis();
+    fetchDeliveryPrice();
   }, []);
 
   // 🔹 Open UPI payment app
@@ -108,43 +142,43 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   };
 
   // 📲 Send Order Details To WhatsApp
-const sendToWhatsApp = async (orderData) => {
-  try {
-    const adminNumber = "916362775151";
+  const sendToWhatsApp = async (orderData) => {
+    try {
+      const adminNumber = "916362775151";
 
-    // 🔧 Helper to align text like invoice
-    const formatLine = (name, qty, total) => {
-      const maxName = 14; // adjust spacing if needed
-      const maxQty = 5;
+      // 🔧 Helper to align text like invoice
+      const formatLine = (name, qty, total) => {
+        const maxName = 14; // adjust spacing if needed
+        const maxQty = 5;
 
-      const itemName = (name || "").substring(0, maxName);
-      const nameSpace = " ".repeat(Math.max(1, maxName - itemName.length));
+        const itemName = (name || "").substring(0, maxName);
+        const nameSpace = " ".repeat(Math.max(1, maxName - itemName.length));
 
-      const qtyText = `x${qty}`;
-      const qtySpace = " ".repeat(Math.max(1, maxQty - qtyText.length));
+        const qtyText = `x${qty}`;
+        const qtySpace = " ".repeat(Math.max(1, maxQty - qtyText.length));
 
-      return `${itemName}${nameSpace}${qtyText}${qtySpace}₹${total}`;
-    };
+        return `${itemName}${nameSpace}${qtyText}${qtySpace}₹${total}`;
+      };
 
-    let subtotal = 0;
+      let subtotal = 0;
 
-    const itemsText = orderData.items
-      .map((i) => {
-        const qty = Number(i.qty || 1);
-        const price = Number(i.price || i.amount || 0);
-        const itemTotal = qty * price;
+      const itemsText = orderData.items
+        .map((i) => {
+          const qty = Number(i.qty || 1);
+          const price = Number(i.price || i.amount || 0);
+          const itemTotal = qty * price;
 
-        subtotal += itemTotal;
+          subtotal += itemTotal;
 
-        return formatLine(i.title || i.name, qty, itemTotal);
-      })
-      .join("\n");
+          return formatLine(i.title || i.name, qty, itemTotal);
+        })
+        .join("\n");
 
-    const customerPhone =
-      orderData.address?.phone || orderData.phone || "N/A";
+      const customerPhone =
+        orderData.address?.phone || orderData.phone || "N/A";
 
-    // ⭐ ALIGNED INVOICE UI
-    const message = `
+      // ⭐ ALIGNED INVOICE UI
+      const message = `
 🧾 *ORDER INVOICE*
 ━━━━━━━━━━━━━━━━━━
 
@@ -165,15 +199,15 @@ ${itemsText}
 🕒 ${new Date().toLocaleString()}
 `;
 
-    const url = `https://wa.me/${adminNumber}?text=${encodeURIComponent(
-      message
-    )}`;
+      const url = `https://wa.me/${adminNumber}?text=${encodeURIComponent(
+        message
+      )}`;
 
-    await Linking.openURL(url);
-  } catch (err) {
-    console.log("WhatsApp Error:", err);
-  }
-};
+      await Linking.openURL(url);
+    } catch (err) {
+      console.log("WhatsApp Error:", err);
+    }
+  };
   // 🔥 UPDATED Confirm ORDER function
   const handleConfirmOrder = async () => {
     if (paymentMethod === "Online Payment" && !utrNumber.trim()) {
@@ -244,7 +278,7 @@ ${itemsText}
       const collectionName = orderType || "orders";
       await addDoc(collection(db, collectionName), newOrder);
       sendToWhatsApp(newOrder);
-     
+
       setLoading(false);
 
       Alert.alert(
@@ -357,12 +391,42 @@ ${itemsText}
       {/* --- Bottom Buttons --- */}
       {paymentMethod === "Online Payment" && !paymentDone && (
         <View style={styles.bottomContainer}>
-          <Text style={styles.totalText}>Total: ₹{total}</Text>
+          <Text style={styles.totalText}>
+            Total: ₹{Number(total) + Number(deliveryCharge)}
+          </Text>
           <TouchableOpacity style={styles.confirmButton} onPress={payNow}>
             <Text style={styles.confirmButtonText}>Pay Now</Text>
           </TouchableOpacity>
         </View>
       )}
+
+      <View style={styles.deliveryBox}>
+
+        {/* HEADER */}
+        <TouchableOpacity
+          style={styles.deliveryHeader}
+          onPress={() => setShowDetails(!showDetails)}
+        >
+          <Text style={styles.deliveryTitle}>
+            Delivery Charge: ₹{deliveryCharge}
+          </Text>
+
+          <Text>{showDetails ? "⬆️" : "⬇️"}</Text>
+        </TouchableOpacity>
+
+        {/* DETAILS */}
+        {showDetails && priceConfig && (
+          <View style={styles.deliveryDetails}>
+            <Text>Base Fare: ₹{priceConfig.baseFare}</Text>
+            <Text>Base Distance: {priceConfig.baseDistance} km</Text>
+            <Text>Extra per KM: ₹{priceConfig.extraPerKm}</Text>
+
+            <Text style={{ marginTop: 5 }}>
+              Calculated Charge: ₹{deliveryCharge}
+            </Text>
+          </View>
+        )}
+      </View>
 
       {paymentDone && (
         <View style={styles.bottomContainer}>
@@ -499,5 +563,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     fontSize: 16,
+  },
+  deliveryBox: {
+    backgroundColor: '#fff',
+    margin: 15,
+    padding: 12,
+    borderRadius: 10
+  },
+
+  deliveryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+
+  deliveryTitle: {
+    fontSize: 16,
+    fontWeight: '600'
+  },
+
+  deliveryDetails: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderColor: '#eee',
+    paddingTop: 10
   },
 });

@@ -7,7 +7,8 @@ import {
   Alert,
   FlatList,
   Modal,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase/firebaseConfig';
@@ -43,6 +44,9 @@ const AddHotel = ({ navigation }) => {
   const [price, setPrice] = useState('');
   const [hotelImage, setHotelImage] = useState(null);
   const [itemImage, setItemImage] = useState(null);
+  const [savingHotel, setSavingHotel] = useState(false);
+  const [savingItem, setSavingItem] = useState(false);
+  const [deletingHotelId, setDeletingHotelId] = useState(null);
 
   // 🔹 Get user role
   useEffect(() => {
@@ -134,10 +138,12 @@ const AddHotel = ({ navigation }) => {
 
   // 🔹 ADD + UPDATE HOTEL
   const handleSaveHotel = async () => {
+    setSavingHotel(true);
     const user = await waitForAuthUser();
 
     if (!user) {
       Alert.alert("User not logged in");
+      setSavingHotel(false);
       return;
     }
 
@@ -181,13 +187,20 @@ const AddHotel = ({ navigation }) => {
     } catch (error) {
       console.log(error);
       Alert.alert("Error saving hotel");
+    } finally {
+      setSavingHotel(false);
     }
   };
 
   // 🔹 DELETE HOTEL
   const handleDeleteHotel = async (id) => {
+    setDeletingHotelId(id);
     Alert.alert("Confirm", "Delete this hotel?", [
-      { text: "Cancel" },
+      {
+        text: "Cancel",
+        style: "cancel",
+        onPress: () => setDeletingHotelId(null),
+      },
       {
         text: "Delete",
         onPress: async () => {
@@ -197,6 +210,8 @@ const AddHotel = ({ navigation }) => {
           } catch (err) {
             console.log(err);
             Alert.alert("Error deleting");
+          } finally {
+            setDeletingHotelId(null);
           }
         }
       }
@@ -216,6 +231,7 @@ const AddHotel = ({ navigation }) => {
       return;
     }
 
+    setSavingItem(true);
     let imageUrl = "";
 
     if (itemImage) {
@@ -242,6 +258,8 @@ const AddHotel = ({ navigation }) => {
     } catch (error) {
       console.log(error);
       Alert.alert("Error adding item");
+    } finally {
+      setSavingItem(false);
     }
   };
 
@@ -299,8 +317,13 @@ const AddHotel = ({ navigation }) => {
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: '#dc3545' }]}
                   onPress={() => handleDeleteHotel(item.id)}
+                  disabled={deletingHotelId === item.id}
                 >
-                  <Text style={styles.btnText}>Delete</Text>
+                  {deletingHotelId === item.id ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.btnText}>Delete</Text>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -345,10 +368,14 @@ const AddHotel = ({ navigation }) => {
               <TextInput placeholder="Address" value={address} onChangeText={setAddress} style={styles.input} />
               <TextInput placeholder="Phone" value={phone} onChangeText={setPhone} style={styles.input} />
 
-              <TouchableOpacity style={styles.button} onPress={handleSaveHotel}>
-                <Text style={styles.buttonText}>
-                  {isEditMode ? "Update" : "Save"}
-                </Text>
+              <TouchableOpacity style={styles.button} onPress={handleSaveHotel} disabled={savingHotel}>
+                {savingHotel ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>
+                    {isEditMode ? "Update" : "Save"}
+                  </Text>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -395,8 +422,12 @@ const AddHotel = ({ navigation }) => {
               />
 
               {/* SAVE BUTTON */}
-              <TouchableOpacity style={styles.button} onPress={handleAddItem}>
-                <Text style={styles.buttonText}>Save Item</Text>
+              <TouchableOpacity style={styles.button} onPress={handleAddItem} disabled={savingItem}>
+                {savingItem ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Save Item</Text>
+                )}
               </TouchableOpacity>
 
               {/* CANCEL */}

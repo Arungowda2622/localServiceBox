@@ -8,6 +8,7 @@ import {
   TextInput,
   Modal,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import Header from "../header/Header";
 import { db } from "../firebase/firebaseConfig";
@@ -27,6 +28,8 @@ const AddServices = ({ navigation }) => {
   const [serviceName, setServiceName] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   /* ================= FETCH SERVICES ================= */
   useEffect(() => {
@@ -47,6 +50,8 @@ const AddServices = ({ navigation }) => {
       Alert.alert("Required", "Enter service name");
       return;
     }
+
+    setSaving(true);
 
     try {
       const user = await waitForAuthUser();
@@ -74,17 +79,28 @@ const AddServices = ({ navigation }) => {
       setModalVisible(false);
     } catch (e) {
       console.log(e);
+    } finally {
+      setSaving(false);
     }
   };
 
   /* ================= DELETE ================= */
   const handleDelete = id => {
+    setDeletingId(id);
     Alert.alert("Delete", "Are you sure?", [
-      { text: "Cancel" },
+      {
+        text: "Cancel",
+        style: "cancel",
+        onPress: () => setDeletingId(null),
+      },
       {
         text: "Yes",
         onPress: async () => {
-          await deleteDoc(doc(db, "services", id));
+          try {
+            await deleteDoc(doc(db, "services", id));
+          } finally {
+            setDeletingId(null);
+          }
         },
       },
     ]);
@@ -131,9 +147,14 @@ const AddServices = ({ navigation }) => {
 
               <TouchableOpacity
                 onPress={() => handleDelete(item.id)}
-                style={{ marginLeft: 15 }}
+                style={{ marginLeft: 15, opacity: deletingId === item.id ? 0.6 : 1 }}
+                disabled={deletingId === item.id}
               >
-                <Icon name="delete" size={22} color="red" />
+                {deletingId === item.id ? (
+                  <ActivityIndicator color="red" />
+                ) : (
+                  <Icon name="delete" size={22} color="red" />
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -155,8 +176,12 @@ const AddServices = ({ navigation }) => {
               onChangeText={setServiceName}
             />
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveService}>
-              <Text style={{ color: "#fff" }}>Save</Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveService} disabled={saving}>
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ color: "#fff" }}>Save</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity

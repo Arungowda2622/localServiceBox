@@ -6,7 +6,8 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
-  TextInput
+  TextInput,
+  Pressable
 } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/firebaseConfig';
@@ -15,6 +16,7 @@ import Header from '../header/Header';
 import { Ionicons } from '@expo/vector-icons';
 
 const HotelItems = ({ route, navigation }) => {
+  
   const { hotelId, hotelName } = route.params;
 
   const [items, setItems] = useState([]);
@@ -61,6 +63,10 @@ const HotelItems = ({ route, navigation }) => {
     );
   };
 
+  const handleDetails = (item) => {
+    navigation.navigate("ItemDetails", { item, hotelName });
+  }
+
   return (
     <View style={{ flex: 1 }}>
       <Header
@@ -91,7 +97,7 @@ const HotelItems = ({ route, navigation }) => {
             keyExtractor={(item) => item.id}
             numColumns={2}
             renderItem={({ item }) => (
-              <View style={styles.card}>
+              <Pressable onPress={()=> handleDetails(item)} style={styles.card}>
 
                 <Image
                   source={{ uri: item.imageUrl }}
@@ -112,7 +118,7 @@ const HotelItems = ({ route, navigation }) => {
                   </Text>
                 </TouchableOpacity>
 
-              </View>
+              </Pressable>
             )}
           />
         )}
@@ -135,7 +141,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 10,
     borderRadius: 10,
-    marginBottom: 10
+    marginBottom: 10,
+    alignItems:"center"
   },
 
   searchInput: {

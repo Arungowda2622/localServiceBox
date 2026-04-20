@@ -23,7 +23,9 @@ import {
   updateDoc
 } from 'firebase/firestore';
 import Header from '../header/Header';
-import { getStorage } from 'firebase/storage';
+import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { Image as ExpoImage } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 
 const FoodItems = ({ route, navigation }) => {
   const { hotelId } = route.params;
@@ -40,6 +42,10 @@ const FoodItems = ({ route, navigation }) => {
 
   const [editMode, setEditMode] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState(null);
+  const [description, setDescription] = useState('');
+  const [itemImage, setItemImage] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   /* ---------------- FETCH ITEMS ---------------- */
   useEffect(() => {
@@ -75,23 +81,25 @@ const FoodItems = ({ route, navigation }) => {
 
   /* ---------------- ADD / EDIT ---------------- */
   const handleAddItem = async () => {
-    const user = auth.currentUser;
-
-    if (!user) {
-      Alert.alert("Error", "Login required");
+    if (!name || !price || !description) {
+      Alert.alert("Validation", "Fill all fields");
       return;
     }
 
-    if (!name || !price) {
-      Alert.alert("Validation", "Fill all fields");
-      return;
+    setSaving(true);
+
+    let imageUrl = "";
+    if (itemImage) {
+      imageUrl = await uploadImage(itemImage);
     }
 
     try {
       if (editMode) {
         await updateDoc(doc(db, "food_items", selectedItemId), {
           name,
-          price: Number(price)
+          price: Number(price),
+          description,
+          imageUrl
         });
 
         Alert.alert("Success", "Item updated");
@@ -99,7 +107,9 @@ const FoodItems = ({ route, navigation }) => {
         await addDoc(collection(db, "food_items"), {
           name,
           price: Number(price),
+          description,
           hotelId,
+          imageUrl,
           createdAt: new Date()
         });
 
@@ -108,53 +118,65 @@ const FoodItems = ({ route, navigation }) => {
 
       setName('');
       setPrice('');
+      setDescription('');
+      setItemImage(null);
       setModalVisible(false);
       setEditMode(false);
-
     } catch (error) {
       Alert.alert("Error", "Operation failed");
+    } finally {
+      setSaving(false);
     }
   };
 
   /* ---------------- DELETE ---------------- */
   const handleDelete = async (item) => {
-  Alert.alert("Delete", "Are you sure?", [
-    { text: "Cancel" },
-    {
-      text: "Delete",
-      onPress: async () => {
-        try {
-          // 🔥 Delete image if exists
-          if (item.imageUrl) {
-            const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
+    setDeletingId(item.id);
+    Alert.alert("Delete", "Are you sure?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+        onPress: () => setDeletingId(null),
+      },
+      {
+        text: "Delete",
+        onPress: async () => {
+          try {
+            // 🔥 DELETE IMAGE (if exists)
+            if (item.imageUrl) {
+              const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
 
-            // convert URL → storage path
-            const imageRef = ref(storage, item.imageUrl);
+              // ✅ Convert full URL → reference
+              const imageRef = ref(storage, item.imageUrl);
 
-            await deleteObject(imageRef);
-            console.log("Image deleted");
+              await deleteObject(imageRef);
+              console.log("Image deleted successfully");
+            }
+
+            // 🔥 DELETE FIRESTORE DOCUMENT
+            await deleteDoc(doc(db, "food_items", item.id));
+
+            console.log("Item deleted successfully");
+            Alert.alert("Success", "Item deleted");
+          } catch (error) {
+            console.log("Delete error:", error);
+            Alert.alert("Error", "Failed to delete item");
+          } finally {
+            setDeletingId(null);
           }
-
-          // 🔥 Delete Firestore doc
-          await deleteDoc(doc(db, "food_items", item.id));
-
-          console.log("Document deleted");
-
-        } catch (error) {
-          console.log("Delete error:", error);
-          Alert.alert("Error", "Failed to delete item");
         }
       }
-    }
-  ]);
-};
+    ]);
+  };
 
   /* ---------------- EDIT ---------------- */
   const handleEditItem = (item) => {
     setEditMode(true);
     setSelectedItemId(item.id);
     setName(item.name);
+    setItemImage(item.imageUrl)
     setPrice(String(item.price));
+    setDescription(item.description || '');
     setModalVisible(true);
   };
 
@@ -165,6 +187,44 @@ const FoodItems = ({ route, navigation }) => {
 
   const handleImageLoadEnd = (id) => {
     setLoadingImages(prev => ({ ...prev, [id]: false }));
+  };
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert("Permission required");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setItemImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadImage = async (uri) => {
+    const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
+    const filename = `products/${Date.now()}.jpg`;
+    const storageRef = ref(storage, filename);
+
+    const blob = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = () => resolve(xhr.response);
+      xhr.onerror = () => reject(new TypeError("Network request failed"));
+      xhr.responseType = "blob";
+      xhr.open("GET", uri, true);
+      xhr.send(null);
+    });
+
+    await uploadBytes(storageRef, blob);
+    blob.close && blob.close();
+
+    return await getDownloadURL(storageRef);
   };
 
   return (
@@ -185,17 +245,23 @@ const FoodItems = ({ route, navigation }) => {
         <FlatList
           data={filteredItems}
           keyExtractor={(item) => item.id}
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          removeClippedSubviews
           renderItem={({ item }) => (
             <View style={styles.card}>
 
               {/* 🖼️ IMAGE WITH LOADER */}
               {item.imageUrl ? (
                 <View style={{ position: 'relative' }}>
-                  <Image
-                    source={{ uri: item.imageUrl }}
+                  <ExpoImage
+                    source={item.imageUrl}
                     style={styles.itemImage}
-                    onLoadStart={() => handleImageLoadStart(item.id)}
-                    onLoadEnd={() => handleImageLoadEnd(item.id)}
+                    contentFit="cover"
+                    transition={500}
+                    placeholder="blur"
+                    cachePolicy="memory-disk"
                   />
 
                   {loadingImages[item.id] && (
@@ -213,6 +279,10 @@ const FoodItems = ({ route, navigation }) => {
               <Text style={styles.itemName}>{item.name}</Text>
               <Text>₹ {item.price}</Text>
 
+              <Text style={{ color: '#555', marginTop: 5 }}>
+                {item.description}
+              </Text>
+
               <View style={styles.row}>
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: '#ffc107' }]}
@@ -223,9 +293,14 @@ const FoodItems = ({ route, navigation }) => {
 
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: 'red' }]}
-                  onPress={() => handleDelete(item.id)}
+                  onPress={() => handleDelete(item)}
+                  disabled={deletingId === item.id}
                 >
-                  <Text style={{ color: '#fff' }}>Delete</Text>
+                  {deletingId === item.id ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={{ color: '#fff' }}>Delete</Text>
+                  )}
                 </TouchableOpacity>
               </View>
 
@@ -250,6 +325,14 @@ const FoodItems = ({ route, navigation }) => {
                 {editMode ? "Edit Item" : "Add Item"}
               </Text>
 
+              <TouchableOpacity onPress={pickImage} style={styles.imageBox}>
+                {itemImage ? (
+                  <Image source={{ uri: itemImage }} style={styles.imagePreview} />
+                ) : (
+                  <Text style={styles.uploadText}>Upload Item Image</Text>
+                )}
+              </TouchableOpacity>
+
               <TextInput
                 placeholder="Item Name"
                 value={name}
@@ -265,8 +348,19 @@ const FoodItems = ({ route, navigation }) => {
                 keyboardType="numeric"
               />
 
-              <TouchableOpacity style={styles.button} onPress={handleAddItem}>
-                <Text style={styles.buttonText}>Save</Text>
+              <TextInput
+                placeholder="Description"
+                value={description}
+                onChangeText={setDescription}
+                style={styles.input}
+              />
+
+              <TouchableOpacity style={styles.button} onPress={handleAddItem} disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Save</Text>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -300,7 +394,8 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 140,
     borderRadius: 10,
-    marginBottom: 10
+    marginBottom: 10,
+    resizeMode: 'cover'
   },
 
   loader: {
@@ -378,5 +473,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginHorizontal: 5
-  }
+  },
+  imageBox: {
+  height: 160,
+  width: '100%',
+  backgroundColor: '#f2f2f2',
+  borderRadius: 12,
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginBottom: 15,
+  borderWidth: 1.5,
+  borderColor: '#ddd',
+  borderStyle: 'dashed',
+  overflow: 'hidden'
+},
+
+imagePreview: {
+  width: '100%',
+  height: '100%',
+  borderRadius: 12
+},
+
+uploadText: {
+  color: '#777',
+  fontSize: 14
+}
 });

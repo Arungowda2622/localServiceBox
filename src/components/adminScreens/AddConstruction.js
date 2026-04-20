@@ -33,6 +33,7 @@ const AddConstruction = ({ navigation }) => {
   const [editModal, setEditModal] = useState(false);
   const [addModal, setAddModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [search, setSearch] = useState("");
 
 
@@ -55,12 +56,21 @@ const AddConstruction = ({ navigation }) => {
   /* ❌ DELETE */
   /* ---------------------------------- */
   const handleDelete = (item) => {
+    setDeleteId(item.id);
     Alert.alert("Delete", "Are you sure?", [
-      { text: "Cancel" },
+      {
+        text: "Cancel",
+        style: "cancel",
+        onPress: () => setDeleteId(null),
+      },
       {
         text: "Delete",
         onPress: async () => {
-          await deleteDoc(doc(db, "constructions", item.id));
+          try {
+            await deleteDoc(doc(db, "constructions", item.id));
+          } finally {
+            setDeleteId(null);
+          }
         },
       },
     ]);
@@ -94,10 +104,15 @@ const AddConstruction = ({ navigation }) => {
         </Pressable>
 
         <Pressable
-          style={styles.deleteBtn}
+          style={[styles.deleteBtn, deleteId === item.id && { opacity: 0.7 }]}
           onPress={() => handleDelete(item)}
+          disabled={deleteId === item.id}
         >
-          <Text style={{ color: "#fff" }}>Delete</Text>
+          {deleteId === item.id ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={{ color: "#fff" }}>Delete</Text>
+          )}
         </Pressable>
       </View>
     </View>

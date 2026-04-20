@@ -65,6 +65,8 @@ const UpdateOrders = ({ navigation }) => {
   const [searchUTR, setSearchUTR] = useState("");
   const [orderType, setOrderType] = useState("orders"); // "orders" | "rides" | "boxDelivery"
   const [usersMap, setUsersMap] = useState({});
+  const [deletingOrderId, setDeletingOrderId] = useState(null);
+  const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState(null);
 
   // 🔹 Fetch data dynamically based on orderType (Unchanged)
   useEffect(() => {
@@ -115,6 +117,7 @@ const UpdateOrders = ({ navigation }) => {
 
   // 🔹 Update order status (Unchanged)
   const handleStatusChange = async (orderId, newStatus) => {
+    setStatusUpdatingOrderId(orderId);
     try {
       const orderRef = doc(db, orderType, orderId);
       await updateDoc(orderRef, { status: newStatus });
@@ -122,16 +125,23 @@ const UpdateOrders = ({ navigation }) => {
     } catch (error) {
       console.error("Error updating status:", error);
       Alert.alert("Error", "Failed to update order status");
+    } finally {
+      setStatusUpdatingOrderId(null);
     }
   };
 
   // 🔹 Delete order (Unchanged)
   const handleDelete = (orderId) => {
+    setDeletingOrderId(orderId);
     Alert.alert(
       "Delete Order",
       "Are you sure you want to delete this order? This action cannot be undone.",
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => setDeletingOrderId(null),
+        },
         {
           text: "Delete",
           style: "destructive",
@@ -142,6 +152,8 @@ const UpdateOrders = ({ navigation }) => {
             } catch (error) {
               console.error("Error deleting order:", error);
               Alert.alert("Error", "Failed to delete order");
+            } finally {
+              setDeletingOrderId(null);
             }
           },
         },
@@ -341,15 +353,24 @@ const UpdateOrders = ({ navigation }) => {
                 onChange={(selected) =>
                   handleStatusChange(item.id, selected.value)
                 }
+                disabled={statusUpdatingOrderId === item.id}
               />
             </View>
 
-            <TouchableOpacity onPress={() => handleDelete(item.id)}>
+            <TouchableOpacity
+              onPress={() => handleDelete(item.id)}
+              disabled={deletingOrderId === item.id}
+              style={{ opacity: deletingOrderId === item.id ? 0.6 : 1 }}
+            >
               <LinearGradient
                 colors={["#FF5252", "#D91E1E"]}
                 style={styles.deleteButton}
               >
-                <Ionicons name="trash-outline" size={18} color="#fff" />
+                {deletingOrderId === item.id ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Ionicons name="trash-outline" size={18} color="#fff" />
+                )}
               </LinearGradient>
             </TouchableOpacity>
           </View>

@@ -11,10 +11,11 @@ import {
   TextInput,
 } from "react-native";
 import { db } from "../../firebase/firebaseConfig";
-import { collection, getDocs, addDoc, query, where } from "firebase/firestore";
+import { collection, getDocs, addDoc, query, where, doc, getDoc } from "firebase/firestore";
 import Header from "../../header/Header";
 import { notifyDrivers } from "../../utils/notifyDrivers";
 import { getUserId } from "../../../utils/authUtils";
+import { GOOGLE_API_KEY } from "../../googleApi/GoogleApi";
 
 const PaymentSelectionScreen = ({ navigation, route }) => {
   const { total, cartItems, selectedAddress: routeSelectedAddress, orderType } = route?.params || {};
@@ -28,6 +29,45 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   const [deliveryCharge, setDeliveryCharge] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const [priceConfig, setPriceConfig] = useState(null);
+
+  // Function to calculate distance between two addresses
+  const calculateDistance = async (originAddress, destinationAddress) => {
+    try {
+      // Geocode origin
+      const originUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(originAddress)}&key=${GOOGLE_API_KEY}`;
+      const originRes = await fetch(originUrl);
+      const originData = await originRes.json();
+      if (!originData.results || originData.results.length === 0) {
+        console.error("Origin geocode failed");
+        return 5; // fallback
+      }
+      const originLatLng = originData.results[0].geometry.location;
+
+      // Geocode destination
+      const destUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(destinationAddress)}&key=${GOOGLE_API_KEY}`;
+      const destRes = await fetch(destUrl);
+      const destData = await destRes.json();
+      if (!destData.results || destData.results.length === 0) {
+        console.error("Destination geocode failed");
+        return 5; // fallback
+      }
+      const destLatLng = destData.results[0].geometry.location;
+
+      // Get directions
+      const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLatLng.lat},${originLatLng.lng}&destination=${destLatLng.lat},${destLatLng.lng}&key=${GOOGLE_API_KEY}`;
+      const directionsRes = await fetch(directionsUrl);
+      const directionsData = await directionsRes.json();
+      if (!directionsData.routes || directionsData.routes.length === 0) {
+        console.error("Directions failed");
+        return 5; // fallback
+      }
+      const distanceKm = directionsData.routes[0].legs[0].distance.value / 1000;
+      return distanceKm;
+    } catch (error) {
+      console.error("Error calculating distance:", error);
+      return 5; // fallback
+    }
+  };
 
   // 🔹 Fetch user's saved addresses
   const fetchAddresses = async () => {
@@ -67,7 +107,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
     }
   };
 
-  const fetchDeliveryPrice = async () => {
+  const fetchDeliveryPrice = async (originAddress, destinationAddress) => {
     try {
       const snapshot = await getDocs(collection(db, "taxiPrices"));
 
@@ -75,8 +115,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
         const data = snapshot.docs[0].data();
         setPriceConfig(data);
 
-        // 🔥 Example distance (replace with real distance later)
-        const distance = 5;
+        const distance = await calculateDistance(originAddress, destinationAddress);
 
         const base = data.baseFare;
         const baseKm = data.baseDistance;
@@ -90,7 +129,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
           charge = base + (distance - baseKm) * extra;
         }
 
-        setDeliveryCharge(charge);
+        setDeliveryCharge(Math.round(charge));
       }
     } catch (e) {
       console.log(e);
@@ -98,15 +137,51 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   };
 
   useEffect(() => {
-    fetchAddresses();
-    fetchUpis();
-    fetchDeliveryPrice();
+    const initialize = async () => {
+      await fetchAddresses();
+      await fetchUpis();
+      // Delivery price will be calculated after determining origin and dest
+    };
+    initialize();
   }, []);
+
+  // Calculate delivery price when addresses and cartItems are available
+  useEffect(() => {
+    const calculateDelivery = async () => {
+      if (addresses.length === 0) return;
+
+      const currentAddress = routeSelectedAddress ? routeSelectedAddress : addresses[0];
+      if (!currentAddress) return;
+
+      const destinationAddress = `${currentAddress.address}, ${currentAddress.city}, ${currentAddress.state}, ${currentAddress.pinCode}`;
+
+      let originAddress = "bidadi 562109"; // default
+
+      // Check if it's hotel order
+      if (cartItems && cartItems.length > 0 && cartItems[0].hotelId) {
+        // Fetch hotel address
+        try {
+          const hotelRef = doc(db, "hotels", cartItems[0].hotelId);
+          const hotelSnap = await getDoc(hotelRef);
+          if (hotelSnap.exists()) {
+            const hotelData = hotelSnap.data();
+            originAddress = `${hotelData.address}, ${hotelData.city}, ${hotelData.state}, ${hotelData.pinCode}`;
+          }
+        } catch (error) {
+          console.error("Error fetching hotel:", error);
+        }
+      }
+
+      await fetchDeliveryPrice(originAddress, destinationAddress);
+    };
+
+    calculateDelivery();
+  }, [addresses, cartItems, routeSelectedAddress]);
 
   // 🔹 Open UPI payment app
   const handleContinue = async (row) => {
     const PAYEE_NAME = "Product";
-    const upiUrl = `upi://pay?pa=${row.upi}&pn=${PAYEE_NAME}&tn=OrderPayment&am=${total}&cu=INR`;
+    const upiUrl = `upi://pay?pa=${row.upi}&pn=${PAYEE_NAME}&tn=OrderPayment&am=${Number(total) + Number(deliveryCharge)}&cu=INR`;
 
     try {
       const supported = await Linking.canOpenURL(upiUrl);
@@ -193,7 +268,9 @@ ${orderData.address?.city || ""}
 ${itemsText}
 ──────────────────
 💰 *SUBTOTAL*          ₹${subtotal}
-💳 ${orderData.paymentMethod}
+� *DELIVERY*          ₹${orderData.deliveryCharge || 0}
+💵 *TOTAL*             ₹${subtotal + (orderData.deliveryCharge || 0)}
+�💳 ${orderData.paymentMethod}
 🔢 UTR: ${orderData.utrNumber || "N/A"}
 ━━━━━━━━━━━━━━━━━━
 🕒 ${new Date().toLocaleString()}
@@ -254,7 +331,8 @@ ${itemsText}
       const newOrder = {
         userId: uid,
         items: cartItems || [],
-        total: Number(total),
+        total: Number(total) + Number(deliveryCharge),
+        deliveryCharge: Number(deliveryCharge),
         paymentMethod,
         utrNumber: paymentMethod === "Online Payment" ? utrNumber.trim() : null,
         utrNumberLower:
@@ -392,7 +470,7 @@ ${itemsText}
       {paymentMethod === "Online Payment" && !paymentDone && (
         <View style={styles.bottomContainer}>
           <Text style={styles.totalText}>
-            Total: ₹{Number(total) + Number(deliveryCharge)}
+            Total: ₹{total} + ₹{deliveryCharge} = ₹{Number(total) + Number(deliveryCharge)}
           </Text>
           <TouchableOpacity style={styles.confirmButton} onPress={payNow}>
             <Text style={styles.confirmButtonText}>Pay Now</Text>
@@ -400,30 +478,50 @@ ${itemsText}
         </View>
       )}
 
-      <View style={styles.deliveryBox}>
+      <View style={styles.priceCard}>
 
         {/* HEADER */}
         <TouchableOpacity
-          style={styles.deliveryHeader}
+          style={styles.priceHeader}
           onPress={() => setShowDetails(!showDetails)}
         >
-          <Text style={styles.deliveryTitle}>
-            Delivery Charge: ₹{deliveryCharge}
-          </Text>
+          <View>
+            <Text style={styles.totalMain}>
+              ₹{Number(total) + Number(deliveryCharge)}
+            </Text>
+            <Text style={styles.subText}>
+              Including delivery charges
+            </Text>
+          </View>
 
-          <Text>{showDetails ? "⬆️" : "⬇️"}</Text>
+          <Text style={styles.arrow}>
+            {showDetails ? "▲" : "▼"}
+          </Text>
         </TouchableOpacity>
 
         {/* DETAILS */}
-        {showDetails && priceConfig && (
-          <View style={styles.deliveryDetails}>
-            <Text>Base Fare: ₹{priceConfig.baseFare}</Text>
-            <Text>Base Distance: {priceConfig.baseDistance} km</Text>
-            <Text>Extra per KM: ₹{priceConfig.extraPerKm}</Text>
+        {showDetails && (
+          <View style={styles.priceDetails}>
 
-            <Text style={{ marginTop: 5 }}>
-              Calculated Charge: ₹{deliveryCharge}
-            </Text>
+            <View style={styles.rowBetween}>
+              <Text>Item Total</Text>
+              <Text>₹{total}</Text>
+            </View>
+
+            <View style={styles.rowBetween}>
+              <Text>Delivery Fee</Text>
+              <Text>₹{deliveryCharge}</Text>
+            </View>
+
+            <View style={styles.separator} />
+
+            <View style={styles.rowBetween}>
+              <Text style={styles.bold}>To Pay</Text>
+              <Text style={styles.bold}>
+                ₹{Number(total) + Number(deliveryCharge)}
+              </Text>
+            </View>
+
           </View>
         )}
       </View>
@@ -444,7 +542,7 @@ ${itemsText}
 
       {paymentMethod === "Cash on Delivery" && (
         <View style={styles.bottomContainer}>
-          <Text style={styles.totalText}>Total: ₹{total}</Text>
+          <Text style={styles.totalText}>Total: ₹{Number(total) + Number(deliveryCharge)}</Text>
           <TouchableOpacity
             style={styles.confirmButton}
             onPress={handleConfirmOrder}
@@ -525,7 +623,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#E0E0E0",
     padding: 15,
     backgroundColor: "#fff",
-    bottom: 30,
+    bottom: 10,
   },
   totalText: {
     fontSize: 18,
@@ -574,7 +672,8 @@ const styles = StyleSheet.create({
   deliveryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    bottom: 30
   },
 
   deliveryTitle: {
@@ -586,6 +685,55 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderTopWidth: 1,
     borderColor: '#eee',
-    paddingTop: 10
+    paddingTop: 10,
+    bottom: 30
   },
+  priceCard: {
+    backgroundColor: '#fff',
+    margin: 15,
+    padding: 15,
+    borderRadius: 12,
+    elevation: 3,
+  },
+
+  priceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+
+  totalMain: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000'
+  },
+
+  subText: {
+    color: '#777',
+    fontSize: 13
+  },
+
+  arrow: {
+    fontSize: 18
+  },
+
+  priceDetails: {
+    marginTop: 10
+  },
+
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 5
+  },
+
+  separator: {
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+    marginVertical: 8
+  },
+
+  bold: {
+    fontWeight: 'bold'
+  }
 });

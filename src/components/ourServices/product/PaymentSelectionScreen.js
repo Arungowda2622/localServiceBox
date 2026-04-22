@@ -29,6 +29,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   const [deliveryCharge, setDeliveryCharge] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const [priceConfig, setPriceConfig] = useState(null);
+  const [deliveryLoading, setDeliveryLoading] = useState(true);
 
   // Function to calculate distance between two addresses
   const calculateDistance = async (originAddress, destinationAddress) => {
@@ -109,6 +110,8 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
 
   const fetchDeliveryPrice = async (originAddress, destinationAddress) => {
     try {
+      setDeliveryLoading(true); // 🔥 start loading
+
       const snapshot = await getDocs(collection(db, "taxiPrices"));
 
       if (!snapshot.empty) {
@@ -133,6 +136,8 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
       }
     } catch (e) {
       console.log(e);
+    } finally {
+      setDeliveryLoading(false); // ✅ done
     }
   };
 
@@ -209,6 +214,11 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   };
 
   const payNow = () => {
+    if (deliveryLoading) {
+      Alert.alert("Please wait", "Calculating delivery charge...");
+      return;
+    }
+
     if (selectedUPI) {
       handleContinue(selectedUPI);
     } else {
@@ -476,7 +486,7 @@ ${itemsText}
           <Text style={styles.totalText}>
             Total: ₹{total} + ₹{deliveryCharge} = ₹{Number(total) + Number(deliveryCharge)}
           </Text>
-          <TouchableOpacity style={styles.confirmButton} onPress={payNow}>
+          <TouchableOpacity style={styles.confirmButton} onPress={payNow} disabled={deliveryLoading}>
             <Text style={styles.confirmButtonText}>Pay Now</Text>
           </TouchableOpacity>
         </View>
@@ -514,7 +524,9 @@ ${itemsText}
 
             <View style={styles.rowBetween}>
               <Text>Delivery Fee</Text>
-              <Text>₹{deliveryCharge}</Text>
+              <Text>
+                {deliveryLoading ? "Calculating..." : `₹${deliveryCharge}`}
+              </Text>
             </View>
 
             <View style={styles.separator} />
@@ -535,7 +547,7 @@ ${itemsText}
           <TouchableOpacity
             style={styles.confirmButton}
             onPress={handleConfirmOrder}
-            disabled={loading}
+            disabled={loading || deliveryLoading}
           >
             <Text style={styles.confirmButtonText}>
               {loading ? "Saving Order..." : "Submit UTR & Confirm Order"}

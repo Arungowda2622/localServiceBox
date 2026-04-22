@@ -239,8 +239,9 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
 
       const itemsText = orderData.items
         .map((i) => {
-          const qty = Number(i.qty || 1);
-          const price = Number(i.price || i.amount || 0);
+          const qty = Number(i.qty || 1); // ✅ now always exists
+          const price = Number(i.price || i.amount || i.rate || 0);
+
           const itemTotal = qty * price;
 
           subtotal += itemTotal;
@@ -268,9 +269,9 @@ ${orderData.address?.city || ""}
 ${itemsText}
 ──────────────────
 💰 *SUBTOTAL*          ₹${subtotal}
-� *DELIVERY*          ₹${orderData.deliveryCharge || 0}
+🚚 *DELIVERY*          ₹${orderData.deliveryCharge || 0}
 💵 *TOTAL*             ₹${subtotal + (orderData.deliveryCharge || 0)}
-�💳 ${orderData.paymentMethod}
+💳 ${orderData.paymentMethod}
 🔢 UTR: ${orderData.utrNumber || "N/A"}
 ━━━━━━━━━━━━━━━━━━
 🕒 ${new Date().toLocaleString()}
@@ -330,7 +331,10 @@ ${itemsText}
       // 📝 Prepare order object
       const newOrder = {
         userId: uid,
-        items: cartItems || [],
+        items: (cartItems || []).map(i => ({
+          ...i,
+          qty: i.quantity || i.qty || 1   // ✅ normalize here
+        })),
         total: Number(total) + Number(deliveryCharge),
         deliveryCharge: Number(deliveryCharge),
         paymentMethod,

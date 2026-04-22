@@ -146,9 +146,7 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
-
-  // 🔥 OTA UPDATE CHECK
-  useOTAUpdate();
+  const { isUpdating } = useOTAUpdate();
 
   // Provide an external hook to force clearing the app's user/role state.
   // Register this callback so other modules can call forceLogout() without circular dependency
@@ -310,6 +308,15 @@ export default function App() {
 
   /* 🔄 Splash Loader */
   if (initializing) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+
+  if (isUpdating) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" />

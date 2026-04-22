@@ -1,43 +1,41 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import * as Updates from "expo-updates";
-import { Alert } from "react-native";
 
 export default function useOTAUpdate() {
-  useEffect(() => {
+  const [isUpdating, setIsUpdating] = useState(false);
 
-    // ✅ ADD HERE (top of useEffect)
+  useEffect(() => {
     if (__DEV__) return;
 
-    async function checkUpdate() {
+    async function handleOTAUpdate() {
       try {
         console.log("Checking OTA update...");
+
+        // ✅ ADD HERE (very important)
+        if (Updates.isEmergencyLaunch) {
+          console.log("Emergency launch - skipping update");
+          return;
+        }
 
         const update = await Updates.checkForUpdateAsync();
 
         if (update.isAvailable) {
           console.log("Update available");
 
-          Alert.alert(
-            "Update Available",
-            "A new version of the app is available.",
-            [
-              {
-                text: "Later",
-                style: "cancel",
-              },
-              {
-                text: "Update Now",
-                onPress: async () => {
-                  try {
-                    await Updates.fetchUpdateAsync();
-                    await Updates.reloadAsync();
-                  } catch (e) {
-                    console.log("Update failed:", e);
-                  }
-                },
-              },
-            ]
-          );
+          setIsUpdating(true);
+
+          await Updates.fetchUpdateAsync();
+
+          console.log("Update downloaded");
+
+          setTimeout(async () => {
+            try {
+              await Updates.reloadAsync();
+            } catch (reloadError) {
+              console.log("Reload failed:", reloadError);
+              setIsUpdating(false);
+            }
+          }, 1500);
         } else {
           console.log("No update available");
         }
@@ -46,7 +44,8 @@ export default function useOTAUpdate() {
       }
     }
 
-    setTimeout(checkUpdate, 3000);
-
+    handleOTAUpdate();
   }, []);
+
+  return { isUpdating };
 }

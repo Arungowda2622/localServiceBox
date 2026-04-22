@@ -96,7 +96,8 @@ const CartScreen = ({ route, navigation }) => {
 
     navigation.navigate("PaymentSelection", {
       total,
-      cartItems: formattedItems
+      cartItems: formattedItems,
+      orderType: "foodOrders"
     });
   };
 

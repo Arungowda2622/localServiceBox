@@ -56,6 +56,7 @@ const orderTypeData = [
   { label: "Box Delivery", value: "boxDelivery" },
   { label: "Chicken/Fish Orders", value: "chickenFishOrders" },
   { label: "Construction Orders", value: "constructionOrders" },
+  { label: "Food Orders", value: "foodOrders" },
 ];
 
 const UpdateOrders = ({ navigation }) => {
@@ -172,6 +173,8 @@ const UpdateOrders = ({ navigation }) => {
         return "food-drumstick"; // ✅
       case "constructionOrders":
         return "hammer"; // ✅
+        case "foodOrders":
+  return "fast-food-outline";
       default:
         return "document-text-outline";
     }
@@ -389,7 +392,7 @@ const UpdateOrders = ({ navigation }) => {
           : orderType === "boxDelivery"
             ? "Deliveries"
             : orderType === "chickenOrders"
-              ? "Chicken/Fish Orders"
+              ? "Chicken/Fish Orders" : orderType === "foodOrders" ? "Food Orders"
               : orderType === "constructionOrders"
                 ? "Construction Orders"
                 : "Orders"

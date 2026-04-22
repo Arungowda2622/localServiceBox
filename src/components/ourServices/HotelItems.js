@@ -59,7 +59,7 @@ const HotelItems = ({ route, navigation }) => {
     setCart(prev =>
       prev.some(i => i.id === item.id)
         ? prev
-        : [...prev, item]
+        : [...prev, { ...item, hotelName }]
     );
   };
 

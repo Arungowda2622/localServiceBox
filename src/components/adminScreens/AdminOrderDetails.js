@@ -27,6 +27,10 @@ const AdminOrderDetails = ({ route, navigation }) => {
           <>
             <Text style={styles.section}>Items</Text>
 
+            {order.items?.[0]?.hotelName && (
+              <Text style={styles.hotelName}>Hotel: {order.items[0].hotelName}</Text>
+            )}
+
             {order.items.map((item, index) => {
               const qty = item.quantity || item.qty || 1;
 
@@ -91,5 +95,11 @@ const styles = StyleSheet.create({
   },
   name: {
     fontWeight: "600",
+  },
+  hotelName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#333",
+    marginBottom: 10,
   },
 });

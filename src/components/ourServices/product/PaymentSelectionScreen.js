@@ -274,7 +274,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
 📍 ${orderData.address?.address || ""}
 ${orderData.address?.city || ""}
 
-━━━━━━━━━━━━━━━━━━
+${orderData.items?.[0]?.hotelName ? `🏨 *HOTEL:* ${orderData.items[0].hotelName}\n` : ""}━━━━━━━━━━━━━━━━━━
 📦 *ITEMS*
 ${itemsText}
 ──────────────────

@@ -3,7 +3,6 @@ import {
   Text,
   View,
   FlatList,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
@@ -14,9 +13,10 @@ import { db } from '../firebase/firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import Header from '../header/Header';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 
 const HotelItems = ({ route, navigation }) => {
-  
+
   const { hotelId, hotelName } = route.params;
 
   const [items, setItems] = useState([]);
@@ -56,6 +56,11 @@ const HotelItems = ({ route, navigation }) => {
   );
 
   const addToCart = (item) => {
+    if (!item?.id || !item?.name || !item?.price) {
+      alert("Invalid item. Cannot add to cart.");
+      return;
+    }
+
     setCart(prev =>
       prev.some(i => i.id === item.id)
         ? prev
@@ -97,11 +102,13 @@ const HotelItems = ({ route, navigation }) => {
             keyExtractor={(item) => item.id}
             numColumns={2}
             renderItem={({ item }) => (
-              <Pressable onPress={()=> handleDetails(item)} style={styles.card}>
+              <Pressable onPress={() => handleDetails(item)} style={styles.card}>
 
                 <Image
-                  source={{ uri: item.imageUrl }}
+                  source={item.imageUrl}
                   style={styles.image}
+                  contentFit="cover"
+                  transition={300}
                 />
 
                 <Text style={styles.name}>{item.name}</Text>
@@ -142,7 +149,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     marginBottom: 10,
-    alignItems:"center"
+    alignItems: "center"
   },
 
   searchInput: {

@@ -4,12 +4,12 @@ import {
   View,
   FlatList,
   TouchableOpacity,
-  Image
 } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
 import Header from '../header/Header';
+import { Image } from 'expo-image';
 
 const HotelList = ({ navigation }) => {
   const [hotels, setHotels] = useState([]);
@@ -26,6 +26,18 @@ const HotelList = ({ navigation }) => {
     return () => unsubscribe();
   }, []);
 
+  const handlePress = (item) => {
+    if (!item?.id || !item?.name) {
+      alert("Hotel data missing");
+      return;
+    }
+
+    navigation.navigate("HotelItems", {
+      hotelId: item.id,
+      hotelName: item.name
+    });
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <Header title="Hotels" navigation={navigation} />
@@ -36,12 +48,14 @@ const HotelList = ({ navigation }) => {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.card}
-            onPress={() =>
-              navigation.navigate("HotelItems", { hotelId: item.id, hotelName: item.name })
-            }
-          >
+            onPress={() => handlePress(item)}>
             {item.imageUrl && (
-              <Image source={{ uri: item.imageUrl }} style={styles.image} />
+              <Image
+                source={item.imageUrl}
+                style={styles.image}
+                contentFit="cover"
+                transition={300}
+              />
             )}
 
             <Text style={styles.name}>{item.name}</Text>

@@ -481,7 +481,7 @@ ${itemsText}
       </ScrollView>
 
       {/* --- Bottom Buttons --- */}
-      {paymentMethod === "Online Payment" && !paymentDone && (
+      {paymentMethod === "Online Payment" && !paymentDone && !deliveryLoading && (
         <View style={styles.bottomContainer}>
           <Text style={styles.totalText}>
             Total: ₹{total} + ₹{deliveryCharge} = ₹{Number(total) + Number(deliveryCharge)}
@@ -542,7 +542,7 @@ ${itemsText}
         )}
       </View>
 
-      {paymentDone && (
+      {paymentDone && !deliveryLoading && (
         <View style={styles.bottomContainer}>
           <TouchableOpacity
             style={styles.confirmButton}
@@ -556,7 +556,7 @@ ${itemsText}
         </View>
       )}
 
-      {paymentMethod === "Cash on Delivery" && (
+      {paymentMethod === "Cash on Delivery" && !deliveryLoading && (
         <View style={styles.bottomContainer}>
           <Text style={styles.totalText}>Total: ₹{Number(total) + Number(deliveryCharge)}</Text>
           <TouchableOpacity

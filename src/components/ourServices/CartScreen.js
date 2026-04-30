@@ -72,27 +72,45 @@ const CartScreen = ({ route, navigation }) => {
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleCheckout = async () => {
+
+    // ❌ 1. Empty cart
+    if (!cartItems || cartItems.length === 0) {
+      Alert.alert("Cart Empty", "Please add items before checkout.");
+      return;
+    }
+
+    // ❌ 2. Validate each item
+    const invalidItem = cartItems.find(item =>
+      !item.id ||
+      !item.name ||
+      !item.price ||
+      !item.quantity ||
+      item.quantity <= 0
+    );
+
+    if (invalidItem) {
+      Alert.alert("Invalid Cart", "Some items are missing data. Please check your cart.");
+      return;
+    }
+
+    // ❌ 3. Login check
     const uid = await getUserId();
     if (!uid) {
-      Alert.alert("Login Required", "Please log in to proceed to checkout.", [
+      Alert.alert("Login Required", "Please log in to proceed.", [
         { text: "Cancel", style: "cancel" },
         { text: "Login", onPress: () => navigation.navigate("Login") },
       ]);
       return;
     }
 
+    // ✅ Proceed
     const formattedItems = cartItems.map(item => ({
       ...item,
       qty: item.quantity,
     }));
 
-    // Clear cart after checkout so it doesn't persist across restarts
     setCartItems([]);
-    try {
-      await AsyncStorage.removeItem(CART_STORAGE_KEY);
-    } catch (e) {
-      console.log("Failed to clear cart storage", e);
-    }
+    await AsyncStorage.removeItem(CART_STORAGE_KEY);
 
     navigation.navigate("PaymentSelection", {
       total,

@@ -19,6 +19,7 @@ const orderTypeData = [
   { label: "Box Delivery", value: "boxDelivery" },
   { label: "Chicken/Fish", value: "chickenFishOrders" },
   { label: "Construction", value: "constructionOrders" },
+  { label: "Food Orders", value: "foodOrders" },
 ];
 
 const Orders = ({ navigation }) => {
@@ -132,6 +133,7 @@ const Orders = ({ navigation }) => {
 
         <Text style={styles.amount}>₹ {item.total}</Text>
         <Text style={styles.sub}>Payment: {item.paymentMethod}</Text>
+        <Text style={styles.sub}>Delivery Charge: ₹ {item.deliveryCharge || "N/A"}</Text>
 
         <StatusBadge status={item.status} />
 

@@ -92,6 +92,12 @@ const Home = ({ navigation }) => {
       color: colors.gradientRoyal, // 👑 premium/admin feel
       onPress: () => navigation.navigate("AddHotelOwner"),
     },
+    {
+      title: "Add Home",
+      icon: "home-outline",
+      color: colors.gradientDanger,
+      onPress: () => navigation.navigate("AddHome"),
+    },
     ];
 
   return (

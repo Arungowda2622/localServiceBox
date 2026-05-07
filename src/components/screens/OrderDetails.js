@@ -53,6 +53,7 @@ const OrderDetails = ({ route, navigation }) => {
       {/* 💰 TOTAL */}
       <Text style={styles.section}>Payment</Text>
       <Text>Total: ₹ {order.total}</Text>
+      <Text>Delivery Fee: ₹ {order.deliveryCharge}</Text>
       <Text>Method: {order.paymentMethod}</Text>
 
       {/* 🚚 STATUS */}

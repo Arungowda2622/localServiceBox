@@ -6,6 +6,7 @@ import {
   TextInput,
   ActivityIndicator,
   Pressable,
+  Linking
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -42,22 +43,61 @@ const HomeRent = ({ navigation }) => {
   /* ---------------------------------- */
   /* SEARCH FUNCTION */
   /* ---------------------------------- */
-  const handleSearch = (text) => {
-    setSearch(text);
+  /* ---------------------------------- */
+/* SEARCH FUNCTION */
+/* ---------------------------------- */
+const handleSearch = (text) => {
+  setSearch(text);
 
-    if (text.trim() === "") {
-      setFilteredData(properties);
-      return;
-    }
+  if (text.trim() === "") {
+    setFilteredData(properties);
+    return;
+  }
 
-    const filtered = properties.filter(
-      (item) =>
-        item.name?.toLowerCase().includes(text.toLowerCase()) ||
-        item.location?.toLowerCase().includes(text.toLowerCase()) ||
-        item.bhk?.toLowerCase().includes(text.toLowerCase())
+  const searchText = text.toLowerCase();
+
+  const filtered = properties.filter((item) => {
+    const name = item.name?.toLowerCase() || "";
+    const location = item.location?.toLowerCase() || "";
+    const bhk = item.bhk?.toString().toLowerCase() || "";
+    const rent = item.rent?.toString() || "";
+
+    return (
+      name.includes(searchText) ||
+      location.includes(searchText) ||
+      bhk.includes(searchText) ||
+      rent.includes(searchText)
     );
+  });
 
-    setFilteredData(filtered);
+  setFilteredData(filtered);
+};
+
+  /* ---------------------------------- */
+  /* WHATSAPP ENQUIRY */
+  /* ---------------------------------- */
+  const sendWhatsApp = (item) => {
+    const message = `
+🏠 Property Enquiry
+
+Property Name: ${item.name}
+Rent: ₹ ${item.rent} / month
+Location: ${item.location}
+BHK: ${item.bhk}
+Phone: ${item.phone}
+
+Description:
+${item.description}
+  `;
+
+    // Remove +91 if already exists
+    const phoneNumber = 6362775151;
+
+    const url = `https://wa.me/91${phoneNumber}?text=${encodeURIComponent(
+      message
+    )}`;
+
+    Linking.openURL(url);
   };
 
   /* ---------------------------------- */
@@ -102,6 +142,14 @@ const HomeRent = ({ navigation }) => {
             {item.description}
           </Text>
         </View>
+        <Pressable
+          style={styles.whatsappBtn}
+          onPress={() => sendWhatsApp(item)}
+        >
+          <Text style={styles.whatsappText}>
+            Book Enquiry
+          </Text>
+        </Pressable>
       </Pressable>
     );
   };
@@ -119,8 +167,8 @@ const HomeRent = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-        <Header navigation={navigation} title={"Home Rent Properties"}/>
-      
+      <Header navigation={navigation} title={"Home Rent Properties"} />
+
 
       {/* SEARCH BOX */}
       <View style={styles.searchBox}>
@@ -131,7 +179,7 @@ const HomeRent = ({ navigation }) => {
         />
 
         <TextInput
-          placeholder="Search property..."
+          placeholder="Search by location, BHK, price..."
           placeholderTextColor="#999"
           style={styles.searchInput}
           value={search}
@@ -265,5 +313,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  whatsappBtn: {
+    backgroundColor: "#25D366",
+    marginTop: 15,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  whatsappText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

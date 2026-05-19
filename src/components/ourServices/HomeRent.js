@@ -6,7 +6,9 @@ import {
   TextInput,
   ActivityIndicator,
   Pressable,
-  Linking
+  Linking,
+  ScrollView,
+  Dimensions,
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -14,6 +16,8 @@ import { db } from "../firebase/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import Header from "../header/Header";
+
+const windowWidth = Dimensions.get("window").width;
 
 const HomeRent = ({ navigation }) => {
   const [properties, setProperties] = useState([]);
@@ -44,34 +48,34 @@ const HomeRent = ({ navigation }) => {
   /* SEARCH FUNCTION */
   /* ---------------------------------- */
   /* ---------------------------------- */
-/* SEARCH FUNCTION */
-/* ---------------------------------- */
-const handleSearch = (text) => {
-  setSearch(text);
+  /* SEARCH FUNCTION */
+  /* ---------------------------------- */
+  const handleSearch = (text) => {
+    setSearch(text);
 
-  if (text.trim() === "") {
-    setFilteredData(properties);
-    return;
-  }
+    if (text.trim() === "") {
+      setFilteredData(properties);
+      return;
+    }
 
-  const searchText = text.toLowerCase();
+    const searchText = text.toLowerCase();
 
-  const filtered = properties.filter((item) => {
-    const name = item.name?.toLowerCase() || "";
-    const location = item.location?.toLowerCase() || "";
-    const bhk = item.bhk?.toString().toLowerCase() || "";
-    const rent = item.rent?.toString() || "";
+    const filtered = properties.filter((item) => {
+      const name = item.name?.toLowerCase() || "";
+      const location = item.location?.toLowerCase() || "";
+      const bhk = item.bhk?.toString().toLowerCase() || "";
+      const rent = item.rent?.toString() || "";
 
-    return (
-      name.includes(searchText) ||
-      location.includes(searchText) ||
-      bhk.includes(searchText) ||
-      rent.includes(searchText)
-    );
-  });
+      return (
+        name.includes(searchText) ||
+        location.includes(searchText) ||
+        bhk.includes(searchText) ||
+        rent.includes(searchText)
+      );
+    });
 
-  setFilteredData(filtered);
-};
+    setFilteredData(filtered);
+  };
 
   /* ---------------------------------- */
   /* WHATSAPP ENQUIRY */
@@ -100,18 +104,34 @@ ${item.description}
     Linking.openURL(url);
   };
 
+  const handleDetails = (item) => {
+    navigation.navigate("HomeRentDetails", { item });
+  };
+
   /* ---------------------------------- */
   /* RENDER ITEM */
   /* ---------------------------------- */
   const renderItem = ({ item }) => {
+    console.log(item, "getItem")
+    const images = item.imageUrls?.length > 0 ? item.imageUrls : item.imageUrl ? [item.imageUrl] : [];
+
     return (
-      <Pressable style={styles.card}>
+      <Pressable style={styles.card} onPress={()=> handleDetails(item)}>
         {/* IMAGE */}
-        {item.imageUrl ? (
-          <ExpoImage
-            source={{ uri: item.imageUrl }}
-            style={styles.image}
-            contentFit="cover"
+        {images.length > 0 ? (
+          <FlatList
+            data={images}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item }) => (
+              <ExpoImage
+                source={{ uri: item }}
+                style={styles.image}
+                contentFit="cover"
+              />
+            )}
           />
         ) : null}
 
@@ -265,8 +285,17 @@ const styles = StyleSheet.create({
   },
 
   image: {
-    width: "100%",
+    width: windowWidth - 80,
     height: 220,
+    borderRadius: 18,
+    marginRight: 12,
+  },
+  imageScroll: {
+    width: "100%",
+  },
+  imageScrollContent: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
   },
 
   content: {

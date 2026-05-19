@@ -66,6 +66,7 @@ import HotelItems from "./src/components/ourServices/HotelItems";
 import HotelItemsDetails from "./src/components/ourServices/HotelItemsDetails";
 import AddHome from "./src/components/adminScreens/AddHome";
 import HomeRent from "./src/components/ourServices/HomeRent";
+import HomeRentDetails from "./src/components/ourServices/HomeRentDetails";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -123,6 +124,7 @@ function MainStack() {
       <Stack.Screen name="ItemDetails" component={HotelItemsDetails} />
       <Stack.Screen name="AddHome" component={AddHome} />
       <Stack.Screen name="HomeRent" component={HomeRent} />
+      <Stack.Screen name="HomeRentDetails" component={HomeRentDetails} />
     </Stack.Navigator>
   );
 }

@@ -36,7 +36,7 @@ import { Image as ExpoImage } from "expo-image";
 
 const AddHome = ({ navigation }) => {
     const [items, setItems] = useState([]);
-    const [image, setImage] = useState(null);
+    const [images, setImages] = useState([]);
 
     const [name, setName] = useState("");
     const [rent, setRent] = useState("");
@@ -112,14 +112,28 @@ const AddHome = ({ navigation }) => {
 
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            quality: 0.3,
-            aspect: [4, 3],
+            allowsMultipleSelection: true,
+            quality: 0.5,
+            selectionLimit: 10,
         });
 
         if (!result.canceled) {
-            setImage(result.assets[0].uri);
+            const selectedImages = result.assets.map((item) => item.uri);
+
+            setImages((prevImages) => [...prevImages, ...selectedImages]);
         }
+    };
+
+    const uploadMultipleImages = async () => {
+        let uploadedUrls = [];
+
+        for (const uri of images) {
+            const url = await uploadImageToFirebase(uri);
+
+            uploadedUrls.push(url);
+        }
+
+        return uploadedUrls;
     };
 
     /* ---------------------------------- */
@@ -169,10 +183,10 @@ const AddHome = ({ navigation }) => {
         try {
             setLoading(true);
 
-            let imageUrl = "";
+            let imageUrls = [];
 
-            if (image) {
-                imageUrl = await uploadImageToFirebase(image);
+            if (images.length > 0) {
+                imageUrls = await uploadMultipleImages();
             }
 
             const user = await waitForAuthUser();
@@ -189,7 +203,7 @@ const AddHome = ({ navigation }) => {
                 bhk,
                 phone,
                 description,
-                imageUrl,
+                imageUrls,
                 available: true,
                 userId: user.uid,
                 createdAt: new Date(),
@@ -203,7 +217,7 @@ const AddHome = ({ navigation }) => {
             setBhk("");
             setPhone("");
             setDescription("");
-            setImage(null);
+            setImages([]);
 
             setAddModal(false);
         } catch (error) {
@@ -231,10 +245,11 @@ const AddHome = ({ navigation }) => {
         try {
             setLoading(true);
 
-            let imageUrl = editItem.imageUrl;
+            let imageUrls = editItem.imageUrls || [];
 
-            if (image && image.startsWith("file://")) {
-                imageUrl = await uploadImageToFirebase(image);
+            if (images.length > 0) {
+                const uploadedUrls = await uploadMultipleImages();
+                imageUrls = [...imageUrls, ...uploadedUrls];
             }
 
             await updateDoc(doc(db, "homeRent", editItem.id), {
@@ -244,7 +259,7 @@ const AddHome = ({ navigation }) => {
                 bhk: editItem.bhk,
                 phone: editItem.phone,
                 description: editItem.description,
-                imageUrl,
+                imageUrls,
                 updatedAt: new Date(),
             });
 
@@ -252,7 +267,7 @@ const AddHome = ({ navigation }) => {
 
             setEditModal(false);
             setEditItem(null);
-            setImage(null);
+            setImages([]);
         } catch (error) {
             Alert.alert("Error", error.message);
         } finally {
@@ -272,16 +287,32 @@ const AddHome = ({ navigation }) => {
     /* ---------------------------------- */
     /* CARD UI */
     /* ---------------------------------- */
-    const renderItem = ({ item }) => (
+    const renderItem = ({ item }) => {
+        console.log(item,"totalImage")
+        return(
         <View style={styles.card}>
-            {item.imageUrl ? (
-                <ExpoImage
-                    source={{ uri: item.imageUrl }}
-                    style={styles.image}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                />
-            ) : null}
+            {item.imageUrls?.length > 0 && (
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginBottom: 10 }}
+                >
+                    {item.imageUrls.map((img, index) => (
+                        <ExpoImage
+                            key={index}
+                            source={{ uri: img }}
+                            style={{
+                                width: 250,
+                                height: 180,
+                                borderRadius: 15,
+                                marginRight: 10,
+                            }}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                        />
+                    ))}
+                </ScrollView>
+            )}
 
             <Text style={styles.name}>{item.name}</Text>
 
@@ -302,7 +333,7 @@ const AddHome = ({ navigation }) => {
                     style={styles.editBtn}
                     onPress={() => {
                         setEditItem(item);
-                        setImage(null);
+                        setImages([]);
                         setEditModal(true);
                     }}
                 >
@@ -329,7 +360,7 @@ const AddHome = ({ navigation }) => {
                 </Pressable>
             </View>
         </View>
-    );
+    )};
 
     return (
         <View style={styles.container}>
@@ -402,11 +433,21 @@ const AddHome = ({ navigation }) => {
                             onPress={pickImageFromLibrary}
                             style={styles.imageBox}
                         >
-                            {image ? (
-                                <Image
-                                    source={{ uri: image }}
-                                    style={styles.image}
-                                />
+                            {images.length > 0 ? (
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                    {images.map((img, index) => (
+                                        <Image
+                                            key={index}
+                                            source={{ uri: img }}
+                                            style={{
+                                                width: 120,
+                                                height: 120,
+                                                borderRadius: 10,
+                                                marginRight: 10,
+                                            }}
+                                        />
+                                    ))}
+                                </ScrollView>
                             ) : (
                                 <Text style={styles.imageText}>
                                     Tap to upload property image
@@ -517,13 +558,23 @@ const AddHome = ({ navigation }) => {
                             onPress={pickImageFromLibrary}
                             style={styles.imageBox}
                         >
-                            {image || editItem?.imageUrl ? (
-                                <Image
-                                    source={{
-                                        uri: image || editItem?.imageUrl,
-                                    }}
-                                    style={styles.image}
-                                />
+                            {((editItem?.imageUrls || []).length > 0 || images.length > 0) ? (
+                                <ScrollView horizontal>
+                                    {(
+                                        (editItem?.imageUrls || []).concat(images)
+                                    ).map((img, index) => (
+                                        <Image
+                                            key={index}
+                                            source={{ uri: img }}
+                                            style={{
+                                                width: 120,
+                                                height: 120,
+                                                borderRadius: 10,
+                                                marginRight: 10,
+                                            }}
+                                        />
+                                    ))}
+                                </ScrollView>
                             ) : (
                                 <Text style={styles.imageText}>
                                     Tap to change image

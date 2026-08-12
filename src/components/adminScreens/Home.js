@@ -98,6 +98,12 @@ const Home = ({ navigation }) => {
       color: colors.gradientDanger,
       onPress: () => navigation.navigate("AddHome"),
     },
+    {
+      title: "Add Property",
+      icon: "cash-outline",
+      color: colors.gradientOcean,
+      onPress: () => navigation.navigate("AddProperties"),
+    },
     ];
 
   return (

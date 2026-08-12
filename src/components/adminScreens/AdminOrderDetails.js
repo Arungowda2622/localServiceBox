@@ -56,9 +56,6 @@ const AdminOrderDetails = ({ route, navigation }) => {
 
         {/* 💰 PAYMENT */}
         <Text style={styles.section}>Payment</Text>
-        {order.deliveryCharge && (
-          <Text>Delivery Charge: ₹ {order.deliveryCharge}</Text>
-        )}
         <Text>Total: ₹ {order.total}</Text>
         <Text>Method: {order.paymentMethod}</Text>
 

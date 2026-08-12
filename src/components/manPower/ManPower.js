@@ -8,10 +8,11 @@ import {
   ScrollView,
   Alert,
   Linking,
+  FlatList,
+  ActivityIndicator,
 } from "react-native";
-import { Dropdown } from "react-native-element-dropdown";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import Header from "../header/Header"
+import Header from "../header/Header";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
@@ -21,28 +22,36 @@ const ManPower = ({ navigation }) => {
   const [manPowerType, setManPowerType] = useState(null);
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
-  const [isFocus, setIsFocus] = useState(false);
   const [manPowerData, setManPowerData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+  const [filteredManPowerData, setFilteredManPowerData] = useState([]);
 
   useEffect(() => {
-  const unsubscribe = onSnapshot(
-    collection(db, "manpower_types"),
-    snapshot => {
-      const list = [];
+    const unsubscribe = onSnapshot(
+      collection(db, "manpower_types"),
+      snapshot => {
+        const list = [];
 
-      snapshot.forEach(doc => {
-        list.push({
-          label: doc.data().name,
-          value: doc.data().name,
+        snapshot.forEach(doc => {
+          list.push({
+            label: doc.data().name,
+            value: doc.data().name,
+          });
         });
-      });
 
-      setManPowerData(list);
-    }
-  );
+        setManPowerData(list);
+        setFilteredManPowerData(list);
+        setLoading(false);
+      },
+      error => {
+        console.log("Firestore Error:", error);
+        setLoading(false);
+      }
+    );
 
-  return unsubscribe;
-}, []);
+    return unsubscribe;
+  }, []);
 
   const submitForm = () => {
     if (!name || !phoneNumber || !manPowerType || !description || !address) {
@@ -71,83 +80,169 @@ const ManPower = ({ navigation }) => {
     );
   };
 
+  const renderManPower = ({ item }) => (
+    <TouchableOpacity
+      style={styles.itemCard}
+      onPress={() => setManPowerType(item.value)}
+    >
+      <Text style={styles.itemTitle}>{item.label}</Text>
+    </TouchableOpacity>
+  );
+
+  const handleSearch = text => {
+    setSearchText(text);
+
+    if (!text.trim()) {
+      setFilteredManPowerData(manPowerData);
+      return;
+    }
+
+    const filtered = manPowerData.filter(item =>
+      item.label.toLowerCase().includes(text.toLowerCase())
+    );
+
+    setFilteredManPowerData(filtered);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f6f8" }}>
       <Header title="ManPower" navigation={navigation} />
 
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.title}>ManPower Details</Text>
+      {!manPowerType && (
+        <>
+          {loading ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={styles.loaderText}>
+                Loading manpower types...
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <View style={styles.searchContainer}>
+                <Icon
+                  name="magnify"
+                  size={22}
+                  color="#666"
+                  style={{ marginRight: 8 }}
+                />
 
-          <Input
-            icon="account"
-            placeholder="Your Name *"
-            value={name}
-            onChangeText={setName}
-          />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search manpower type..."
+                  placeholderTextColor="#999"
+                  value={searchText}
+                  onChangeText={handleSearch}
+                />
 
-          <Input
-            icon="phone"
-            placeholder="Contact Number *"
-            keyboardType="phone-pad"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-          />
+                {searchText.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSearchText("");
+                      setFilteredManPowerData(manPowerData);
+                    }}
+                  >
+                    <Icon
+                      name="close-circle"
+                      size={22}
+                      color="#999"
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
 
-          {/* ✅ Dropdown */}
-          <View
-            style={[
-              styles.dropdownContainer,
-              isFocus && { borderColor: "#25D366" },
-            ]}
+              <FlatList
+                data={filteredManPowerData}
+                keyExtractor={(item, index) =>
+                  `${item.value}-${index}`
+                }
+                renderItem={renderManPower}
+                contentContainerStyle={{
+                  paddingVertical: 10,
+                }}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <Text style={styles.emptyText}>
+                    No manpower types found
+                  </Text>
+                }
+              />
+            </View>
+          )}
+        </>
+      )}
+
+      {manPowerType && (
+        <>
+          <TouchableOpacity
+            style={{ padding: 16 }}
+            onPress={() => {
+              setManPowerType(null);
+              setSearchText("");
+              setFilteredManPowerData(manPowerData);
+            }}
           >
-            <Dropdown
-              style={styles.dropdown}
-              placeholderStyle={styles.placeholderStyle}
-              selectedTextStyle={styles.selectedTextStyle}
-              inputSearchStyle={styles.inputSearchStyle}
-              iconStyle={styles.iconStyle}
-              data={manPowerData}
-              search
-              maxHeight={300}
-              labelField="label"
-              valueField="value"
-              placeholder={!isFocus ? "Select ManPower Type *" : "..."}
-              searchPlaceholder="Search..."
-              value={manPowerType}
-              onFocus={() => setIsFocus(true)}
-              onBlur={() => setIsFocus(false)}
-              onChange={(item) => {
-                setManPowerType(item.value);
-                setIsFocus(false);
-              }}
-            />
-          </View>
-
-          <Input
-            icon="map-marker"
-            placeholder="Address *"
-            multiline
-            value={address}
-            onChangeText={setAddress}
-            height={80}
-          />
-
-          <Input
-            icon="text"
-            placeholder="Work Description *"
-            multiline
-            value={description}
-            onChangeText={setDescription}
-            height={100}
-          />
-
-          <TouchableOpacity style={styles.submitBtn} onPress={submitForm}>
-            <Icon name="whatsapp" size={22} color="#fff" />
-            <Text style={styles.submitText}> Send via WhatsApp</Text>
+            <Text style={{ color: "#007AFF", fontWeight: "600" }}>
+              ← Back to Types
+            </Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
+
+          <ScrollView contentContainerStyle={styles.container}>
+            <View style={styles.card}>
+              <Text style={styles.title}>ManPower Details</Text>
+
+              <Input
+                icon="account"
+                placeholder="Your Name *"
+                value={name}
+                onChangeText={setName}
+              />
+
+              <Input
+                icon="phone"
+                placeholder="Contact Number *"
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+              />
+
+              <Input
+                icon="briefcase"
+                value={manPowerType}
+                editable={false}
+              />
+
+              <Input
+                icon="map-marker"
+                placeholder="Address *"
+                multiline
+                value={address}
+                onChangeText={setAddress}
+                height={80}
+              />
+
+              <Input
+                icon="text"
+                placeholder="Work Description *"
+                multiline
+                value={description}
+                onChangeText={setDescription}
+                height={100}
+              />
+
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={submitForm}
+              >
+                <Icon name="whatsapp" size={22} color="#fff" />
+                <Text style={styles.submitText}>
+                  {" "}Send via WhatsApp
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </>
+      )}
     </View>
   );
 };
@@ -185,6 +280,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: "center",
   },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+  },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -200,36 +300,6 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     color: "#000",
   },
-  dropdownContainer: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    backgroundColor: "#fafafa",
-    marginBottom: 12,
-    paddingHorizontal: 8,
-  },
-  dropdown: {
-    height: 50,
-  },
-  placeholderStyle: {
-    fontSize: 16,
-    color: "#999",
-  },
-  selectedTextStyle: {
-    fontSize: 16,
-    color: "#000",
-  },
-  inputSearchStyle: {
-    height: 40,
-    fontSize: 16,
-  },
-  iconStyle: {
-    width: 20,
-    height: 20,
-  },
-  icon: {
-    marginRight: 8,
-  },
   submitBtn: {
     backgroundColor: "#25D366",
     padding: 15,
@@ -243,5 +313,47 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
+  },
+  itemCard: {
+    backgroundColor: "#fff",
+    padding: 20,
+    marginVertical: 10,
+    marginHorizontal: 16,
+    borderRadius: 10,
+    elevation: 2,
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loaderText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#666",
+  },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 40,
+    fontSize: 16,
+    color: "#666",
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 10,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    elevation: 2,
+  },
+
+  searchInput: {
+    flex: 1,
+    height: 50,
+    color: "#000",
   },
 });

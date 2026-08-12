@@ -34,13 +34,20 @@ const Footer = ({ navigation }) => {
         onPress={() => navigation.navigate("Orders")}
       >
         <Ionicons name="cube-outline" size={22} color="#666" />
-        <Text style={styles.text}>Orders</Text>
+        <Text style={styles.text}>enquiries</Text>
       </Pressable>
 
       {/* CENTER FAB */}
-      <Pressable style={styles.fab} onPress={handleAddProduct}>
-        <Ionicons name="add" size={30} color="#fff" />
+       <Pressable
+        style={styles.navItem}
+        onPress={() => navigation.navigate("CustomerCare")}
+      >
+        <Ionicons name="call-outline" size={22} color="#666" />
+        <Text style={styles.text}>Call US</Text>
       </Pressable>
+      {/* <Pressable style={styles.fab} onPress={handleAddProduct}>
+        <Ionicons name="add" size={30} color="#fff" />
+      </Pressable> */}
 
       {/* RIGHT */}
       <Pressable

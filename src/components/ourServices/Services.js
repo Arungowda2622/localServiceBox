@@ -8,10 +8,10 @@ import {
   ScrollView,
   Alert,
   Linking,
+  FlatList,
+  ActivityIndicator,
 } from "react-native";
-import { Dropdown } from "react-native-element-dropdown";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import AntDesign from "react-native-vector-icons/AntDesign";
 import Header from "../header/Header";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
@@ -22,22 +22,35 @@ const Services = ({ navigation }) => {
   const [serviceType, setServiceType] = useState(null);
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
-  const [isFocus, setIsFocus] = useState(false);
   const [serviceData, setServiceData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+const [filteredServices, setFilteredServices] = useState([]);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "services"), snapshot => {
-      const list = [];
+    setLoading(true);
 
-      snapshot.forEach(doc => {
-        list.push({
-          label: doc.data().name,
-          value: doc.data().name,
+    const unsubscribe = onSnapshot(
+      collection(db, "services"),
+      snapshot => {
+        const list = [];
+
+        snapshot.forEach(doc => {
+          list.push({
+            label: doc.data().name,
+            value: doc.data().name,
+          });
         });
-      });
 
-      setServiceData(list);
-    });
+        setServiceData(list);
+setFilteredServices(list);
+setLoading(false);
+      },
+      error => {
+        console.log("Firestore Error:", error);
+        setLoading(false);
+      }
+    );
 
     return unsubscribe;
   }, []);
@@ -69,83 +82,167 @@ const Services = ({ navigation }) => {
     );
   };
 
+  const handleSearch = text => {
+  setSearchText(text);
+
+  if (!text.trim()) {
+    setFilteredServices(serviceData);
+    return;
+  }
+
+  const filtered = serviceData.filter(item =>
+    item.label.toLowerCase().includes(text.toLowerCase())
+  );
+
+  setFilteredServices(filtered);
+};
+
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f6f8" }}>
       <Header title="Other Services" navigation={navigation} />
 
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Service Details</Text>
+      {serviceType && (
+        <TouchableOpacity
+          onPress={() => setServiceType(null)}
+          style={{
+            alignSelf: "flex-end",
+            marginBottom: 10,
+            marginRight: 20,
+            marginTop: 10,
+          }}
+        >
+          <Text style={{ color: "#007AFF", fontWeight: "600" }}>
+            Change Service
+          </Text>
+        </TouchableOpacity>
+      )}
 
-          <Input
-            icon="account"
-            placeholder="Your Name *"
-            value={name}
-            onChangeText={setName}
-          />
-
-          <Input
-            icon="phone"
-            placeholder="Contact Number *"
-            keyboardType="phone-pad"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-          />
-
-          {/* ✅ Service Dropdown */}
-          <View
-            style={[
-              styles.dropdownContainer,
-              isFocus && { borderColor: "#25D366" },
-            ]}
-          >
-            <Dropdown
-              style={styles.dropdown}
-              placeholderStyle={styles.placeholderStyle}
-              selectedTextStyle={styles.selectedTextStyle}
-              inputSearchStyle={styles.inputSearchStyle}
-              iconStyle={styles.iconStyle}
-              data={serviceData}
-              search
-              maxHeight={300}
-              labelField="label"
-              valueField="value"
-              placeholder={!isFocus ? "Select Service Type *" : "..."}
-              searchPlaceholder="Search..."
-              value={serviceType}
-              onFocus={() => setIsFocus(true)}
-              onBlur={() => setIsFocus(false)}
-              onChange={(item) => {
-                setServiceType(item.value);
-                setIsFocus(false);
-              }}
-            />
+      {!serviceType &&
+        (loading ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color="#25D366" />
+            <Text style={styles.loadingText}>Loading Services...</Text>
           </View>
+        ) : (
+          <View style={{ flex: 1 }}>
+  <View style={styles.searchContainer}>
+    <Icon
+      name="magnify"
+      size={22}
+      color="#666"
+      style={{ marginRight: 8 }}
+    />
 
-          <Input
-            icon="map-marker"
-            placeholder="Address *"
-            multiline
-            value={address}
-            onChangeText={setAddress}
-            height={80}
-          />
+    <TextInput
+      style={styles.searchInput}
+      placeholder="Search services..."
+      placeholderTextColor="#999"
+      value={searchText}
+      onChangeText={handleSearch}
+    />
 
-          <Input
-            icon="text"
-            placeholder="Service Description *"
-            multiline
-            value={description}
-            onChangeText={setDescription}
-            height={100}
-          />
+    {searchText.length > 0 && (
+      <TouchableOpacity
+        onPress={() => {
+          setSearchText("");
+          setFilteredServices(serviceData);
+        }}
+      >
+        <Icon
+          name="close-circle"
+          size={22}
+          color="#999"
+        />
+      </TouchableOpacity>
+    )}
+  </View>
 
-          <TouchableOpacity style={styles.submitBtn} onPress={submitForm}>
-            <Icon name="whatsapp" size={22} color="#fff" />
-            <Text style={styles.submitText}> Send via WhatsApp</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+  <FlatList
+    data={filteredServices}
+    keyExtractor={(item, index) => `${item.value}-${index}`}
+    contentContainerStyle={{
+      paddingVertical: 10,
+    }}
+    keyboardShouldPersistTaps="handled"
+    ListEmptyComponent={() => (
+      <Text style={styles.noResultText}>
+        No services found
+      </Text>
+    )}
+    renderItem={({ item }) => (
+      <TouchableOpacity
+        onPress={() => setServiceType(item.value)}
+        style={styles.itemCard}
+      >
+        <Text style={styles.dropdownItem}>
+          {item.label}
+        </Text>
+      </TouchableOpacity>
+    )}
+  />
+</View>
+        ))}
+
+      {serviceType && (
+        <ScrollView contentContainerStyle={styles.container}>
+          <View style={styles.card}>
+            <Text style={styles.title}>Service Details</Text>
+
+            <Input
+              icon="account"
+              placeholder="Your Name *"
+              value={name}
+              onChangeText={setName}
+            />
+
+            <Input
+              icon="phone"
+              placeholder="Contact Number *"
+              keyboardType="phone-pad"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+            />
+
+            <Input
+              icon="text"
+              placeholder="Service Type"
+              multiline
+              value={serviceType}
+              height={100}
+              editable={false}
+            />
+
+            <Input
+              icon="map-marker"
+              placeholder="Address *"
+              multiline
+              value={address}
+              onChangeText={setAddress}
+              height={80}
+            />
+
+            <Input
+              icon="text"
+              placeholder="Service Description *"
+              multiline
+              value={description}
+              onChangeText={setDescription}
+              height={100}
+            />
+
+            <TouchableOpacity
+              style={styles.submitBtn}
+              onPress={submitForm}
+            >
+              <Icon name="whatsapp" size={22} color="#fff" />
+              <Text style={styles.submitText}>
+                {" "}
+                Send via WhatsApp
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -171,18 +268,21 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
   },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 14,
     padding: 16,
     elevation: 4,
   },
+
   title: {
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 16,
     textAlign: "center",
   },
+
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -193,13 +293,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: "#fafafa",
   },
+
   input: {
     flex: 1,
     marginLeft: 10,
     color: "#000",
   },
 
-  /* Dropdown styles */
   dropdownContainer: {
     borderWidth: 1,
     borderColor: "#ddd",
@@ -208,25 +308,31 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 8,
   },
+
   dropdown: {
     height: 50,
   },
+
   placeholderStyle: {
     fontSize: 16,
     color: "#999",
   },
+
   selectedTextStyle: {
     fontSize: 16,
     color: "#000",
   },
+
   inputSearchStyle: {
     height: 40,
     fontSize: 16,
   },
+
   iconStyle: {
     width: 20,
     height: 20,
   },
+
   icon: {
     marginRight: 8,
   },
@@ -240,9 +346,63 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 20,
   },
+
   submitText: {
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
   },
+
+  itemCard: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+    backgroundColor: "#d1e7dd",
+    marginHorizontal: 10,
+    marginVertical: 10,
+    borderRadius: 13,
+  },
+
+  dropdownItem: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#000",
+  },
+
+  loaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#666",
+  },
+  searchContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#fff",
+  marginHorizontal: 10,
+  marginTop: 10,
+  paddingHorizontal: 12,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  elevation: 2,
+},
+
+searchInput: {
+  flex: 1,
+  height: 50,
+  color: "#000",
+},
+
+noResultText: {
+  textAlign: "center",
+  marginTop: 40,
+  fontSize: 16,
+  color: "#666",
+},
 });

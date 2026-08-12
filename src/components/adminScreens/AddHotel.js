@@ -24,7 +24,7 @@ import {
 } from 'firebase/firestore';
 import { waitForAuthUser } from '../../utils/authUtils';
 import * as ImagePicker from "expo-image-picker";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import Header from '../header/Header';
 
 const AddHotel = ({ navigation }) => {
@@ -205,6 +205,15 @@ const AddHotel = ({ navigation }) => {
         text: "Delete",
         onPress: async () => {
           try {
+            // First, fetch the hotel to get its image URL
+            const hotelDoc = await getDoc(doc(db, "hotels", id));
+            if (hotelDoc.exists() && hotelDoc.data().imageUrl) {
+              // Delete image from Firebase Storage
+              const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
+              const imageRef = ref(storage, hotelDoc.data().imageUrl);
+              await deleteObject(imageRef).catch(() => { });
+            }
+            
             await deleteDoc(doc(db, "hotels", id));
             Alert.alert("Deleted");
           } catch (err) {

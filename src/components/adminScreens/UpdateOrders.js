@@ -46,8 +46,7 @@ const getStatusColor = (status) => {
 const statusData = [
   { label: "Pending", value: "Pending" },
   { label: "Confirmed", value: "Confirmed" },
-  { label: "Dispatched", value: "Dispatched" },
-  { label: "Delivered", value: "Delivered" },
+  { label: "Clear", value: "Clear" },
   { label: "Cancelled", value: "Cancelled" },
 ];
 

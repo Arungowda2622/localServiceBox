@@ -18,7 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { addDoc, collection, deleteDoc, doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { waitForAuthUser } from "../../utils/authUtils";
 import { db } from "../firebase/firebaseConfig";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 
@@ -67,6 +67,13 @@ const AddConstruction = ({ navigation }) => {
         text: "Delete",
         onPress: async () => {
           try {
+            // Delete image from Firebase Storage if it exists
+            if (item.imageUrl) {
+              const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
+              const imageRef = ref(storage, item.imageUrl);
+              await deleteObject(imageRef).catch(() => { });
+            }
+            
             await deleteDoc(doc(db, "constructions", item.id));
           } finally {
             setDeleteId(null);

@@ -30,6 +30,7 @@ import {
     ref,
     uploadBytes,
     getDownloadURL,
+    deleteObject,
 } from "firebase/storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
@@ -87,6 +88,15 @@ const AddHome = ({ navigation }) => {
                 text: "Delete",
                 onPress: async () => {
                     try {
+                        // Delete all images from Firebase Storage if they exist
+                        if (item.imageUrls && item.imageUrls.length > 0) {
+                            const storage = getStorage(undefined, "gs://localservicebox.firebasestorage.app");
+                            for (const imageUrl of item.imageUrls) {
+                                const imageRef = ref(storage, imageUrl);
+                                await deleteObject(imageRef).catch(() => { });
+                            }
+                        }
+                        
                         await deleteDoc(doc(db, "homeRent", item.id));
                     } catch (e) {
                         console.log(e);
@@ -288,7 +298,6 @@ const AddHome = ({ navigation }) => {
     /* CARD UI */
     /* ---------------------------------- */
     const renderItem = ({ item }) => {
-        console.log(item,"totalImage")
         return(
         <View style={styles.card}>
             {item.imageUrls?.length > 0 && (

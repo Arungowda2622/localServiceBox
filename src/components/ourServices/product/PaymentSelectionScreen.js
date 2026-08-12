@@ -15,7 +15,6 @@ import { collection, getDocs, addDoc, query, where, doc, getDoc } from "firebase
 import Header from "../../header/Header";
 import { notifyDrivers } from "../../utils/notifyDrivers";
 import { getUserId } from "../../../utils/authUtils";
-import { GOOGLE_API_KEY } from "../../googleApi/GoogleApi";
 
 const PaymentSelectionScreen = ({ navigation, route }) => {
   const { total, cartItems, selectedAddress: routeSelectedAddress, orderType } = route?.params || {};
@@ -26,49 +25,7 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   const [utrNumber, setUtrNumber] = useState("");
   const [paymentDone, setPaymentDone] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [deliveryCharge, setDeliveryCharge] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
-  const [priceConfig, setPriceConfig] = useState(null);
-  const [deliveryLoading, setDeliveryLoading] = useState(true);
-
-  // Function to calculate distance between two addresses
-  const calculateDistance = async (originAddress, destinationAddress) => {
-    try {
-      // Geocode origin
-      const originUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(originAddress)}&key=${GOOGLE_API_KEY}`;
-      const originRes = await fetch(originUrl);
-      const originData = await originRes.json();
-      if (!originData.results || originData.results.length === 0) {
-        console.error("Origin geocode failed");
-        return 5; // fallback
-      }
-      const originLatLng = originData.results[0].geometry.location;
-
-      // Geocode destination
-      const destUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(destinationAddress)}&key=${GOOGLE_API_KEY}`;
-      const destRes = await fetch(destUrl);
-      const destData = await destRes.json();
-      if (!destData.results || destData.results.length === 0) {
-        console.error("Destination geocode failed");
-        return 5; // fallback
-      }
-      const destLatLng = destData.results[0].geometry.location;
-
-      // Get directions
-      const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLatLng.lat},${originLatLng.lng}&destination=${destLatLng.lat},${destLatLng.lng}&key=${GOOGLE_API_KEY}`;
-      const directionsRes = await fetch(directionsUrl);
-      const directionsData = await directionsRes.json();
-      if (!directionsData.routes || directionsData.routes.length === 0) {
-        console.error("Directions failed");
-        return 5; // fallback
-      }
-      const distanceKm = directionsData.routes[0].legs[0].distance.value / 1000;
-      return distanceKm;
-    } catch (error) {
-      console.error("Error calculating distance:", error);
-      return 5; // fallback
-    }
-  };
 
   // 🔹 Fetch user's saved addresses
   const fetchAddresses = async () => {
@@ -108,85 +65,18 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
     }
   };
 
-  const fetchDeliveryPrice = async (originAddress, destinationAddress) => {
-    try {
-      setDeliveryLoading(true); // 🔥 start loading
-
-      const snapshot = await getDocs(collection(db, "taxiPrices"));
-
-      if (!snapshot.empty) {
-        const data = snapshot.docs[0].data();
-        setPriceConfig(data);
-
-        const distance = await calculateDistance(originAddress, destinationAddress);
-
-        const base = data.baseFare;
-        const baseKm = data.baseDistance;
-        const extra = data.extraPerKm;
-
-        let charge = 0;
-
-        if (distance <= baseKm) {
-          charge = base;
-        } else {
-          charge = base + (distance - baseKm) * extra;
-        }
-
-        setDeliveryCharge(Math.round(charge));
-      }
-    } catch (e) {
-      console.log(e);
-    } finally {
-      setDeliveryLoading(false); // ✅ done
-    }
-  };
-
   useEffect(() => {
     const initialize = async () => {
       await fetchAddresses();
       await fetchUpis();
-      // Delivery price will be calculated after determining origin and dest
     };
     initialize();
   }, []);
 
-  // Calculate delivery price when addresses and cartItems are available
-  useEffect(() => {
-    const calculateDelivery = async () => {
-      if (addresses.length === 0) return;
-
-      const currentAddress = routeSelectedAddress ? routeSelectedAddress : addresses[0];
-      if (!currentAddress) return;
-
-      const destinationAddress = `${currentAddress.address}, ${currentAddress.city}, ${currentAddress.state}, ${currentAddress.pinCode}`;
-
-      let originAddress = "bidadi 562109"; // default
-
-      // Check if it's hotel order
-      if (cartItems && cartItems.length > 0 && cartItems[0].hotelId) {
-        // Fetch hotel address
-        try {
-          const hotelRef = doc(db, "hotels", cartItems[0].hotelId);
-          const hotelSnap = await getDoc(hotelRef);
-          if (hotelSnap.exists()) {
-            const hotelData = hotelSnap.data();
-            originAddress = `${hotelData.address}, ${hotelData.city}, ${hotelData.state}, ${hotelData.pinCode}`;
-          }
-        } catch (error) {
-          console.error("Error fetching hotel:", error);
-        }
-      }
-
-      await fetchDeliveryPrice(originAddress, destinationAddress);
-    };
-
-    calculateDelivery();
-  }, [addresses, cartItems, routeSelectedAddress]);
-
   // 🔹 Open UPI payment app
   const handleContinue = async (row) => {
     const PAYEE_NAME = "Product";
-    const upiUrl = `upi://pay?pa=${row.upi}&pn=${PAYEE_NAME}&tn=OrderPayment&am=${Number(total) + Number(deliveryCharge)}&cu=INR`;
+    const upiUrl = `upi://pay?pa=${row.upi}&pn=${PAYEE_NAME}&tn=OrderPayment&am=${Number(total)}&cu=INR`;
 
     try {
       const supported = await Linking.canOpenURL(upiUrl);
@@ -214,11 +104,6 @@ const PaymentSelectionScreen = ({ navigation, route }) => {
   };
 
   const payNow = () => {
-    if (deliveryLoading) {
-      Alert.alert("Please wait", "Calculating delivery charge...");
-      return;
-    }
-
     if (selectedUPI) {
       handleContinue(selectedUPI);
     } else {
@@ -278,9 +163,7 @@ ${orderData.items?.[0]?.hotelName ? `🏨 *HOTEL:* ${orderData.items[0].hotelNam
 📦 *ITEMS*
 ${itemsText}
 ──────────────────
-💰 *SUBTOTAL*          ₹${subtotal}
-🚚 *DELIVERY*          ₹${orderData.deliveryCharge || 0}
-💵 *TOTAL*             ₹${subtotal + (orderData.deliveryCharge || 0)}
+💰 *TOTAL*             ₹${subtotal}
 💳 ${orderData.paymentMethod}
 🔢 UTR: ${orderData.utrNumber || "N/A"}
 ━━━━━━━━━━━━━━━━━━
@@ -345,8 +228,7 @@ ${itemsText}
           ...i,
           qty: i.quantity || i.qty || 1   // ✅ normalize here
         })),
-        total: Number(total) + Number(deliveryCharge),
-        deliveryCharge: Number(deliveryCharge),
+        total: Number(total),
         paymentMethod,
         utrNumber: paymentMethod === "Online Payment" ? utrNumber.trim() : null,
         utrNumberLower:
@@ -481,12 +363,12 @@ ${itemsText}
       </ScrollView>
 
       {/* --- Bottom Buttons --- */}
-      {paymentMethod === "Online Payment" && !paymentDone && !deliveryLoading && (
+      {paymentMethod === "Online Payment" && !paymentDone && (
         <View style={styles.bottomContainer}>
           <Text style={styles.totalText}>
-            Total: ₹{total} + ₹{deliveryCharge} = ₹{Number(total) + Number(deliveryCharge)}
+            Total: ₹{total}
           </Text>
-          <TouchableOpacity style={styles.confirmButton} onPress={payNow} disabled={deliveryLoading}>
+          <TouchableOpacity style={styles.confirmButton} onPress={payNow}>
             <Text style={styles.confirmButtonText}>Pay Now</Text>
           </TouchableOpacity>
         </View>
@@ -501,10 +383,10 @@ ${itemsText}
         >
           <View>
             <Text style={styles.totalMain}>
-              ₹{Number(total) + Number(deliveryCharge)}
+              ₹{total}
             </Text>
             <Text style={styles.subText}>
-              Including delivery charges
+              Order total
             </Text>
           </View>
 
@@ -522,19 +404,12 @@ ${itemsText}
               <Text>₹{total}</Text>
             </View>
 
-            <View style={styles.rowBetween}>
-              <Text>Delivery Fee</Text>
-              <Text>
-                {deliveryLoading ? "Calculating..." : `₹${deliveryCharge}`}
-              </Text>
-            </View>
-
             <View style={styles.separator} />
 
             <View style={styles.rowBetween}>
               <Text style={styles.bold}>To Pay</Text>
               <Text style={styles.bold}>
-                ₹{Number(total) + Number(deliveryCharge)}
+                ₹{total}
               </Text>
             </View>
 
@@ -542,12 +417,12 @@ ${itemsText}
         )}
       </View>
 
-      {paymentDone && !deliveryLoading && (
+      {paymentDone && (
         <View style={styles.bottomContainer}>
           <TouchableOpacity
             style={styles.confirmButton}
             onPress={handleConfirmOrder}
-            disabled={loading || deliveryLoading}
+            disabled={loading}
           >
             <Text style={styles.confirmButtonText}>
               {loading ? "Saving Order..." : "Submit UTR & Confirm Order"}
@@ -556,9 +431,9 @@ ${itemsText}
         </View>
       )}
 
-      {paymentMethod === "Cash on Delivery" && !deliveryLoading && (
+      {paymentMethod === "Cash on Delivery" && (
         <View style={styles.bottomContainer}>
-          <Text style={styles.totalText}>Total: ₹{Number(total) + Number(deliveryCharge)}</Text>
+          <Text style={styles.totalText}>Total: ₹{total}</Text>
           <TouchableOpacity
             style={styles.confirmButton}
             onPress={handleConfirmOrder}

@@ -56,6 +56,9 @@ const orderTypeData = [
   { label: "Chicken/Fish Orders", value: "chickenFishOrders" },
   { label: "Construction Orders", value: "constructionOrders" },
   { label: "Food Orders", value: "foodOrders" },
+  { label: "Civic Assist", value: "civicBookings" },
+  { label: "ManPower Bookings", value: "manpowerBookings" },
+  { label: "Service Bookings", value: "serviceBookings" },
 ];
 
 const UpdateOrders = ({ navigation }) => {
@@ -174,6 +177,12 @@ const UpdateOrders = ({ navigation }) => {
         return "hammer"; // ✅
         case "foodOrders":
   return "fast-food-outline";
+        case "civicBookings":
+          return "shield-checkmark-outline";
+        case "manpowerBookings":
+          return "briefcase-outline";
+        case "serviceBookings":
+          return "construct-outline";
       default:
         return "document-text-outline";
     }
@@ -207,6 +216,20 @@ const UpdateOrders = ({ navigation }) => {
     )}&destination=${encodeURIComponent(destination)}`;
 
     Linking.openURL(url);
+  };
+
+  const formatAddress = (address) => {
+    if (!address) return "No address";
+    if (typeof address === "string") return address;
+
+    return [
+      address.address,
+      address.city,
+      address.state,
+      address.pinCode,
+    ]
+      .filter(Boolean)
+      .join(", ") || "No address";
   };
 
   // 🔹 Render order card (Updated for new styles)
@@ -256,6 +279,12 @@ const UpdateOrders = ({ navigation }) => {
                         ? "Chicken/Fish Order"
                         : orderType === "constructionOrders"
                           ? "Construction Order"
+                          : orderType === "civicBookings"
+                            ? "Civic Assist Booking"
+                            : orderType === "manpowerBookings"
+                              ? "ManPower Booking"
+                              : orderType === "serviceBookings"
+                                ? "Service Booking"
                           : "Order"}
                 </Text>
               </View>
@@ -298,9 +327,34 @@ const UpdateOrders = ({ navigation }) => {
           <View style={styles.priceRow}>
             <Text style={styles.totalLabel}>Total Value</Text>
             <Text style={styles.totalValue}>
-              ₹{item.total || item.fare || "N/A"}
+              {orderType === "civicBookings" ||
+              orderType === "manpowerBookings" ||
+              orderType === "serviceBookings"
+                ? "Booking"
+                : `₹${item.total || item.fare || "N/A"}`}
             </Text>
           </View>
+
+
+          {(orderType === "civicBookings" ||
+            orderType === "manpowerBookings" ||
+            orderType === "serviceBookings") && (
+            <View style={styles.routeBox}>
+              <Text style={[styles.routeText, { fontWeight: "700" }]}>
+                {orderType === "civicBookings"
+                  ? `🏛️ ${item.civicType || "Civic Assist"}`
+                  : orderType === "manpowerBookings"
+                    ? `🧰 ${item.manPowerType || "ManPower"}`
+                    : `🛠️ ${item.serviceType || "Service"}`}
+              </Text>
+              <Text style={styles.routeSubText}>
+                📍 {formatAddress(item.address)}
+              </Text>
+              <Text style={styles.routeSubText}>
+                📝 {item.description || "No description"}
+              </Text>
+            </View>
+          )}
 
 
           {/* ===== LOCATION ===== */}

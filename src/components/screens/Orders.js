@@ -15,51 +15,169 @@ import { getUserId } from "../../utils/authUtils";
 import { Dropdown } from "react-native-element-dropdown";
 
 const orderTypeData = [
-  // { label: "Products", value: "orders" },
-  // { label: "Box Delivery", value: "boxDelivery" },
-  // { label: "Chicken/Fish", value: "chickenFishOrders" },
-  { label: "Enquiries", value: "constructionOrders" },
-  // { label: "Food Orders", value: "foodOrders" },
+  { label: "Construction Orders", value: "constructionOrders" },
+  { label: "Civic Assist", value: "civicBookings" },
+  { label: "ManPower Bookings", value: "manpowerBookings" },
+  { label: "Service Bookings", value: "serviceBookings" },
 ];
 
 const Orders = ({ navigation }) => {
-
-  const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("product");
+  const [orderType, setOrderType] = useState("constructionOrders");
+  const [orders, setOrders] = useState([]);
   const [usersMap, setUsersMap] = useState({});
 
-  const [orderType, setOrderType] = useState("orders"); // default = products
-  const [orders, setOrders] = useState([]);
+  /* ---------------------------------------------------
+     SAFE VALUE HELPER
+  --------------------------------------------------- */
 
+  const safeText = (value, fallback = "") => {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
 
-  /* ---------------- FETCH DATA ---------------- */
+    if (typeof value === "string" || typeof value === "number") {
+      return String(value);
+    }
+
+    if (typeof value === "boolean") {
+      return value ? "Yes" : "No";
+    }
+
+    // Firestore Timestamp
+    if (value?.toDate instanceof Function) {
+      return value.toDate().toLocaleString();
+    }
+
+    // Object / array
+    if (typeof value === "object") {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return fallback;
+      }
+    }
+
+    return String(value);
+  };
+
+  /* ---------------------------------------------------
+     FORMAT DATE
+  --------------------------------------------------- */
+
+  const formatDate = (createdAt) => {
+    if (!createdAt) {
+      return "Processing...";
+    }
+
+    try {
+      if (createdAt?.toDate instanceof Function) {
+        return createdAt.toDate().toLocaleString();
+      }
+
+      if (createdAt instanceof Date) {
+        return createdAt.toLocaleString();
+      }
+
+      return safeText(createdAt, "Processing...");
+    } catch (error) {
+      console.log("Date formatting error:", error);
+      return "Processing...";
+    }
+  };
+
+  /* ---------------------------------------------------
+     FORMAT ADDRESS
+  --------------------------------------------------- */
+
+  const formatAddress = (address) => {
+    if (!address) {
+      return "No Address";
+    }
+
+    // Address is already a string
+    if (typeof address === "string") {
+      return address;
+    }
+
+    // Address is an object
+    if (typeof address === "object") {
+      const parts = [
+        address.address,
+        address.city,
+        address.state,
+        address.pinCode,
+        address.pincode,
+        address.zipCode,
+      ]
+        .map((value) => {
+          if (
+            value !== null &&
+            value !== undefined &&
+            typeof value !== "object"
+          ) {
+            return String(value);
+          }
+
+          return "";
+        })
+        .filter(Boolean);
+
+      return parts.length > 0 ? parts.join(", ") : "No Address";
+    }
+
+    return safeText(address, "No Address");
+  };
+
+  /* ---------------------------------------------------
+     FETCH DATA
+  --------------------------------------------------- */
 
   const fetchData = async (collectionName, setter) => {
-    console.log("Fetching", collectionName);
-    console.log(setter)
     try {
+      console.log("Fetching:", collectionName);
+
       setLoading(true);
+
       const uid = await getUserId();
-      if (!uid) return;
+
+      if (!uid) {
+        console.log("No user ID found");
+        setter([]);
+        return;
+      }
 
       const q = query(
         collection(db, collectionName),
         orderBy("createdAt", "desc")
       );
+
       const snapshot = await getDocs(q);
 
       const list = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
         .filter((item) => item.userId === uid);
 
+      console.log(
+        `Fetched ${list.length} ${collectionName} records for user:`,
+        uid
+      );
+
       setter(list);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(`Error fetching ${collectionName}:`, error);
+      setter([]);
     } finally {
       setLoading(false);
     }
   };
+
+  /* ---------------------------------------------------
+     FETCH USERS
+  --------------------------------------------------- */
 
   const fetchUsers = async () => {
     try {
@@ -69,140 +187,328 @@ const Orders = ({ navigation }) => {
 
       snap.forEach((doc) => {
         const data = doc.data();
+
         map[doc.id] = {
-          name: data.fullName || data.name || "Customer",
-          phone: data.phone || data.mobileNumber || "",
+          name: safeText(
+            data.fullName || data.name,
+            "Customer"
+          ),
+          phone: safeText(
+            data.phone || data.mobileNumber,
+            "No Phone"
+          ),
         };
       });
 
       setUsersMap(map);
-    } catch (e) {
-      console.log("User fetch error", e);
+    } catch (error) {
+      console.log("User fetch error:", error);
     }
   };
 
+  /* ---------------------------------------------------
+     EFFECT
+  --------------------------------------------------- */
 
   useEffect(() => {
     fetchUsers();
     fetchData(orderType, setOrders);
   }, [orderType]);
 
-  /* ---------------- HELPERS ---------------- */
+  /* ---------------------------------------------------
+     STATUS BADGE
+  --------------------------------------------------- */
 
-  const StatusBadge = ({ status }) => (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: status === "completed" ? "#4CAF50" : "#FF9800" },
-      ]}
-    >
-      <Text style={styles.badgeText}>{status}</Text>
-    </View>
-  );
+  const StatusBadge = ({ status }) => {
+    const statusText = safeText(status, "pending");
+
+    return (
+      <View
+        style={[
+          styles.badge,
+          {
+            backgroundColor:
+              statusText.toLowerCase() === "completed"
+                ? "#4CAF50"
+                : "#FF9800",
+          },
+        ]}
+      >
+        <Text style={styles.badgeText}>{statusText}</Text>
+      </View>
+    );
+  };
+
+  /* ---------------------------------------------------
+     EMPTY STATE
+  --------------------------------------------------- */
 
   const EmptyState = ({ text }) => (
     <View style={styles.empty}>
-      <Icon name="clipboard-text-outline" size={60} color="#ccc" />
+      <Icon
+        name="clipboard-text-outline"
+        size={60}
+        color="#ccc"
+      />
+
       <Text style={styles.noOrders}>{text}</Text>
     </View>
   );
 
-  /* ---------------- CARDS ---------------- */
+  /* ---------------------------------------------------
+     CARD WRAPPER
+  --------------------------------------------------- */
 
   const CardWrapper = ({ children }) => (
     <View style={styles.card}>
       <View style={styles.leftStrip} />
-      <View style={{ flex: 1 }}>{children}</View>
+
+      <View style={{ flex: 1 }}>
+        {children}
+      </View>
     </View>
   );
 
-  const renderOrder = ({ item }) => (
-    <TouchableOpacity
-      onPress={() => navigation.navigate("OrderDetails", { order: item })}
-    >
-      <CardWrapper>
-        <Text style={styles.id}>Order #{item.id.slice(0, 8)}</Text>
+  /* ---------------------------------------------------
+     RENDER ORDER
+  --------------------------------------------------- */
 
-        {/* ✅ CUSTOMER INFO FROM address OBJECT */}
-        <Text style={styles.sub}>
-          👤 {item.address?.fullName || "Customer"}
-        </Text>
-        <Text style={styles.sub}>
-          📞 {item.address?.mobileNumber || "No Phone"}
-        </Text>
+  const renderOrder = ({ item }) => {
+    console.log(
+      "Rendering order:",
+      item.id,
+      "Type:",
+      orderType
+    );
 
-        <Text style={styles.amount}>₹ {item.total}</Text>
-        <Text style={styles.sub}>Payment: {item.paymentMethod}</Text>
+    /* ================================================
+       MANPOWER
+    ================================================= */
 
-        <StatusBadge status={item.status} />
-
-        <Text style={styles.sub}>
-          {item.address?.address}, {item.address?.city}
-        </Text>
-
-        <Text style={styles.date}>
-          {item.createdAt?.toDate?.().toLocaleString()}
-        </Text>
-      </CardWrapper>
-    </TouchableOpacity>
-  );
-
-  const renderDelivery = ({ item }) => {
-    const customer = usersMap[item.userId];
-
-    return (
-      <TouchableOpacity
-        // onPress={() => navigation.navigate("OrderDetails", { order: item })}
-      >
+    if (orderType === "manpowerBookings") {
+      return (
         <CardWrapper>
-          <Text style={styles.id}>Delivery #{item.id.slice(0, 8)}</Text>
-
-          <Text style={styles.sub}>
-            👤 {customer?.name || "Customer"}
+          <Text style={styles.id}>
+            ManPower Booking #{item.id?.slice(0, 8)}
           </Text>
 
           <Text style={styles.sub}>
-            📞 {customer?.phone || "No Phone"}
+            👤 {safeText(item.name, "Customer")}
           </Text>
 
-          <Text style={styles.amount}>₹ {item.fare}</Text>
+          <Text style={styles.sub}>
+            📞 {safeText(item.phoneNumber, "No Phone")}
+          </Text>
 
-          <Text style={styles.sub}>Payment: {item.paymentMethod}</Text>
+          <Text style={styles.sub}>
+            🧰 Service:{" "}
+            {safeText(item.manPowerType, "ManPower")}
+          </Text>
+
+          <Text style={styles.sub}>
+            📍 {formatAddress(item.address)}
+          </Text>
+
+          <Text style={styles.sub}>
+            📝 {safeText(item.description, "No Description")}
+          </Text>
 
           <StatusBadge status={item.status} />
 
-          <Text style={styles.sub}>📍 Pickup: {item.pickupName}</Text>
-          <Text style={styles.sub}>🏁 Drop: {item.destinationName}</Text>
+          <Text style={styles.date}>
+            {formatDate(item.createdAt)}
+          </Text>
+        </CardWrapper>
+      );
+    }
+
+    /* ================================================
+       SERVICE BOOKINGS
+    ================================================= */
+
+    if (orderType === "serviceBookings") {
+      return (
+        <CardWrapper>
+          <Text style={styles.id}>
+            Service Booking #{item.id?.slice(0, 8)}
+          </Text>
 
           <Text style={styles.sub}>
-            {item.distance} km • {item.duration}
+            👤 {safeText(item.name, "Customer")}
+          </Text>
+
+          <Text style={styles.sub}>
+            📞 {safeText(item.phoneNumber, "No Phone")}
+          </Text>
+
+          <Text style={styles.sub}>
+            🛠️ Service:{" "}
+            {safeText(item.serviceType, "Service")}
+          </Text>
+
+          <Text style={styles.sub}>
+            📍 {formatAddress(item.address)}
+          </Text>
+
+          <Text style={styles.sub}>
+            📝 {safeText(item.description, "No Description")}
+          </Text>
+
+          <StatusBadge status={item.status} />
+
+          <Text style={styles.date}>
+            {formatDate(item.createdAt)}
+          </Text>
+        </CardWrapper>
+      );
+    }
+
+    /* ================================================
+       CIVIC ASSIST
+    ================================================= */
+
+    if (orderType === "civicBookings") {
+      return (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() =>
+            navigation.navigate("CivicBookingDetails", {
+              booking: item,
+            })
+          }
+        >
+          <CardWrapper>
+            <Text style={styles.id}>
+              Civic Assist #{item.id?.slice(0, 8)}
+            </Text>
+
+            <Text style={styles.sub}>
+              👤 {safeText(item.name, "Customer")}
+            </Text>
+
+            <Text style={styles.sub}>
+              📞 {safeText(
+                item.phoneNumber || item.mobileNumber,
+                "No Phone"
+              )}
+            </Text>
+
+            <Text style={styles.sub}>
+              🏛️ Service:{" "}
+              {safeText(
+                item.civicType,
+                "Civic Assist"
+              )}
+            </Text>
+
+            {/* City */}
+            {item.city && (
+              <Text style={styles.sub}>
+                🏙️ City: {safeText(item.city)}
+              </Text>
+            )}
+
+            <Text style={styles.sub}>
+              📍 {formatAddress(item.address)}
+            </Text>
+
+            <Text style={styles.sub}>
+              📝 {safeText(
+                item.description,
+                "No Description"
+              )}
+            </Text>
+
+            <StatusBadge status={item.status} />
+
+            <Text style={styles.date}>
+              {formatDate(item.createdAt)}
+            </Text>
+          </CardWrapper>
+        </TouchableOpacity>
+      );
+    }
+
+    /* ================================================
+       CONSTRUCTION / PRODUCT ORDER
+    ================================================= */
+
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() =>
+          navigation.navigate("OrderDetails", {
+            order: item,
+          })
+        }
+      >
+        <CardWrapper>
+          <Text style={styles.id}>
+            Order #{item.id?.slice(0, 8)}
+          </Text>
+
+          <Text style={styles.sub}>
+            👤{" "}
+            {safeText(
+              item.address?.fullName,
+              "Customer"
+            )}
+          </Text>
+
+          <Text style={styles.sub}>
+            📞{" "}
+            {safeText(
+              item.address?.mobileNumber,
+              "No Phone"
+            )}
+          </Text>
+
+          <Text style={styles.amount}>
+            ₹ {safeText(item.total, "0")}
+          </Text>
+
+          <Text style={styles.sub}>
+            Payment:{" "}
+            {safeText(
+              item.paymentMethod,
+              "Not Available"
+            )}
+          </Text>
+
+          <StatusBadge status={item.status} />
+
+          <Text style={styles.sub}>
+            📍 {formatAddress(item.address)}
           </Text>
 
           <Text style={styles.date}>
-            {item.createdAt?.toDate?.().toLocaleString()}
+            {formatDate(item.createdAt)}
           </Text>
         </CardWrapper>
       </TouchableOpacity>
     );
   };
 
-  /* ---------------- UI ---------------- */
+  /* ---------------------------------------------------
+     UI
+  --------------------------------------------------- */
 
   return (
     <View style={styles.container}>
-      <Header title="My Orders" navigation={navigation} />
-      <View style={{ flex: 1, padding: 16 }}>
-        {/* Segmented Tabs */}
+      <Header
+        title="My Orders"
+        navigation={navigation}
+      />
+
+      <View
+        style={{
+          flex: 1,
+          padding: 16,
+        }}
+      >
         <View style={{ marginBottom: 15 }}>
           <Dropdown
-            style={{
-              height: 50,
-              borderWidth: 1,
-              borderColor: "#ccc",
-              borderRadius: 10,
-              paddingHorizontal: 10,
-              backgroundColor: "#fff",
-            }}
+            style={styles.dropdown}
             data={orderTypeData}
             labelField="label"
             valueField="value"
@@ -215,20 +521,31 @@ const Orders = ({ navigation }) => {
         </View>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
-        ) : orders.length ? (
+          <ActivityIndicator
+            size="large"
+            color="#007AFF"
+            style={{ marginTop: 40 }}
+          />
+        ) : orders.length > 0 ? (
           <FlatList
             data={orders}
-            renderItem={({ item }) =>
-              orderType === "boxDelivery"
-                ? renderDelivery({ item })
-                : renderOrder({ item })
+            renderItem={renderOrder}
+            keyExtractor={(item) =>
+              item.id
             }
-            keyExtractor={(item) => item.id}
-            ListFooterComponent={<View style={{ height: 150 }} />}
+            showsVerticalScrollIndicator={false}
+            ListFooterComponent={
+              <View style={{ height: 150 }} />
+            }
           />
         ) : (
-          <EmptyState text={`No ${orderType} orders yet`} />
+          <EmptyState
+            text={`No ${
+              orderTypeData.find(
+                (x) => x.value === orderType
+              )?.label || "orders"
+            } yet`}
+          />
         )}
       </View>
     </View>
@@ -237,7 +554,9 @@ const Orders = ({ navigation }) => {
 
 export default Orders;
 
-/* ---------------- STYLES ---------------- */
+/* ---------------------------------------------------
+   STYLES
+--------------------------------------------------- */
 
 const styles = StyleSheet.create({
   container: {
@@ -245,26 +564,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#f4f6f8",
   },
 
-  tabs: {
-    flexDirection: "row",
-    backgroundColor: "#e0e0e0",
-    borderRadius: 12,
-    marginBottom: 15,
+  dropdown: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    backgroundColor: "#fff",
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  tabActive: {
-    backgroundColor: "#007AFF",
-    borderRadius: 12,
-  },
-  tabText: { color: "#666", fontWeight: "600" },
-  tabTextActive: { color: "#fff" },
 
   card: {
     flexDirection: "row",
@@ -273,27 +580,68 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     padding: 14,
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
+
   leftStrip: {
     width: 4,
     backgroundColor: "#007AFF",
     borderRadius: 4,
     marginRight: 12,
   },
-  id: { color: "#888", fontSize: 13 },
-  amount: { fontSize: 18, fontWeight: "700", marginVertical: 4 },
-  sub: { fontSize: 14, color: "#555", marginTop: 2 },
-  date: { fontSize: 12, color: "#999", marginTop: 6 },
+
+  id: {
+    color: "#888",
+    fontSize: 13,
+    marginBottom: 5,
+  },
+
+  amount: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginVertical: 4,
+  },
+
+  sub: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 4,
+  },
+
+  date: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 8,
+  },
 
   badge: {
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
-    marginVertical: 6,
+    marginVertical: 8,
   },
-  badgeText: { color: "#fff", fontSize: 12, fontWeight: "600" },
 
-  empty: { alignItems: "center", marginTop: 60 },
-  noOrders: { fontSize: 16, color: "#777", marginTop: 10 },
+  badgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  empty: {
+    alignItems: "center",
+    marginTop: 60,
+  },
+
+  noOrders: {
+    fontSize: 16,
+    color: "#777",
+    marginTop: 10,
+  },
 });

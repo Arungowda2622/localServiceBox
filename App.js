@@ -69,6 +69,8 @@ import HomeRent from "./src/components/ourServices/HomeRent";
 import HomeRentDetails from "./src/components/ourServices/HomeRentDetails";
 import Properties from "./src/components/properties/Properties";
 import AddProperties from "./src/components/adminScreens/properties/AddProperties";
+import AddCivicAssist from "./src/components/adminScreens/AddCivicAssist";
+import CivicAssist from "./src/components/civicAssist/CivicAssist";
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -129,6 +131,8 @@ function MainStack() {
       <Stack.Screen name="HomeRentDetails" component={HomeRentDetails} />
       <Stack.Screen name="Properties" component={Properties} />
       <Stack.Screen name="AddProperties" component={AddProperties} />
+      <Stack.Screen name="AddCivicAssist" component={AddCivicAssist} />
+      <Stack.Screen name="CivicAssist" component={CivicAssist} />
 
     </Stack.Navigator>
   );

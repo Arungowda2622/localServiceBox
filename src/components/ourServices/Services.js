@@ -13,8 +13,14 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import Header from "../header/Header";
-import { collection, onSnapshot } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  onSnapshot,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
+import { waitForAuthUser } from "../../utils/authUtils";
 
 const Services = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -26,6 +32,7 @@ const Services = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
 const [filteredServices, setFilteredServices] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -55,9 +62,45 @@ setLoading(false);
     return unsubscribe;
   }, []);
 
-  const submitForm = () => {
-    if (!name || !phoneNumber || !serviceType || !description || !address) {
+  const submitForm = async () => {
+    if (isSubmitting) return;
+
+    if (
+      !name.trim() ||
+      !phoneNumber.trim() ||
+      !serviceType ||
+      !description.trim() ||
+      !address.trim()
+    ) {
       Alert.alert("Required", "Please fill all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const user = await waitForAuthUser();
+
+      if (!user) {
+        Alert.alert("Error", "Unable to get your account. Please try again.");
+        return;
+      }
+
+      await addDoc(collection(db, "serviceBookings"), {
+        userId: user.uid,
+        name: name.trim(),
+        phoneNumber: phoneNumber.trim(),
+        serviceType,
+        description: description.trim(),
+        address: address.trim(),
+        status: "pending",
+        submittedVia: "whatsapp",
+        createdAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.log("Service booking error:", error);
+      Alert.alert("Error", "Unable to save your request. Please try again.");
+      setIsSubmitting(false);
       return;
     }
 
@@ -80,6 +123,8 @@ setLoading(false);
     Linking.openURL(url).catch(() =>
       Alert.alert("Error", "WhatsApp is not installed")
     );
+
+    setIsSubmitting(false);
   };
 
   const handleSearch = text => {
@@ -233,11 +278,15 @@ setLoading(false);
             <TouchableOpacity
               style={styles.submitBtn}
               onPress={submitForm}
+              disabled={isSubmitting}
             >
-              <Icon name="whatsapp" size={22} color="#fff" />
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Icon name="whatsapp" size={22} color="#fff" />
+              )}
               <Text style={styles.submitText}>
-                {" "}
-                Send via WhatsApp
+                {isSubmitting ? " Saving..." : " Send via WhatsApp"}
               </Text>
             </TouchableOpacity>
           </View>

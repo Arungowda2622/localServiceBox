@@ -104,7 +104,13 @@ const Home = ({ navigation }) => {
       color: colors.gradientOcean,
       onPress: () => navigation.navigate("AddProperties"),
     },
-    ];
+    {
+      title: "Civic Assist",
+      icon: "shield-checkmark-outline",
+      color: colors.gradientSky,
+      onPress: () => navigation.navigate("AddCivicAssist"),
+    },
+  ];
 
   return (
     <View style={styles.main}>

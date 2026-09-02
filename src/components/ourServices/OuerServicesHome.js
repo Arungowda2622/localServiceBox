@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   FlatList,
   Image,
   Pressable,
@@ -18,235 +17,267 @@ const OuerServicesHome = ({ navigation }) => {
   const [fullName, setFullName] = useState("");
   const [fetching, setFetching] = useState(true);
 
-  useEffect(() => {
-          const fetchUser = async () => {
-              try {
-                  const stored = await AsyncStorage.getItem("user");
-                  if (stored) {
-                      const parsed = JSON.parse(stored);
-                      console.log(parsed.userData, "thisIsUserData")
-                      if (parsed?.userData) {
-                          setFullName(parsed.userData.fullName || "");
-                      }
-                  }
-                 
-              } catch (e) {
-                  console.log("Profile fetch error:", e);
-              } finally {
-                  setFetching(false);
-              }
-          };
-  
-          fetchUser();
-      }, []);
+  // ================= USER =================
 
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("user");
+
+        if (stored) {
+          const parsed = JSON.parse(stored);
+
+          console.log(parsed?.userData, "thisIsUserData");
+
+          if (parsed?.userData) {
+            setFullName(parsed.userData.fullName || "");
+          }
+        }
+      } catch (e) {
+        console.log("Profile fetch error:", e);
+      } finally {
+        setFetching(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  // ================= SERVICES =================
 
   const services = [
-    // {
-    //   id: 1,
-    //   serviceName: "Bike Taxi",
-    //   title: "BikeTaxi",
-    //   subtitle: "Book now",
-    //   icon: "🛵",
-    //   colors: ["#36D1DC", "#5B86E5"],
-    // },
     {
       id: 1,
       serviceName: "Man Power",
       title: "ManPower",
       subtitle: "Book now",
       icon: "🛵",
-      colors: ["#36D1DC", "#5B86E5"],
+      image: require("../../../assets/manPower.jpeg"),
     },
-    // {
-    //   id: 2,
-    //   serviceName: "Box Delivery",
-    //   title: "BoxDelivery",
-    //   subtitle: "Send anything",
-    //   icon: "📦",
-    //   colors: ["#FF512F", "#DD2476"],
-    // },
+
     {
       id: 2,
       serviceName: "Home Rent",
       title: "HomeRent",
       subtitle: "Find your perfect home",
       icon: "🏠",
-      colors: ["#FF512F", "#DD2476"],
     },
+
     {
       id: 3,
       serviceName: "Services",
       title: "Services",
       subtitle: "Other",
       icon: "🚗",
-      colors: ["#8E2DE2", "#4A00E0"],
+      image: require("../../../assets/otherServices.jpeg"),
     },
-    // {
-    //   id: 4,
-    //   serviceName: "Product",
-    //   title: "Product",
-    //   subtitle: "Get products",
-    //   icon: "🛒",
-    //   colors: ["#11998E", "#38EF7D"],
-    // },
-    // {
-    //   id: 5,
-    //   serviceName: "Chicken & Fish",
-    //   title: "ChickenFish",
-    //   subtitle: "Order now",
-    //   icon: "🍗",
-    //   colors: ["#FF9A00", "#FF5F6D"],
-    // },
+
     {
       id: 6,
       serviceName: "Construction Materials",
       title: "Construction",
       subtitle: "Get services",
       icon: "🏗️",
-      colors: ["#36D1DC", "#5B86E5"],
+      image: require("../../../assets/constructionImage.jpeg"),
     },
+
     {
       id: 7,
+      serviceName: "Civic Assist",
+      title: "CivicAssist",
+      subtitle: "Get civic assistance",
+      icon: "🏛️",
+    },
+
+    {
+      id: 8,
       serviceName: "Nearby Properties",
       title: "Properties",
       subtitle: "Find now",
       icon: "🏘️",
-      colors: ["#FF9A00", "#FF5F6D"],
-      fullWidth: true,
     },
-    // {
-    //   id: 7,
-    //   serviceName: "Foods & Beverages",
-    //   title: "FoodsBeverages",
-    //   subtitle: "Order now",
-    //   icon: "🍔",
-    //   colors: ["#FF9A00", "#FF5F6D"],
-    //   fullWidth: true,
-    // },
   ];
 
+  // ================= NAVIGATION =================
+
   const handleSelectedService = (item) => {
-    if(item.title === "FoodsBeverages"){
+    if (item.title === "FoodsBeverages") {
       return navigation.navigate("HotelList");
     }
-    navigation.navigate(item.title, { data: item });
+
+    navigation.navigate(item.title, {
+      data: item,
+    });
   };
 
+  // ================= FILTER =================
+
+  const filteredServices = services.filter((item) =>
+    item.serviceName
+      .toLowerCase()
+      .includes(searchText.toLowerCase())
+  );
+
+  // ================= RENDER CARD =================
+
   const renderOurServices = ({ item, index }) => {
-    const isEven = index % 2 === 0;
+    /*
+     * If total number of services is odd,
+     * only the LAST item becomes full width.
+     *
+     * Example:
+     * 5 items → item index 4 = full width
+     * 6 items → no full width item
+     */
+    const isLastItem = index === filteredServices.length - 1;
+
+    const isOddNumber = filteredServices.length % 2 !== 0;
+
+    const isFullWidth = isOddNumber && isLastItem;
 
     return (
       <View
         style={[
           styles.serviceItem,
-          item.fullWidth
-            ? styles.fullWidthItem
-            : isEven
-              ? styles.leftItem
-              : styles.rightItem,
+          isFullWidth && styles.fullWidthItem,
         ]}
       >
         <Pressable
-          style={({ pressed }) => [
-            { transform: [{ scale: pressed ? 0.96 : 1 }] },
-          ]}
           onPress={() => handleSelectedService(item)}
+          style={({ pressed }) => [
+            styles.pressable,
+            {
+              transform: [
+                {
+                  scale: pressed ? 0.96 : 1,
+                },
+              ],
+            },
+          ]}
         >
           <View style={styles.card}>
-            {item.title === "Services" ? (
+
+            {/* IMAGE / ICON */}
+
+            {item.image ? (
               <Image
-                source={require("../../../assets/otherServices.jpeg")}
+                source={item.image}
                 style={styles.image}
-                resizeMode="stretch"
-              />
-            ) : item.title === "ManPower" ? (
-              <Image
-                source={require("../../../assets/manPower.jpeg")}
-                style={styles.image}
-                resizeMode="stretch"
-              />
-            ) : item.title === "ChickenFish" ? (
-              <Image
-                source={require("../../../assets/chickenFish.jpeg")}
-                style={styles.image}
-                resizeMode="stretch"
-              />
-            ) : item.title === "Construction" ? (
-              <Image
-                source={require("../../../assets/constructionImage.jpeg")}
-                style={styles.image}
-                resizeMode="stretch"
+                resizeMode="cover"
               />
             ) : (
               <View style={styles.iconWrapper}>
-                <Text style={styles.icon}>{item.icon}</Text>
+                <Text style={styles.icon}>
+                  {item.icon}
+                </Text>
               </View>
             )}
 
-            <Text style={styles.cardTitle} numberOfLines={2}>
+            {/* TITLE */}
+
+            <Text
+              style={styles.cardTitle}
+              numberOfLines={2}
+            >
               {item.serviceName}
             </Text>
 
-            <Text style={styles.cardSub}>{item.subtitle}</Text>
+            {/* SUBTITLE */}
+
+            <Text style={styles.cardSub}>
+              {item.subtitle}
+            </Text>
           </View>
         </Pressable>
       </View>
     );
   };
 
-  const filteredServices = services.filter((item) =>
-    item.serviceName.toLowerCase().includes(searchText.toLowerCase())
-  );
-
+  // ================= UI =================
 
   return (
-    <LinearGradient colors={["#EEF2F3", "#D9E4F5"]} style={styles.safeArea}>
-      {/* Decorative Background */}
+    <LinearGradient
+      colors={["#EEF2F3", "#D9E4F5"]}
+      style={styles.safeArea}
+    >
+
+      {/* Background Decorations */}
+
       <View style={styles.bgCircleOne} />
       <View style={styles.bgCircleTwo} />
 
       <View style={styles.container}>
-        {/* <Text style={styles.sectionLabel}>Our Services</Text> */}
+
+        {/* ================= HEADER ================= */}
 
         <View style={styles.header}>
-          <Text style={styles.greeting}>👋 Hello {fullName || "there"}!</Text>
-          <Text style={styles.subText}>What do you need today?</Text>
+
+          <Text style={styles.greeting}>
+            👋 Hello {fullName || "there"}!
+          </Text>
+
+          <Text style={styles.subText}>
+            What do you need today?
+          </Text>
+
+          {/* SEARCH */}
 
           <View style={styles.searchBox}>
             <TextInput
               placeholder="🔍 Search services..."
+              placeholderTextColor="#888"
               value={searchText}
               onChangeText={setSearchText}
+              style={styles.searchInput}
             />
           </View>
+
         </View>
+
+        {/* ================= SERVICES ================= */}
 
         <FlatList
           data={filteredServices}
           renderItem={renderOurServices}
           keyExtractor={(item) => item.id.toString()}
           numColumns={2}
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
-          ListFooterComponent={<View style={{ height: 100 }} />}
+          columnWrapperStyle={styles.columnWrapper}
+
           ListEmptyComponent={
-            <Text style={{ textAlign: "center", marginTop: 20 }}>
-              No services found 😔
-            </Text>
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                No services found 😔
+              </Text>
+            </View>
+          }
+
+          ListFooterComponent={
+            <View style={{ height: 100 }} />
           }
         />
+
       </View>
 
+      {/* ================= FOOTER ================= */}
+
       <Footer navigation={navigation} />
+
     </LinearGradient>
   );
 };
 
 export default OuerServicesHome;
 
-/* ================= STYLES ================= */
+// ======================================================
+// STYLES
+// ======================================================
 
 const styles = StyleSheet.create({
+
+  // ================= BACKGROUND =================
+
   safeArea: {
     flex: 1,
   },
@@ -260,6 +291,7 @@ const styles = StyleSheet.create({
     borderRadius: 130,
     backgroundColor: "rgba(54, 209, 220, 0.25)",
   },
+
   bgCircleTwo: {
     position: "absolute",
     bottom: 120,
@@ -270,115 +302,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(91, 134, 229, 0.25)",
   },
 
+  // ================= CONTAINER =================
+
   container: {
     flex: 1,
     paddingTop: 40,
     paddingHorizontal: 16,
   },
 
-  sectionLabel: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: "#1C1C1E",
-    marginBottom: 20,
-    textAlign: "center",
-  },
+  // ================= HEADER =================
 
-  listContent: {
-    paddingBottom: 120,
-  },
-
-  serviceItem: {
-    width: "50%",
-    paddingHorizontal: 6,
-    marginBottom: 12,
-  },
-
-  leftItem: {
-    paddingRight: 8,
-  },
-
-  rightItem: {
-    paddingLeft: 8,
-  },
-
-  fullWidthItem: {
-    width: "100%",
-    paddingHorizontal: 8,
-  },
-
-
-
-  fullWidthCard: {
-    height: 135,
-    borderRadius: 26,
-    paddingHorizontal: 22,
-    justifyContent: "center",
-  },
-
-  cardContent: {
-    flex: 1,
-    justifyContent: "space-between",
-  },
-
-  fullWidthContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  iconWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
-    elevation: 6,
-  },
-
-  icon: {
-    fontSize: 32,
-  },
-
-  textBlock: {
-    marginTop: 10,
-    flexShrink: 1,
-  },
-
-  fullWidthText: {
-    marginLeft: 18,
-  },
-
-  subtitle: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.85)",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-
-  title: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    flexWrap: "wrap",
-  },
-
-  shineOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "45%",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-  },
   header: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
 
   greeting: {
@@ -389,50 +324,164 @@ const styles = StyleSheet.create({
 
   subText: {
     color: "#777",
+    fontSize: 14,
     marginTop: 4,
   },
 
+  // ================= SEARCH =================
+
   searchBox: {
     marginTop: 15,
-    backgroundColor: "#f1f3f6",
-    paddingHorizontal: 12,
-    paddingVertical:5,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
     borderRadius: 15,
+
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowRadius: 6,
+
+    elevation: 3,
   },
 
+  searchInput: {
+    height: 45,
+    fontSize: 14,
+    color: "#222",
+  },
+
+  // ================= LIST =================
+
+  listContent: {
+    paddingBottom: 20,
+  },
+
+  columnWrapper: {
+    justifyContent: "space-between",
+  },
+
+  // ================= NORMAL CARD =================
+
+  serviceItem: {
+    width: "48%",
+    marginBottom: 14,
+  },
+
+  // ================= FULL WIDTH LAST CARD =================
+
+  fullWidthItem: {
+    width: "100%",
+  },
+
+  pressable: {
+    width: "100%",
+  },
+
+  // ================= CARD =================
+
   card: {
-    width: "100%",   // 🔥 important
-    height: 180,     // 🔥 fixed height (same for all)
-    backgroundColor: "#fff",
-    marginVertical: 8,
-    borderRadius: 16,
+    width: "100%",
+    height: 175,
+
+    backgroundColor: "#FFFFFF",
+
+    borderRadius: 18,
+
     padding: 12,
+
     alignItems: "center",
     justifyContent: "center",
 
     shadowColor: "#000",
     shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
+
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+
     shadowRadius: 8,
+
     elevation: 4,
   },
 
+  // ================= IMAGE =================
+
   image: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 72,
+    height: 72,
+
+    borderRadius: 36,
+
     marginBottom: 10,
   },
 
+  // ================= ICON =================
+
+  iconWrapper: {
+    width: 72,
+    height: 72,
+
+    borderRadius: 36,
+
+    backgroundColor: "#F5F7FA",
+
+    justifyContent: "center",
+    alignItems: "center",
+
+    marginBottom: 10,
+
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+
+    shadowRadius: 5,
+
+    elevation: 3,
+  },
+
+  icon: {
+    fontSize: 34,
+  },
+
+  // ================= CARD TEXT =================
+
   cardTitle: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "800",
+    color: "#222",
+
     textAlign: "center",
+
+    minHeight: 38,
   },
 
   cardSub: {
     fontSize: 12,
     color: "#888",
-    marginTop: 4,
+
+    marginTop: 3,
+
+    textAlign: "center",
+  },
+
+  // ================= EMPTY =================
+
+  emptyContainer: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: 30,
+  },
+
+  emptyText: {
+    color: "#777",
+    fontSize: 14,
   },
 });

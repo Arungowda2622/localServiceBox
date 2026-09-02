@@ -22,36 +22,40 @@ import {
 import { db } from "../firebase/firebaseConfig";
 import { waitForAuthUser } from "../../utils/authUtils";
 
-const ManPower = ({ navigation }) => {
+const CivicAssist = ({ navigation }) => {
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [manPowerType, setManPowerType] = useState(null);
+  const [civicType, setCivicType] = useState(null);
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
-  const [manPowerData, setManPowerData] = useState([]);
+
+  const [civicData, setCivicData] = useState([]);
+  const [filteredCivicData, setFilteredCivicData] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
-  const [filteredManPowerData, setFilteredManPowerData] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /* ================= FETCH CIVIC TYPES ================= */
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
-      collection(db, "manpower_types"),
-      snapshot => {
+      collection(db, "civic_assist"),
+      (snapshot) => {
         const list = [];
 
-        snapshot.forEach(doc => {
+        snapshot.forEach((doc) => {
           list.push({
             label: doc.data().name,
             value: doc.data().name,
           });
         });
 
-        setManPowerData(list);
-        setFilteredManPowerData(list);
+        setCivicData(list);
+        setFilteredCivicData(list);
         setLoading(false);
       },
-      error => {
+      (error) => {
         console.log("Firestore Error:", error);
         setLoading(false);
       }
@@ -60,94 +64,142 @@ const ManPower = ({ navigation }) => {
     return unsubscribe;
   }, []);
 
-  const submitForm = async () => {
-    if (isSubmitting) return;
+  /* ================= SEARCH ================= */
 
-    if (
-      !name.trim() ||
-      !phoneNumber.trim() ||
-      !manPowerType ||
-      !description.trim() ||
-      !address.trim()
-    ) {
-      Alert.alert("Required", "Please fill all required fields");
+  const handleSearch = (text) => {
+    setSearchText(text);
+
+    if (!text.trim()) {
+      setFilteredCivicData(civicData);
       return;
     }
 
-    setIsSubmitting(true);
+    const filtered = civicData.filter((item) =>
+      item.label.toLowerCase().includes(text.toLowerCase())
+    );
 
-    try {
-      const user = await waitForAuthUser();
-
-      if (!user) {
-        Alert.alert("Error", "Unable to get your account. Please try again.");
-        return;
-      }
-
-      await addDoc(collection(db, "manpowerBookings"), {
-        userId: user.uid,
-        name: name.trim(),
-        phoneNumber: phoneNumber.trim(),
-        manPowerType,
-        description: description.trim(),
-        address: address.trim(),
-        status: "pending",
-        submittedVia: "whatsapp",
-        createdAt: serverTimestamp(),
-      });
-
-      const whatsappNumber = "916362775151";
-      const message = `ManPower Request\n\nName: ${name}\nPhone: ${phoneNumber}\nManPower Type: ${manPowerType}\nAddress: ${address}\nDescription: ${description}`;
-      const url = `whatsapp://send?phone=${whatsappNumber}&text=${encodeURIComponent(
-        message
-      )}`;
-
-      Linking.openURL(url).catch(() =>
-        Alert.alert("Error", "WhatsApp is not installed")
-      );
-    } catch (error) {
-      console.log("ManPower booking error:", error);
-      Alert.alert("Error", "Unable to save your request. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    setFilteredCivicData(filtered);
   };
 
-  const renderManPower = ({ item }) => (
+  /* ================= SUBMIT ================= */
+
+ const submitForm = async () => {
+  if (isSubmitting) return;
+
+  if (
+    !name.trim() ||
+    !phoneNumber.trim() ||
+    !civicType ||
+    !description.trim() ||
+    !address.trim()
+  ) {
+    Alert.alert("Required", "Please fill all required fields");
+    return;
+  }
+
+  setIsSubmitting(true);
+
+  try {
+    const user = await waitForAuthUser();
+
+    if (!user) {
+      Alert.alert(
+        "Error",
+        "Unable to get your account. Please try again."
+      );
+      return;
+    }
+
+    // ================= SAVE TO FIRESTORE =================
+
+    await addDoc(collection(db, "civicBookings"), {
+      userId: user.uid,
+
+      name: name.trim(),
+
+      phoneNumber: phoneNumber.trim(),
+
+      civicType: civicType,
+
+      description: description.trim(),
+
+      address: address.trim(),
+
+      status: "pending",
+
+      submittedVia: "whatsapp",
+
+      createdAt: serverTimestamp(),
+    });
+
+    // ================= WHATSAPP =================
+
+    const whatsappNumber = "916362775151";
+
+    const message = `
+🏛️ *Civic Assist Request*
+
+👤 Name: ${name}
+📞 Phone: ${phoneNumber}
+📌 Service: ${civicType}
+📍 Address: ${address}
+
+📝 Description:
+${description}
+`;
+
+    const url = `whatsapp://send?phone=${whatsappNumber}&text=${encodeURIComponent(
+      message
+    )}`;
+
+    Linking.openURL(url).catch(() =>
+      Alert.alert(
+        "Error",
+        "WhatsApp is not installed"
+      )
+    );
+
+  } catch (error) {
+    console.log(
+      "Civic Assist booking error:",
+      error
+    );
+
+    Alert.alert(
+      "Error",
+      "Unable to save your request. Please try again."
+    );
+
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+  /* ================= CARD ================= */
+
+  const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.itemCard}
-      onPress={() => setManPowerType(item.value)}
+      onPress={() => setCivicType(item.value)}
     >
+      <Icon name="shield-check-outline" size={24} color="#007AFF" />
       <Text style={styles.itemTitle}>{item.label}</Text>
     </TouchableOpacity>
   );
 
-  const handleSearch = text => {
-    setSearchText(text);
-
-    if (!text.trim()) {
-      setFilteredManPowerData(manPowerData);
-      return;
-    }
-
-    const filtered = manPowerData.filter(item =>
-      item.label.toLowerCase().includes(text.toLowerCase())
-    );
-
-    setFilteredManPowerData(filtered);
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f6f8" }}>
-      <Header title="ManPower" navigation={navigation} />
+      <Header title="Civic Assist" navigation={navigation} />
 
-      {!manPowerType && (
+      {/* SERVICE LIST */}
+
+      {!civicType && (
         <>
           {loading ? (
             <View style={styles.loaderContainer}>
               <ActivityIndicator size="large" color="#007AFF" />
               <Text style={styles.loaderText}>
-                Loading manpower types...
+                Loading civic services...
               </Text>
             </View>
           ) : (
@@ -162,7 +214,7 @@ const ManPower = ({ navigation }) => {
 
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Search manpower type..."
+                  placeholder="Search civic service..."
                   placeholderTextColor="#999"
                   value={searchText}
                   onChangeText={handleSearch}
@@ -172,7 +224,7 @@ const ManPower = ({ navigation }) => {
                   <TouchableOpacity
                     onPress={() => {
                       setSearchText("");
-                      setFilteredManPowerData(manPowerData);
+                      setFilteredCivicData(civicData);
                     }}
                   >
                     <Icon
@@ -185,18 +237,16 @@ const ManPower = ({ navigation }) => {
               </View>
 
               <FlatList
-                data={filteredManPowerData}
+                data={filteredCivicData}
                 keyExtractor={(item, index) =>
                   `${item.value}-${index}`
                 }
-                renderItem={renderManPower}
-                contentContainerStyle={{
-                  paddingVertical: 10,
-                }}
+                renderItem={renderItem}
+                contentContainerStyle={{ paddingVertical: 10 }}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
                   <Text style={styles.emptyText}>
-                    No manpower types found
+                    No civic services found
                   </Text>
                 }
               />
@@ -205,24 +255,26 @@ const ManPower = ({ navigation }) => {
         </>
       )}
 
-      {manPowerType && (
+      {/* FORM */}
+
+      {civicType && (
         <>
           <TouchableOpacity
             style={{ padding: 16 }}
             onPress={() => {
-              setManPowerType(null);
+              setCivicType(null);
               setSearchText("");
-              setFilteredManPowerData(manPowerData);
+              setFilteredCivicData(civicData);
             }}
           >
             <Text style={{ color: "#007AFF", fontWeight: "600" }}>
-              ← Back to Types
+              ← Back to Services
             </Text>
           </TouchableOpacity>
 
           <ScrollView contentContainerStyle={styles.container}>
             <View style={styles.card}>
-              <Text style={styles.title}>ManPower Details</Text>
+              <Text style={styles.title}>Civic Assist Details</Text>
 
               <Input
                 icon="account"
@@ -240,8 +292,8 @@ const ManPower = ({ navigation }) => {
               />
 
               <Input
-                icon="briefcase"
-                value={manPowerType}
+                icon="shield-check-outline"
+                value={civicType}
                 editable={false}
               />
 
@@ -256,7 +308,7 @@ const ManPower = ({ navigation }) => {
 
               <Input
                 icon="text"
-                placeholder="Work Description *"
+                placeholder="Describe your issue *"
                 multiline
                 value={description}
                 onChangeText={setDescription}
@@ -285,7 +337,7 @@ const ManPower = ({ navigation }) => {
   );
 };
 
-export default ManPower;
+export default CivicAssist;
 
 /* ---------------- Reusable Input ---------------- */
 
@@ -303,26 +355,40 @@ const Input = ({ icon, height = 50, ...props }) => (
 /* ---------------- Styles ---------------- */
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-  },
+  container: { padding: 16 },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 14,
     padding: 16,
     elevation: 4,
   },
+
   title: {
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 16,
     textAlign: "center",
   },
+
+  itemCard: {
+    backgroundColor: "#fff",
+    padding: 18,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+    elevation: 2,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
   itemTitle: {
+    marginLeft: 12,
     fontSize: 16,
     fontWeight: "600",
     color: "#000",
   },
+
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -333,11 +399,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: "#fafafa",
   },
+
   input: {
     flex: 1,
     marginLeft: 10,
     color: "#000",
   },
+
   submitBtn: {
     backgroundColor: "#25D366",
     padding: 15,
@@ -347,35 +415,32 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 20,
   },
+
   submitText: {
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
   },
-  itemCard: {
-    backgroundColor: "#fff",
-    padding: 20,
-    marginVertical: 10,
-    marginHorizontal: 16,
-    borderRadius: 10,
-    elevation: 2,
-  },
+
   loaderContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
+
   loaderText: {
     marginTop: 10,
-    fontSize: 16,
     color: "#666",
+    fontSize: 16,
   },
+
   emptyText: {
     textAlign: "center",
     marginTop: 40,
-    fontSize: 16,
     color: "#666",
+    fontSize: 16,
   },
+
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",

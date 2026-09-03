@@ -57,14 +57,6 @@ const OuerServicesHome = ({ navigation }) => {
 
     {
       id: 2,
-      serviceName: "Home Rent",
-      title: "HomeRent",
-      subtitle: "Find your perfect home",
-      icon: "🏠",
-    },
-
-    {
-      id: 3,
       serviceName: "Services",
       title: "Services",
       subtitle: "Other",
@@ -73,7 +65,7 @@ const OuerServicesHome = ({ navigation }) => {
     },
 
     {
-      id: 6,
+      id: 3,
       serviceName: "Construction Materials",
       title: "Construction",
       subtitle: "Get services",
@@ -82,7 +74,7 @@ const OuerServicesHome = ({ navigation }) => {
     },
 
     {
-      id: 7,
+      id: 4,
       serviceName: "Civic Assist",
       title: "CivicAssist",
       subtitle: "Get civic assistance",
@@ -90,7 +82,7 @@ const OuerServicesHome = ({ navigation }) => {
     },
 
     {
-      id: 8,
+      id: 5,
       serviceName: "Nearby Properties",
       title: "Properties",
       subtitle: "Find now",
